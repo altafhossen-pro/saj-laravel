@@ -552,6 +552,8 @@
 
     <x-frontend.category-drawer />
 
+    <x-frontend.floating-whatsapp />
+
     <script>
         document.addEventListener('alpine:init', () => {
             Alpine.store('cart', {
