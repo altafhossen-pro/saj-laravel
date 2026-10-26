@@ -19,8 +19,8 @@
        class="relative flex items-center justify-center cursor-pointer transition-transform duration-300 active:scale-95 group-hover:scale-105"
        aria-label="Chat with {{ $siteName }} on WhatsApp">
         
-        <!-- Ambient Animated Glow Pulse Ring -->
-        <span class="absolute inset-0 rounded-full bg-[#25D366] opacity-40 animate-ping pointer-events-none"></span>
+        <!-- Ambient Animated Slow Glow Pulse Ring -->
+        <span class="absolute inset-0 rounded-full bg-[#25D366] opacity-35 pointer-events-none" style="animation: ping 2.8s cubic-bezier(0, 0, 0.2, 1) infinite;"></span>
 
         <!-- Floating Desktop Hover Tooltip / Badge -->
         <div class="hidden sm:flex items-center gap-2 absolute right-full mr-3.5 px-3.5 py-1.5 bg-gray-900/90 backdrop-blur-sm text-white text-xs font-semibold rounded-full shadow-lg opacity-0 translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-300 pointer-events-none whitespace-nowrap">
