@@ -1,0 +1,65 @@
+name: Deploy to cPanel Production
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install Node Dependencies
+        run: npm ci
+
+      - name: Build Frontend Assets (Vite)
+        run: npm run build
+
+      - name: Deploy Built Assets to Server
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: 22
+          source: "public/build"
+          target: "/home/ariomart/saj.bd"
+
+      - name: Execute Remote Deploy Commands
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: 22
+          script: |
+            cd /home/ariomart/saj.bd
+            
+            # Ensure safe directory in git
+            git config --global --add safe.directory /home/ariomart/saj.bd
+
+            # Pull latest changes from main branch
+            git pull origin main
+
+            # Smart Database Migration (runs only if new migration files exist)
+            php artisan migrate --force
+
+            # Optimize cache for maximum production performance
+            php artisan optimize:clear
+            php artisan config:cache
+            php artisan route:cache
+            php artisan view:cache
+
+            # Ensure storage permissions remain healthy
+            chmod -R 775 storage bootstrap/cache
