@@ -550,6 +550,8 @@
 
     <x-cart-drawer />
 
+    <x-frontend.category-drawer />
+
     <script>
         document.addEventListener('alpine:init', () => {
             Alpine.store('cart', {

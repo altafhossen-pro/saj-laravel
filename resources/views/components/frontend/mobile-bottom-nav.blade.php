@@ -8,7 +8,7 @@
 <div class="sm:hidden fixed bottom-0 left-0 right-0 bg-white rounded-t-3xl shadow-[0_-10px_40px_rgba(0,0,0,0.08)] z-50 px-2 h-[64px] flex items-center justify-between" style="padding-bottom: env(safe-area-inset-bottom);">
     
     <!-- Category -->
-    <button @click="sidebarOpen = true" class="relative w-1/4 h-full flex flex-col items-center justify-center text-gray-500 hover:text-brand-600">
+    <button @click="$dispatch('open-category-drawer')" class="relative w-1/4 h-full flex flex-col items-center justify-center text-gray-500 hover:text-brand-600 cursor-pointer">
         <i class="ph ph-squares-four text-[22px] mb-1"></i>
         <span class="text-[10px] font-medium">Category</span>
     </button>
