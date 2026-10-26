@@ -1,0 +1,26 @@
+@import "tailwindcss";
+
+@theme {
+    --font-sans: 'Inter', 'Hind Siliguri', ui-sans-serif, system-ui, sans-serif;
+    --font-bangla: 'Hind Siliguri', 'Inter', sans-serif;
+    
+    --color-brand-50: var(--color-pink-50);
+    --color-brand-100: var(--color-pink-100);
+    --color-brand-200: var(--color-pink-200);
+    --color-brand-300: var(--color-pink-300);
+    --color-brand-400: var(--color-pink-400);
+    --color-brand-500: var(--color-pink-500);
+    --color-brand-600: var(--color-pink-600);
+    --color-brand-700: var(--color-pink-700);
+    --color-brand-800: var(--color-pink-800);
+    --color-brand-900: var(--color-pink-900);
+    --color-brand-950: var(--color-pink-950);
+}
+
+@layer utilities {
+    .custom-scrollbar::-webkit-scrollbar { width: 4px; height: 4px; }
+    .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+    .custom-scrollbar::-webkit-scrollbar-thumb { background: #e5e7eb; border-radius: 4px; }
+    .custom-scrollbar:hover::-webkit-scrollbar-thumb { background: #d1d5db; }
+}
+

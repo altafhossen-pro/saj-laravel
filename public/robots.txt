@@ -1,0 +1,15 @@
+User-agent: *
+Disallow: /admin/
+Disallow: /dashboard/
+Disallow: /checkout
+Disallow: /checkout/
+Disallow: /api/
+Disallow: /login
+Disallow: /register
+Disallow: /logout
+
+# Crawl-delay for optimal server resources
+Crawl-delay: 1
+
+# Google Search Console XML Sitemap
+Sitemap: https://sajbd.com/sitemap.xml
