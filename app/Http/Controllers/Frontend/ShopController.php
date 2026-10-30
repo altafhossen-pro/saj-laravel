@@ -103,7 +103,7 @@ class ShopController extends Controller
 
         // Intelligently log user search query (even when user only types and doesn't submit or gets no results)
         // Deduplicate within 20 seconds so rapid typing doesn't create duplicate logs for the same user
-        if (strlen($query) >= 2) {
+        if (strlen($query) >= 2 && !$this->isBotOrTemplateQuery($query, $request)) {
             try {
                 $dedupKey = 's_logged_' . md5(strtolower($query) . '_' . ($request->ip() ?? ''));
                 if (!\Illuminate\Support\Facades\Cache::has($dedupKey)) {
@@ -137,21 +137,26 @@ class ShopController extends Controller
         $searchQuery = trim($request->input('q', ''));
         
         // Log direct search action (Button press / Enter key)
-        if (strlen($searchQuery) > 0) {
+        if (strlen($searchQuery) > 0 && !$this->isBotOrTemplateQuery($searchQuery, $request)) {
             try {
-                \App\Models\SearchLog::create([
-                    'query' => mb_substr($searchQuery, 0, 255),
-                    'source' => 'direct',
-                    'clicked_product_id' => null,
-                    'user_id' => auth()->id(),
-                    'ip_address' => $request->ip(),
-                ]);
-            } catch (\Throwable $e) {}
+                $dedupKey = 's_logged_' . md5(strtolower($searchQuery) . '_' . ($request->ip() ?? ''));
+                if (!\Illuminate\Support\Facades\Cache::has($dedupKey)) {
+                    \Illuminate\Support\Facades\Cache::put($dedupKey, 1, 20); // 20s deduplication across search & live search
 
-            // Meta CAPI Search Track
-            try {
-                \App\Services\FacebookCapiService::trackSearch($searchQuery);
-            } catch (\Throwable $fbEx) {}
+                    \App\Models\SearchLog::create([
+                        'query' => mb_substr($searchQuery, 0, 255),
+                        'source' => 'direct',
+                        'clicked_product_id' => null,
+                        'user_id' => auth()->id(),
+                        'ip_address' => $request->ip(),
+                    ]);
+
+                    // Meta CAPI Search Track
+                    try {
+                        \App\Services\FacebookCapiService::trackSearch($searchQuery);
+                    } catch (\Throwable $fbEx) {}
+                }
+            } catch (\Throwable $e) {}
         }
 
         $query = Product::where('is_active', true)
@@ -233,5 +238,37 @@ class ShopController extends Controller
         }
 
         return response()->json(['status' => 'ok']);
+    }
+
+    /**
+     * Check if query is from a known crawler/bot or JSON-LD schema template string
+     */
+    protected function isBotOrTemplateQuery(string $query, Request $request): bool
+    {
+        $normalized = strtolower(trim($query));
+        
+        // Filter out Schema.org / SEO template placeholders
+        if ($normalized === '{search_term_string}' || 
+            str_contains($normalized, '{search_term_string}') ||
+            $normalized === 'undefined' ||
+            $normalized === 'null') {
+            return true;
+        }
+
+        // Filter out common web crawlers and search engine bots
+        $userAgent = strtolower($request->header('User-Agent') ?? '');
+        $bots = [
+            'googlebot', 'bingbot', 'slurp', 'duckduckbot', 'baiduspider',
+            'yandexbot', 'sogou', 'exabot', 'facebot', 'facebookexternalhit',
+            'ia_archiver', 'semrushbot', 'ahrefsbot', 'mj12bot', 'bytespider'
+        ];
+
+        foreach ($bots as $bot) {
+            if (str_contains($userAgent, $bot)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

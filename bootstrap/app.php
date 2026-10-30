@@ -21,6 +21,11 @@ return Application::configure(basePath: dirname(__DIR__))
             \App\Http\Middleware\CheckBlockedIp::class,
         ]);
 
+        $middleware->validateCsrfTokens(except: [
+            'api/visitor/pulse',
+            'api/visitor/offer/*',
+        ]);
+
         $middleware->redirectUsersTo(function () {
             if (auth()->check() && auth()->user()->hasRole('super_admin')) {
                 return route('admin.dashboard');

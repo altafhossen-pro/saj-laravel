@@ -94,6 +94,9 @@ class VisitorAnalyticsService
                         'title' => $item['title'] ?? 'Storefront',
                         'device' => $item['device'] ?? 'Desktop',
                         'ip' => $item['ip'] ?? '',
+                        'is_engaged' => !empty($item['is_engaged']),
+                        'is_visible' => isset($item['is_visible']) ? (bool)$item['is_visible'] : true,
+                        'scroll_percent' => (int)($item['scroll_percent'] ?? 0),
                         'seconds_ago' => max(0, $diff),
                         'duration' => isset($item['first_seen']) ? max(0, $now - (int)$item['first_seen']) : 0,
                         'history' => isset($item['history']) && is_array($item['history']) ? $item['history'] : [
@@ -118,6 +121,8 @@ class VisitorAnalyticsService
                         'title' => 'Storefront',
                         'device' => 'Desktop',
                         'ip' => '',
+                        'is_engaged' => false,
+                        'is_visible' => true,
                         'seconds_ago' => max(0, $diff),
                         'duration' => 0,
                         'history' => [],

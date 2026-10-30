@@ -48,10 +48,11 @@ class ProductController extends Controller
             ->limit(10)
             ->get()
             ->map(function ($product) {
+                $firstVariant = $product->variants->first();
                 return [
                     'id' => $product->id,
                     'title' => $product->title,
-                    'sku' => null,
+                    'sku' => $firstVariant ? $firstVariant->sku : null,
                     'product_type' => $product->product_type,
                     'featured_image' => $product->featured_image,
                     'current_price' => $product->base_price, // map to expected field

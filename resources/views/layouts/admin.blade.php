@@ -23,6 +23,10 @@
     <!-- Chart.js for High Performance Analytics -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
+    <style>
+        [x-cloak] { display: none !important; }
+    </style>
+
     @stack('styles')
 </head>
 
@@ -82,10 +86,28 @@
                         Coupons
                     </x-nav-link>
 
-                    <x-nav-link href="{{ route('admin.carts.index') }}" icon="shopping-cart-simple" theme="light"
-                        :active="request()->routeIs('admin.carts.*')">
-                        Abandoned Carts
-                    </x-nav-link>
+                    <x-nav-dropdown title="Live & Shoppers" icon="footprints" theme="light"
+                        :active="request()->routeIs('admin.visitors.*') || request()->routeIs('admin.carts.*') || request()->routeIs('admin.offer-templates.*')">
+                        <x-nav-link href="{{ route('admin.visitors.live') }}" theme="light" class="!py-2 !text-sm"
+                            :active="request()->routeIs('admin.visitors.live')">
+                            <span class="flex items-center justify-between w-full">
+                                <span>Live Monitor</span>
+                                <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                            </span>
+                        </x-nav-link>
+                        <x-nav-link href="{{ route('admin.visitors.footprint') }}" theme="light" class="!py-2 !text-sm"
+                            :active="request()->routeIs('admin.visitors.footprint')">
+                            Visitor Footprint
+                        </x-nav-link>
+                        <x-nav-link href="{{ route('admin.carts.index') }}" theme="light" class="!py-2 !text-sm"
+                            :active="request()->routeIs('admin.carts.*')">
+                            Abandoned Carts
+                        </x-nav-link>
+                        <x-nav-link href="{{ route('admin.offer-templates.index') }}" theme="light" class="!py-2 !text-sm"
+                            :active="request()->routeIs('admin.offer-templates.*')">
+                            Offer Templates
+                        </x-nav-link>
+                    </x-nav-dropdown>
 
                     <x-nav-dropdown title="Categories" icon="list-dashes" theme="light"
                         :active="request()->routeIs('admin.categories.*')">

@@ -46,6 +46,10 @@ Route::get('/sitemap-products-{page}.xml', [\App\Http\Controllers\Frontend\Sitem
     ->where('page', '[0-9]+')
     ->name('sitemap.products');
 
+// Visitor Activity Tracking Pulse & Offer Response
+Route::post('/api/visitor/pulse', [\App\Http\Controllers\Frontend\VisitorActivityController::class, 'pulse'])->name('api.visitor.pulse');
+Route::post('/api/visitor/offer/{offer}/respond', [\App\Http\Controllers\Frontend\VisitorActivityController::class, 'respondOffer'])->name('api.visitor.offer.respond');
+
 Route::middleware(['auth'])->prefix('dashboard')->group(function () {
     Route::get('/', [\App\Http\Controllers\Frontend\DashboardController::class, 'index'])->name('dashboard');
     Route::get('/my-orders', [\App\Http\Controllers\Frontend\DashboardController::class, 'orders'])->name('dashboard.orders');
@@ -109,7 +113,7 @@ Route::middleware(['auth', 'role:super_admin'])->prefix('admin/dashboard')->grou
     Route::put('/customers/{user}', [\App\Http\Controllers\Admin\CustomerController::class, 'update'])->name('admin.customers.update');
     Route::put('/customers/{user}/password', [\App\Http\Controllers\Admin\CustomerController::class, 'updatePassword'])->name('admin.customers.password.update');
     Route::post('/customers/{user}/login-as', [\App\Http\Controllers\Admin\CustomerController::class, 'loginAs'])->name('admin.customers.login_as');
-    
+
     // Categories
     Route::get('/categories/search', [\App\Http\Controllers\Admin\CategoryController::class, 'search'])->name('admin.categories.search');
     Route::get('/categories', [\App\Http\Controllers\Admin\CategoryController::class, 'index'])->name('admin.categories.index');
@@ -150,6 +154,19 @@ Route::middleware(['auth', 'role:super_admin'])->prefix('admin/dashboard')->grou
     // Abandoned Carts & Cart Activity
     Route::get('/abandoned-carts', [\App\Http\Controllers\Admin\CartAnalyticsController::class, 'index'])->name('admin.carts.index');
     Route::delete('/abandoned-carts/{cart}', [\App\Http\Controllers\Admin\CartAnalyticsController::class, 'destroy'])->name('admin.carts.destroy');
+
+    // Visitor Footprint & Live Monitor Logs
+    Route::get('/live-monitor', [\App\Http\Controllers\Admin\VisitorFootprintController::class, 'live'])->name('admin.visitors.live');
+    Route::get('/visitor-footprint', [\App\Http\Controllers\Admin\VisitorFootprintController::class, 'index'])->name('admin.visitors.footprint');
+    Route::get('/visitor-footprint/{session}/journey', [\App\Http\Controllers\Admin\VisitorFootprintController::class, 'journey'])->name('admin.visitors.journey');
+    Route::post('/visitor/send-offer', [\App\Http\Controllers\Admin\VisitorFootprintController::class, 'sendOffer'])->name('admin.visitors.send-offer');
+    Route::get('/visitor/offers-history', [\App\Http\Controllers\Admin\VisitorFootprintController::class, 'offersHistory'])->name('admin.visitors.offers-history');
+    
+    // Offer Predefined Templates CRUD
+    Route::get('/offer-templates', [\App\Http\Controllers\Admin\OfferTemplateController::class, 'index'])->name('admin.offer-templates.index');
+    Route::post('/offer-templates', [\App\Http\Controllers\Admin\OfferTemplateController::class, 'store'])->name('admin.offer-templates.store');
+    Route::put('/offer-templates/{template}', [\App\Http\Controllers\Admin\OfferTemplateController::class, 'update'])->name('admin.offer-templates.update');
+    Route::delete('/offer-templates/{template}', [\App\Http\Controllers\Admin\OfferTemplateController::class, 'destroy'])->name('admin.offer-templates.destroy');
 
     // Settings
     Route::get('/settings', [\App\Http\Controllers\Admin\SettingController::class, 'index'])->name('admin.settings.index');

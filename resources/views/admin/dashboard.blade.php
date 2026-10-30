@@ -135,7 +135,7 @@
             </div>
 
             <!-- Real-Time Live Shoppers & Visitors Monitor -->
-            <div class="bg-white rounded-2xl shadow-sm border border-gray-100 mb-8 overflow-hidden">
+            <div id="live-monitor" class="bg-white rounded-2xl shadow-sm border border-gray-100 mb-8 overflow-hidden scroll-mt-20">
                 <!-- Header Bar -->
                 <div class="px-6 py-5 border-b border-gray-100 flex flex-col md:flex-row md:items-center justify-between gap-4 bg-gradient-to-r from-white via-emerald-50/20 to-white">
                     <div class="flex items-center gap-3.5">

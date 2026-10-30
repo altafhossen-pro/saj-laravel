@@ -43,6 +43,11 @@ class CartSession extends Model
         return $this->belongsTo(Order::class);
     }
 
+    public function visitorSessions(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(VisitorSession::class, 'visitor_token', 'visitor_token');
+    }
+
     public function scopeActive($query)
     {
         return $query->where('status', 'active');

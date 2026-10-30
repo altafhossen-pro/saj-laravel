@@ -101,6 +101,7 @@ class OrderController extends Controller
                 'quantity' => $item['qty'],
                 'price' => $item['original_price'] ?? $item['price'],
                 'subtotal' => $item['qty'] * ($item['original_price'] ?? $item['price']),
+                'variant_info' => !empty($item['variantLabel']) ? ['label' => $item['variantLabel']] : null,
             ]);
         }
 

@@ -295,6 +295,15 @@
                                         </a>
                                     </template>
 
+                                    <!-- Footprint Link -->
+                                    <template x-if="cart.visitor_token">
+                                        <a :href="'{{ route('admin.visitors.footprint') }}?search=' + encodeURIComponent(cart.visitor_token)"
+                                           class="p-2 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 transition"
+                                           title="View Shopper Footprint / History">
+                                            <i class="ph ph-footprints text-base"></i>
+                                        </a>
+                                    </template>
+
                                     <!-- Phone Call Button -->
                                     <template x-if="cart.customer_phone">
                                         <a :href="'tel:' + cart.customer_phone"

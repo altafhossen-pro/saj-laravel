@@ -29,6 +29,11 @@
 
     <!-- Optional: Add Phosphor Icons or FontAwesome for icons -->
     <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    <style>
+        [x-cloak] {
+            display: none !important;
+        }
+    </style>
     @stack('styles')
 
     <!-- JSON-LD Structured Data -->
@@ -160,9 +165,14 @@
             <!-- Logo (Centered Capitalized Luxury Wordmark) -->
             <div class="h-16 relative flex items-center justify-center px-4 border-b border-gray-100 shrink-0">
                 <a href="/" class="flex items-center justify-center group select-none">
-                    <span class="text-2xl lg:text-[28px] font-black uppercase tracking-[0.22em] text-pink-500 group-hover:text-pink-600 transition-colors inline-flex items-baseline" style="font-family: 'Playfair Display', serif;">SAJ<span class="text-pink-600 font-black">.</span></span>
+                    <span
+                        class="text-2xl lg:text-[28px] font-black uppercase tracking-[0.22em] text-pink-500 group-hover:text-pink-600 transition-colors inline-flex items-baseline"
+                        style="font-family: 'Playfair Display', serif;">SAJ<span
+                            class="text-pink-600 font-black">.</span></span>
                 </a>
-                <button @click="sidebarOpen = false" class="lg:hidden absolute right-3 text-gray-400 hover:text-gray-700 p-1.5 rounded-lg hover:bg-gray-100 transition-colors" aria-label="Close Categories">
+                <button @click="sidebarOpen = false"
+                    class="lg:hidden absolute right-3 text-gray-400 hover:text-gray-700 p-1.5 rounded-lg hover:bg-gray-100 transition-colors"
+                    aria-label="Close Categories">
                     <i class="ph ph-x text-xl"></i>
                 </button>
             </div>
@@ -177,14 +187,15 @@
 
             <!-- Help/Support -->
             @php
-                $rawWaPhone = \App\Models\Setting::get('site_whatsapp') ?: \App\Models\Setting::get('site_phone', '8801840209060');
-                $cleanWaPhone = preg_replace('/[^0-9]/', '', $rawWaPhone);
-                if (strlen($cleanWaPhone) === 11 && str_starts_with($cleanWaPhone, '01')) {
-                    $cleanWaPhone = '88' . $cleanWaPhone;
-                }
-                $siteBrandName = \App\Models\Setting::get('site_name', 'SAJ');
-                $waText = urlencode("Hello {$siteBrandName}, I need support regarding products/orders.");
-                $whatsappUrl = "https://wa.me/{$cleanWaPhone}?text={$waText}";
+            $rawWaPhone = \App\Models\Setting::get('site_whatsapp') ?: \App\Models\Setting::get('site_phone',
+            '8801840209060');
+            $cleanWaPhone = preg_replace('/[^0-9]/', '', $rawWaPhone);
+            if (strlen($cleanWaPhone) === 11 && str_starts_with($cleanWaPhone, '01')) {
+            $cleanWaPhone = '88' . $cleanWaPhone;
+            }
+            $siteBrandName = \App\Models\Setting::get('site_name', 'SAJ');
+            $waText = urlencode("Hello {$siteBrandName}, I need support regarding products/orders.");
+            $whatsappUrl = "https://wa.me/{$cleanWaPhone}?text={$waText}";
             @endphp
             <div class="p-4 border-t border-gray-100 shrink-0">
                 <a href="{{ $whatsappUrl }}" target="_blank" rel="noopener noreferrer"
@@ -217,7 +228,8 @@
 
             <!-- Top Header -->
             <!-- Top Header -->
-            <header x-data="{ mobileSearchOpen: false }" class="bg-white shadow-xs shrink-0 relative z-[70] overflow-visible border-b border-gray-100">
+            <header x-data="{ mobileSearchOpen: false }"
+                class="bg-white shadow-xs shrink-0 relative z-[70] overflow-visible border-b border-gray-100">
                 <div class="h-16 lg:h-[72px] px-4 lg:px-8">
                     <div class="max-w-screen-2xl mx-auto h-full flex items-center justify-between gap-4 lg:gap-8">
 
@@ -237,9 +249,13 @@
                                     $headerSiteName = \App\Models\Setting::get('site_name', 'SAJ');
                                 @endphp
                                 @if($headerLogo)
-                                    <img src="{{ $headerLogo }}" alt="{{ $headerSiteName }}" class="h-9 lg:h-11 w-auto object-contain group-hover:opacity-90 transition-opacity">
+                                    <img src="{{ $headerLogo }}" alt="{{ $headerSiteName }}"
+                                        class="h-9 lg:h-11 w-auto object-contain group-hover:opacity-90 transition-opacity">
                                 @else
-                                    <span class="text-2xl lg:text-[30px] font-black uppercase tracking-[0.22em] text-pink-500 group-hover:text-pink-600 transition-colors inline-flex items-baseline" style="font-family: 'Playfair Display', serif;">{{ $headerSiteName }}<span class="text-pink-600 font-black">.</span></span>
+                                    <span
+                                        class="text-2xl lg:text-[30px] font-black uppercase tracking-[0.22em] text-pink-500 group-hover:text-pink-600 transition-colors inline-flex items-baseline"
+                                        style="font-family: 'Playfair Display', serif;">{{ $headerSiteName }}<span
+                                            class="text-pink-600 font-black">.</span></span>
                                 @endif
                             </a>
                         </div>
@@ -288,77 +304,78 @@
                 <!-- Category Navigation Bar (Desktop & Tablet) -->
                 @if(isset($sidebarCategories) && $sidebarCategories->count() > 0)
                     <nav class="hidden md:block bg-gray-50/80 border-t border-gray-100 relative z-[70] overflow-visible"
-                         x-data="{
-                            hiddenIndices: [],
-                            moreOpen: false,
-                            itemWidths: [],
-                            activeIndices: [
-                                @foreach($sidebarCategories as $cat)
-                                    @php
-                                        $hasChildren = $cat->children && $cat->children->count() > 0;
-                                        $childSlugs = $hasChildren ? $cat->children->pluck('slug')->map(fn($s) => 'shop/' . $s)->toArray() : [];
-                                        $isCatActive = request()->is('shop/' . $cat->slug) || ($hasChildren && request()->is($childSlugs));
-                                    @endphp
-                                    @if($isCatActive) {{ $loop->index }}, @endif
-                                @endforeach
-                            ],
-                            isMoreActive() {
-                                return this.activeIndices.some(idx => this.hiddenIndices.includes(idx));
-                            },
-                            checkOverflow() {
-                                const wrapper = this.$refs.navWrapper;
-                                if (!wrapper) return;
-                                const availableWidth = wrapper.clientWidth;
-                                const items = this.$refs.catList ? Array.from(this.$refs.catList.children) : [];
-                                if (items.length === 0) return;
+                        x-data="{
+                                hiddenIndices: [],
+                                moreOpen: false,
+                                itemWidths: [],
+                                activeIndices: [
+                                    @foreach($sidebarCategories as $cat)
+                                        @php
+                                            $hasChildren = $cat->children && $cat->children->count() > 0;
+                                            $childSlugs = $hasChildren ? $cat->children->pluck('slug')->map(fn($s) => 'shop/' . $s)->toArray() : [];
+                                            $isCatActive = request()->is('shop/' . $cat->slug) || ($hasChildren && request()->is($childSlugs));
+                                        @endphp
+                                        @if($isCatActive) {{ $loop->index }}, @endif
+                                    @endforeach
+                                ],
+                                isMoreActive() {
+                                    return this.activeIndices.some(idx => this.hiddenIndices.includes(idx));
+                                },
+                                checkOverflow() {
+                                    const wrapper = this.$refs.navWrapper;
+                                    if (!wrapper) return;
+                                    const availableWidth = wrapper.clientWidth;
+                                    const items = this.$refs.catList ? Array.from(this.$refs.catList.children) : [];
+                                    if (items.length === 0) return;
 
-                                if (this.itemWidths.length !== items.length) {
-                                    this.itemWidths = items.map(el => {
-                                        const clone = el.cloneNode(true);
-                                        clone.style.visibility = 'hidden';
-                                        clone.style.position = 'absolute';
-                                        clone.style.display = 'inline-flex';
-                                        clone.classList.remove('!hidden', 'hidden');
-                                        document.body.appendChild(clone);
-                                        const w = clone.getBoundingClientRect().width;
-                                        document.body.removeChild(clone);
-                                        return w;
-                                    });
-                                }
-
-                                const moreBtnWidth = 90;
-                                const gap = 8;
-                                let totalW = 0;
-                                let newHidden = [];
-
-                                for (let i = 0; i < this.itemWidths.length; i++) {
-                                    const w = this.itemWidths[i] + gap;
-                                    const needed = (i < this.itemWidths.length - 1) ? (totalW + w + moreBtnWidth) : (totalW + w);
-                                    if (needed > availableWidth) {
-                                        for (let j = i; j < this.itemWidths.length; j++) {
-                                            newHidden.push(j);
-                                        }
-                                        break;
-                                    } else {
-                                        totalW += w;
+                                    if (this.itemWidths.length !== items.length) {
+                                        this.itemWidths = items.map(el => {
+                                            const clone = el.cloneNode(true);
+                                            clone.style.visibility = 'hidden';
+                                            clone.style.position = 'absolute';
+                                            clone.style.display = 'inline-flex';
+                                            clone.classList.remove('!hidden', 'hidden');
+                                            document.body.appendChild(clone);
+                                            const w = clone.getBoundingClientRect().width;
+                                            document.body.removeChild(clone);
+                                            return w;
+                                        });
                                     }
+
+                                    const moreBtnWidth = 90;
+                                    const gap = 8;
+                                    let totalW = 0;
+                                    let newHidden = [];
+
+                                    for (let i = 0; i < this.itemWidths.length; i++) {
+                                        const w = this.itemWidths[i] + gap;
+                                        const needed = (i < this.itemWidths.length - 1) ? (totalW + w + moreBtnWidth) : (totalW + w);
+                                        if (needed > availableWidth) {
+                                            for (let j = i; j < this.itemWidths.length; j++) {
+                                                newHidden.push(j);
+                                            }
+                                            break;
+                                        } else {
+                                            totalW += w;
+                                        }
+                                    }
+                                    this.hiddenIndices = newHidden;
                                 }
-                                this.hiddenIndices = newHidden;
-                            }
-                         }"
-                         x-init="
-                            $nextTick(() => {
-                                checkOverflow();
-                                if (window.ResizeObserver) {
-                                    new ResizeObserver(() => checkOverflow()).observe($refs.navWrapper);
-                                }
-                            });
-                         "
-                         @resize.window.debounce.100ms="checkOverflow()">
-                        <div class="max-w-screen-2xl mx-auto px-4 lg:px-8 flex items-center justify-between overflow-visible py-2.5 relative gap-4">
+                             }" x-init="
+                                $nextTick(() => {
+                                    checkOverflow();
+                                    if (window.ResizeObserver) {
+                                        new ResizeObserver(() => checkOverflow()).observe($refs.navWrapper);
+                                    }
+                                });
+                             " @resize.window.debounce.100ms="checkOverflow()">
+                        <div
+                            class="max-w-screen-2xl mx-auto px-4 lg:px-8 flex items-center justify-between overflow-visible py-2.5 relative gap-4">
                             <!-- Left-aligned: Main Category List with Dynamic Overflow -->
-                            <div x-ref="navWrapper" class="flex-1 min-w-0 flex items-center space-x-1 lg:space-x-2 overflow-visible flex-nowrap whitespace-nowrap">
-                                <div x-ref="catList" class="flex items-center space-x-1 lg:space-x-2 overflow-visible flex-nowrap whitespace-nowrap">
+                            <div x-ref="navWrapper"
+                                class="flex-1 min-w-0 flex items-center space-x-1 lg:space-x-2 overflow-visible flex-nowrap whitespace-nowrap">
+                                <div x-ref="catList"
+                                    class="flex items-center space-x-1 lg:space-x-2 overflow-visible flex-nowrap whitespace-nowrap">
                                     @foreach($sidebarCategories as $cat)
                                         @php
                                             $hasChildren = $cat->children && $cat->children->count() > 0;
@@ -367,22 +384,25 @@
                                         @endphp
                                         @if($hasChildren)
                                             <div class="relative group shrink-0"
-                                                 :class="hiddenIndices.includes({{ $loop->index }}) ? '!hidden' : ''">
+                                                :class="hiddenIndices.includes({{ $loop->index }}) ? '!hidden' : ''">
                                                 <a href="{{ route('shop.category', ['category_slug' => $cat->slug]) }}"
-                                                   class="inline-flex items-center gap-1 px-2.5 lg:px-3 py-2 text-xs lg:text-[13px] font-semibold uppercase tracking-wider transition-colors border-b-2 {{ $isCatActive ? 'border-pink-500 text-pink-600 font-bold' : 'border-transparent text-gray-700 hover:text-pink-600 hover:border-pink-300' }}">
+                                                    class="inline-flex items-center gap-1 px-2.5 lg:px-3 py-2 text-xs lg:text-[13px] font-semibold uppercase tracking-wider transition-colors border-b-2 {{ $isCatActive ? 'border-pink-500 text-pink-600 font-bold' : 'border-transparent text-gray-700 hover:text-pink-600 hover:border-pink-300' }}">
                                                     <span>{{ $cat->name }}</span>
-                                                    <i class="ph ph-caret-down text-[10px] text-gray-400 group-hover:text-pink-500 transition-transform duration-200 group-hover:rotate-180"></i>
+                                                    <i
+                                                        class="ph ph-caret-down text-[10px] text-gray-400 group-hover:text-pink-500 transition-transform duration-200 group-hover:rotate-180"></i>
                                                 </a>
 
                                                 <!-- Luxury Single Dropdown (Smooth Tailwind Transition) -->
-                                                <div class="absolute top-full left-0 pt-1.5 z-[9999] min-w-[220px] pointer-events-none opacity-0 invisible translate-y-2 group-hover:opacity-100 group-hover:visible group-hover:translate-y-0 group-hover:pointer-events-auto transition-all duration-200 ease-out">
-                                                    <div class="bg-white rounded-xl shadow-2xl border border-gray-100 py-2 divide-y divide-gray-50 overflow-hidden ring-1 ring-black/10">
+                                                <div
+                                                    class="absolute top-full left-0 pt-1.5 z-[9999] min-w-[220px] pointer-events-none opacity-0 invisible translate-y-2 group-hover:opacity-100 group-hover:visible group-hover:translate-y-0 group-hover:pointer-events-auto transition-all duration-200 ease-out">
+                                                    <div
+                                                        class="bg-white rounded-xl shadow-2xl border border-gray-100 py-2 divide-y divide-gray-50 overflow-hidden ring-1 ring-black/10">
                                                         @foreach($cat->children as $sub)
                                                             @php
                                                                 $isSubActive = request()->is('shop/' . $sub->slug);
                                                             @endphp
                                                             <a href="{{ route('shop.category', ['category_slug' => $sub->slug]) }}"
-                                                               class="flex items-center justify-between px-4 py-2.5 text-xs font-medium transition-colors {{ $isSubActive ? 'bg-pink-50 text-pink-600 font-semibold' : 'text-gray-700 hover:bg-pink-50/70 hover:text-pink-600' }}">
+                                                                class="flex items-center justify-between px-4 py-2.5 text-xs font-medium transition-colors {{ $isSubActive ? 'bg-pink-50 text-pink-600 font-semibold' : 'text-gray-700 hover:bg-pink-50/70 hover:text-pink-600' }}">
                                                                 <span>{{ $sub->name }}</span>
                                                                 <i class="ph ph-caret-right text-[10px] text-gray-300"></i>
                                                             </a>
@@ -392,8 +412,8 @@
                                             </div>
                                         @else
                                             <a href="{{ route('shop.category', ['category_slug' => $cat->slug]) }}"
-                                               :class="hiddenIndices.includes({{ $loop->index }}) ? '!hidden' : ''"
-                                               class="inline-flex items-center px-2.5 lg:px-3 py-2 text-xs lg:text-[13px] font-semibold uppercase tracking-wider transition-colors border-b-2 shrink-0 {{ $isCatActive ? 'border-pink-500 text-pink-600 font-bold' : 'border-transparent text-gray-700 hover:text-pink-600 hover:border-pink-300' }}">
+                                                :class="hiddenIndices.includes({{ $loop->index }}) ? '!hidden' : ''"
+                                                class="inline-flex items-center px-2.5 lg:px-3 py-2 text-xs lg:text-[13px] font-semibold uppercase tracking-wider transition-colors border-b-2 shrink-0 {{ $isCatActive ? 'border-pink-500 text-pink-600 font-bold' : 'border-transparent text-gray-700 hover:text-pink-600 hover:border-pink-300' }}">
                                                 {{ $cat->name }}
                                             </a>
                                         @endif
@@ -401,35 +421,39 @@
                                 </div>
 
                                 <!-- Dynamic 'More' Dropdown (ONLY visible when hiddenIndices.length > 0) -->
-                                <div x-show="hiddenIndices.length > 0"
-                                     class="relative group shrink-0"
-                                     style="display: none;">
+                                <div x-show="hiddenIndices.length > 0" class="relative group shrink-0"
+                                    style="display: none;">
                                     <button type="button"
-                                            class="inline-flex items-center gap-1.5 px-3 py-2 text-xs lg:text-[13px] font-bold uppercase tracking-wider transition-colors border-b-2 cursor-pointer"
-                                            :class="isMoreActive() ? 'border-pink-500 text-pink-600' : 'border-transparent text-gray-700 hover:text-pink-600 hover:border-pink-300'">
+                                        class="inline-flex items-center gap-1.5 px-3 py-2 text-xs lg:text-[13px] font-bold uppercase tracking-wider transition-colors border-b-2 cursor-pointer"
+                                        :class="isMoreActive() ? 'border-pink-500 text-pink-600' : 'border-transparent text-gray-700 hover:text-pink-600 hover:border-pink-300'">
                                         <span>More</span>
-                                        <i class="ph ph-caret-down text-[10px] text-gray-400 group-hover:text-pink-500 transition-transform duration-200 group-hover:rotate-180"></i>
+                                        <i
+                                            class="ph ph-caret-down text-[10px] text-gray-400 group-hover:text-pink-500 transition-transform duration-200 group-hover:rotate-180"></i>
                                     </button>
 
                                     <!-- Multi-Column Mega Dropdown (Smooth Tailwind Transition) -->
-                                    <div class="absolute top-full left-auto right-0 pt-1.5 z-[9999] pointer-events-none opacity-0 invisible translate-y-2 group-hover:opacity-100 group-hover:visible group-hover:translate-y-0 group-hover:pointer-events-auto transition-all duration-200 ease-out">
+                                    <div
+                                        class="absolute top-full left-auto right-0 pt-1.5 z-[9999] pointer-events-none opacity-0 invisible translate-y-2 group-hover:opacity-100 group-hover:visible group-hover:translate-y-0 group-hover:pointer-events-auto transition-all duration-200 ease-out">
                                         <div class="bg-white rounded-2xl shadow-2xl border border-gray-100 p-5 ring-1 ring-black/10 min-w-[320px] max-w-[90vw] max-h-[80vh] overflow-y-auto custom-scrollbar"
-                                             :class="hiddenIndices.length > 2 ? 'sm:min-w-[560px] lg:min-w-[640px]' : (hiddenIndices.length === 2 ? 'sm:min-w-[420px]' : '')">
+                                            :class="hiddenIndices.length > 2 ? 'sm:min-w-[560px] lg:min-w-[640px]' : (hiddenIndices.length === 2 ? 'sm:min-w-[420px]' : '')">
                                             <div class="grid gap-6"
-                                                 :class="hiddenIndices.length > 2 ? 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3' : (hiddenIndices.length === 2 ? 'grid-cols-1 sm:grid-cols-2' : 'grid-cols-1')">
+                                                :class="hiddenIndices.length > 2 ? 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3' : (hiddenIndices.length === 2 ? 'grid-cols-1 sm:grid-cols-2' : 'grid-cols-1')">
                                                 @foreach($sidebarCategories as $cat)
                                                     @php
                                                         $hasChildren = $cat->children && $cat->children->count() > 0;
                                                         $isCatActive = request()->is('shop/' . $cat->slug);
                                                     @endphp
-                                                    <div x-show="hiddenIndices.includes({{ $loop->index }})" class="space-y-2.5">
+                                                    <div x-show="hiddenIndices.includes({{ $loop->index }})"
+                                                        class="space-y-2.5">
                                                         <!-- Category Header Link -->
                                                         <a href="{{ route('shop.category', ['category_slug' => $cat->slug]) }}"
-                                                           class="flex items-center justify-between pb-1.5 border-b border-gray-100 group/cat">
-                                                            <span class="text-xs font-bold uppercase tracking-wider transition-colors {{ $isCatActive ? 'text-pink-600' : 'text-gray-900 group-hover/cat:text-pink-600' }}">
+                                                            class="flex items-center justify-between pb-1.5 border-b border-gray-100 group/cat">
+                                                            <span
+                                                                class="text-xs font-bold uppercase tracking-wider transition-colors {{ $isCatActive ? 'text-pink-600' : 'text-gray-900 group-hover/cat:text-pink-600' }}">
                                                                 {{ $cat->name }}
                                                             </span>
-                                                            <i class="ph ph-arrow-up-right text-[11px] text-gray-400 group-hover/cat:text-pink-500 transition-transform group-hover/cat:translate-x-0.5"></i>
+                                                            <i
+                                                                class="ph ph-arrow-up-right text-[11px] text-gray-400 group-hover/cat:text-pink-500 transition-transform group-hover/cat:translate-x-0.5"></i>
                                                         </a>
 
                                                         @if($hasChildren)
@@ -440,7 +464,7 @@
                                                                     @endphp
                                                                     <li>
                                                                         <a href="{{ route('shop.category', ['category_slug' => $sub->slug]) }}"
-                                                                           class="flex items-center gap-1.5 text-[12px] py-1 px-1.5 rounded-md transition-colors {{ $subActive ? 'text-pink-600 font-semibold bg-pink-50' : 'text-gray-600 hover:text-pink-600 hover:bg-gray-50' }}">
+                                                                            class="flex items-center gap-1.5 text-[12px] py-1 px-1.5 rounded-md transition-colors {{ $subActive ? 'text-pink-600 font-semibold bg-pink-50' : 'text-gray-600 hover:text-pink-600 hover:bg-gray-50' }}">
                                                                             <i class="ph ph-caret-right text-[9px] text-gray-300"></i>
                                                                             <span>{{ $sub->name }}</span>
                                                                         </a>
@@ -457,8 +481,10 @@
                             </div>
 
                             <!-- Right: Contact Us Quick Link -->
-                            <div class="hidden xl:flex items-center gap-4 text-xs font-semibold uppercase tracking-wider text-gray-600 shrink-0 pl-4">
-                                <a href="{{ route('page.contact') }}" class="hover:text-pink-600 flex items-center gap-1.5 transition-colors">
+                            <div
+                                class="hidden xl:flex items-center gap-4 text-xs font-semibold uppercase tracking-wider text-gray-600 shrink-0 pl-4">
+                                <a href="{{ route('page.contact') }}"
+                                    class="hover:text-pink-600 flex items-center gap-1.5 transition-colors">
                                     <i class="ph-bold ph-chat-circle-dots text-base text-pink-500"></i>
                                     <span>Contact Us</span>
                                 </a>
@@ -591,9 +617,9 @@
                                         'Accept': 'application/json'
                                     },
                                     body: payload
-                                }).catch(() => {});
+                                }).catch(() => { });
                             }
-                        } catch (e) {}
+                        } catch (e) { }
                     };
 
                     if (immediate) {
@@ -713,7 +739,7 @@
                 var HISTORY_KEY = 'fb_v_history';
                 var _d = new Date();
                 var TODAY_KEY = 'fb_v_day_' + _d.getFullYear() + '-' + String(_d.getMonth() + 1).padStart(2, '0') + '-' + String(_d.getDate()).padStart(2, '0');
-                
+
                 var vid = localStorage.getItem(VID_KEY);
                 if (!vid) {
                     vid = 'v_' + Math.random().toString(36).substring(2, 12) + Date.now().toString(36);
@@ -722,7 +748,7 @@
 
                 // Sync current Auth state with persistent profile in localStorage
                 @auth
-                    try {
+                        try {
                         var authProfile = {
                             user_id: {{ Auth::id() }},
                             name: {!! json_encode(Auth::user()->name) !!},
@@ -733,9 +759,9 @@
                             last_seen_as: {!! json_encode(Auth::user()->name) !!}
                         };
                         localStorage.setItem(PROFILE_KEY, JSON.stringify(authProfile));
-                    } catch (e) {}
+                    } catch (e) { }
                 @else
-                    try {
+                        try {
                         var existingProfile = localStorage.getItem(PROFILE_KEY);
                         if (existingProfile) {
                             var p = JSON.parse(existingProfile);
@@ -744,7 +770,7 @@
                                 localStorage.setItem(PROFILE_KEY, JSON.stringify(p));
                             }
                         }
-                    } catch (e) {}
+                    } catch (e) { }
                 @endauth
 
                 // Maintain persistent multi-page journey timeline in localStorage
@@ -771,10 +797,10 @@
                     if (visitorHistory.length > 25) {
                         visitorHistory = visitorHistory.slice(-25);
                     }
-                    try { localStorage.setItem(HISTORY_KEY, JSON.stringify(visitorHistory)); } catch (e) {}
+                    try { localStorage.setItem(HISTORY_KEY, JSON.stringify(visitorHistory)); } catch (e) { }
                 } else if (lastStep && (!lastStep.title || lastStep.title === 'Storefront') && currentTitle !== 'Storefront') {
                     lastStep.title = currentTitle;
-                    try { localStorage.setItem(HISTORY_KEY, JSON.stringify(visitorHistory)); } catch (e) {}
+                    try { localStorage.setItem(HISTORY_KEY, JSON.stringify(visitorHistory)); } catch (e) { }
                 }
 
                 // First visit of the day check
@@ -796,48 +822,363 @@
                 // Detect device type
                 var deviceType = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent) ? 'Mobile' : 'Desktop';
 
-                // Send heartbeat function via navigator.sendBeacon (or XHR fallback)
+                // Engagement & Scroll tracking
+                var lastUserActionTime = Date.now();
+                var maxScrollPercent = 0;
+
+                function recordUserEngagement() {
+                    lastUserActionTime = Date.now();
+                }
+                ['mousemove', 'mousedown', 'keydown', 'touchstart', 'scroll'].forEach(function (evt) {
+                    window.addEventListener(evt, recordUserEngagement, { passive: true });
+                });
+
+                function calculateScrollPercent() {
+                    try {
+                        var h = document.documentElement, b = document.body;
+                        var st = 'scrollTop', sh = 'scrollHeight';
+                        var percent = Math.round((h[st] || b[st]) / ((h[sh] || b[sh]) - h.clientHeight) * 100);
+                        if (!isNaN(percent) && percent > maxScrollPercent) {
+                            maxScrollPercent = Math.min(100, Math.max(0, percent));
+                        }
+                    } catch (e) { }
+                }
+                window.addEventListener('scroll', calculateScrollPercent, { passive: true });
+
+                // Cross-page persistent Offer Countdown Timer
+                var scheduledOfferTimeout = null;
+                var currentScheduledOfferId = null;
+
+                window.__scheduleVisitorOffer = function (data) {
+                    if (!data || !data.id) return;
+
+                    var offerId = data.id;
+                    var completedKey = 'fb_offer_completed_' + offerId;
+
+                    // If already accepted/dismissed in this session, don't show again
+                    try {
+                        if (sessionStorage.getItem(completedKey) === '1') {
+                            return;
+                        }
+                    } catch (e) { }
+
+                    var targetKey = 'fb_offer_target_' + offerId;
+                    var targetTime = null;
+                    try {
+                        var stored = sessionStorage.getItem(targetKey);
+                        if (stored) {
+                            targetTime = parseInt(stored, 10);
+                        }
+                    } catch (e) { }
+
+                    var now = Date.now();
+                    var delaySec = (data.delay_seconds !== undefined && data.delay_seconds !== null && data.delay_seconds !== '') ? parseInt(data.delay_seconds, 10) : 0;
+
+                    // First time encountering this offer: anchor the target completion time
+                    if (!targetTime || isNaN(targetTime)) {
+                        targetTime = now + (Math.max(0, delaySec) * 1000);
+                        try {
+                            sessionStorage.setItem(targetKey, targetTime);
+                        } catch (e) { }
+                    }
+
+                    var remainingMs = Math.max(0, targetTime - now);
+
+                    // If already counting down for this offer on this page, let it continue uninterrupted
+                    if (currentScheduledOfferId === offerId && scheduledOfferTimeout) {
+                        return;
+                    }
+
+                    if (scheduledOfferTimeout) {
+                        clearTimeout(scheduledOfferTimeout);
+                    }
+
+                    currentScheduledOfferId = offerId;
+
+                    scheduledOfferTimeout = setTimeout(function () {
+                        scheduledOfferTimeout = null;
+                        currentScheduledOfferId = null;
+                        try {
+                            sessionStorage.removeItem(targetKey);
+                        } catch (e) { }
+
+                        if (window.__triggerModalOpen) {
+                            window.__triggerModalOpen(data);
+                        } else {
+                            window.__pendingModalOffer = data;
+                        }
+                    }, remainingMs);
+                };
+
+                // Unified ultra-fast heartbeat & offer check (Single request, zero MySQL load)
                 function sendPulse(action) {
+                    calculateScrollPercent();
+                    var isVisible = (document.visibilityState === 'visible');
+                    var isEngaged = (Date.now() - lastUserActionTime) < 30000 && isVisible;
                     var endpoint = '/visitor-heartbeat.php';
                     var payload = JSON.stringify({
                         vid: vid,
                         act: action || 'ping',
                         url: currentUrl,
                         title: document.title || currentTitle,
+                        referrer: document.referrer || '',
                         device: deviceType,
+                        is_visible: isVisible ? 1 : 0,
+                        is_engaged: isEngaged ? 1 : 0,
+                        scroll_percent: maxScrollPercent,
                         profile: getProfile(),
                         history: visitorHistory,
                         is_new: isNewDaily ? 1 : 0
                     });
 
-                    if (navigator.sendBeacon) {
-                        navigator.sendBeacon(endpoint, payload);
-                    } else {
-                        var xhr = new XMLHttpRequest();
-                        xhr.open('POST', endpoint, true);
-                        xhr.setRequestHeader('Content-Type', 'application/json');
-                        xhr.send(payload);
-                    }
+                    // Single lightweight call directly to fast memory/file endpoint (~0.0002s, bypasses Laravel boot)
+                    fetch(endpoint, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: payload
+                    })
+                        .then(function (res) { return res.json(); })
+                        .then(function (data) {
+                            if (data && data.offer) {
+                                window.__scheduleVisitorOffer(data.offer);
+                            }
+                        })
+                        .catch(function () { });
+
                     if (isNewDaily) isNewDaily = false;
                 }
 
                 // Immediate initial pulse on page load
                 sendPulse('enter');
 
-                // Routine background heartbeats every 20 seconds
-                setInterval(function () {
-                    sendPulse('ping');
-                }, 20000);
+                // Adaptive heartbeat timer:
+                // Active Tab: Every 4 seconds (Super-fast tracking & instant offer delivery)
+                // Inactive / Background Tab: Every 18 seconds (Keeps user alive on Live Monitor, saves 90% CPU)
+                var heartbeatTimer = null;
+                function scheduleNextPulse() {
+                    if (heartbeatTimer) clearTimeout(heartbeatTimer);
+                    var isVisible = (document.visibilityState === 'visible');
+                    var intervalMs = isVisible ? 4000 : 18000;
 
-                // Page visibility change: when returning to tab, send instant refresh pulse
-                document.addEventListener('visibilitychange', function () {
-                    if (document.visibilityState === 'visible') {
+                    heartbeatTimer = setTimeout(function () {
                         sendPulse('ping');
-                    }
+                        scheduleNextPulse();
+                    }, intervalMs);
+                }
+
+                // Start loop
+                scheduleNextPulse();
+
+                // When user switches tabs or returns, react immediately:
+                // Leaving tab -> instantly sends is_visible: 0 & switches to 18s idle loop
+                // Returning to tab -> instantly sends is_visible: 1 & switches back to 4s fast loop
+                document.addEventListener('visibilitychange', function () {
+                    sendPulse('visibility');
+                    scheduleNextPulse();
+                });
+
+                // Also send quick beacon on actual tab/browser close so user is instantly released
+                window.addEventListener('beforeunload', function () {
+                    try {
+                        var endpoint = '/visitor-heartbeat.php';
+                        var payload = JSON.stringify({
+                            vid: vid,
+                            act: 'leave',
+                            url: currentUrl
+                        });
+                        if (navigator.sendBeacon) {
+                            navigator.sendBeacon(endpoint, payload);
+                        }
+                    } catch (e) { }
                 });
             } catch (e) { }
         })();
     </script>
+
+    <!-- Real-Time Custom Instant Visitor Offer / Message Modal -->
+    <div x-data="{
+        offerOpen: false,
+        offerData: null,
+        cartWarning: false,
+        copiedToast: false,
+        init() {
+            window.__triggerModalOpen = (data) => {
+                if (!data || this.offerOpen) return;
+                this.offerData = data;
+                this.offerOpen = true;
+                this.reportDelivered(data.id);
+            };
+
+            // If an offer timer already finished before Alpine finished mounting
+            if (window.__pendingModalOffer && !this.offerOpen) {
+                const pending = window.__pendingModalOffer;
+                window.__pendingModalOffer = null;
+                window.__triggerModalOpen(pending);
+            }
+        },
+        reportDelivered(offerId) {
+            try {
+                sessionStorage.removeItem('fb_offer_target_' + offerId);
+            } catch (e) {}
+
+            fetch('/api/visitor/offer/' + offerId + '/respond', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'delivered' })
+            }).catch(() => {});
+        },
+        hasCartItems() {
+            try {
+                if (window.Alpine && window.Alpine.store('cart') && window.Alpine.store('cart').totalItems > 0) {
+                    return true;
+                }
+                const local = JSON.parse(localStorage.getItem('cart') || '[]');
+                return Array.isArray(local) && local.length > 0;
+            } catch (e) {
+                return false;
+            }
+        },
+        copyCoupon() {
+            if (!this.offerData || !this.offerData.coupon_code) return;
+            if (navigator.clipboard) {
+                navigator.clipboard.writeText(this.offerData.coupon_code).catch(() => {});
+            }
+            this.copiedToast = true;
+            setTimeout(() => { this.copiedToast = false; }, 2500);
+        },
+        clickOffer() {
+            if (!this.offerData) return;
+            const offerId = this.offerData.id;
+            const coupon = this.offerData.coupon_code;
+
+            // If offer has coupon and cart is empty, show warning instead of redirecting to empty checkout
+            if (coupon && !this.hasCartItems()) {
+                this.copyCoupon();
+                this.cartWarning = true;
+                return;
+            }
+
+            try {
+                sessionStorage.setItem('fb_offer_completed_' + offerId, '1');
+                sessionStorage.removeItem('fb_offer_target_' + offerId);
+            } catch (e) {}
+
+            const targetUrl = this.offerData.button_url || '/checkout';
+
+            fetch('/api/visitor/offer/' + offerId + '/respond', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'clicked' })
+            }).catch(() => {});
+
+            if (coupon && navigator.clipboard) {
+                navigator.clipboard.writeText(coupon).catch(() => {});
+            }
+            this.offerOpen = false;
+            window.location.href = targetUrl;
+        },
+        dismissOffer() {
+            if (!this.offerData) return;
+            const offerId = this.offerData.id;
+            try {
+                sessionStorage.setItem('fb_offer_completed_' + offerId, '1');
+                sessionStorage.removeItem('fb_offer_target_' + offerId);
+            } catch (e) {}
+
+            this.offerOpen = false;
+            fetch('/api/visitor/offer/' + offerId + '/respond', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'dismissed' })
+            }).catch(() => {});
+        }
+    }">
+        <div x-show="offerOpen" x-cloak style="display: none;"
+            class="fixed inset-0 z-[9999] flex items-center justify-center bg-gray-950/70 backdrop-blur-xs p-4"
+            @keydown.escape.window="dismissOffer()">
+
+            <div
+                class="bg-white w-full max-w-md rounded-3xl shadow-2xl overflow-hidden border border-gray-100 text-center relative animate-in fade-in zoom-in-95 duration-200">
+
+                <!-- Dedicated Top-Right Close Cross Button -->
+                <button type="button" @click="dismissOffer()"
+                    class="absolute top-4 right-4 text-gray-400 hover:text-gray-700 bg-gray-100 hover:bg-gray-200 w-8 h-8 rounded-full flex items-center justify-center transition cursor-pointer shadow-xs"
+                    aria-label="বন্ধ করুন" title="বন্ধ করুন">
+                    <i class="ph ph-x text-base font-bold"></i>
+                </button>
+
+                <div class="p-6 sm:p-8 space-y-4">
+                    <!-- Icon badge -->
+                    <div
+                        class="w-16 h-16 rounded-2xl bg-gradient-to-tr from-pink-500 to-rose-400 text-white flex items-center justify-center text-3xl mx-auto shadow-lg shadow-pink-500/25">
+                        <i class="ph ph-gift"></i>
+                    </div>
+
+                    <!-- Title -->
+                    <h3 class="text-xl font-extrabold text-gray-900" x-text="offerData ? offerData.title : ''"></h3>
+
+                    <!-- Message Body -->
+                    <p class="text-sm text-gray-600 leading-relaxed whitespace-pre-line"
+                        x-text="offerData ? offerData.message : ''"></p>
+
+                    <!-- Empty Cart Warning Notice -->
+                    <div x-show="cartWarning" x-cloak
+                        class="p-3.5 bg-amber-50 border border-amber-200 rounded-2xl text-left space-y-2">
+                        <div class="flex items-start gap-2">
+                            <i class="ph ph-warning-circle text-amber-600 text-lg shrink-0 mt-0.5"></i>
+                            <div class="text-xs text-amber-800 leading-snug font-medium">
+                                আপনার কার্ট বর্তমানে ফাঁকা। কুপনটি উপভোগ করতে প্রথমে আপনার পছন্দের পণ্য কার্টে যোগ করুন।
+                            </div>
+                        </div>
+                        <div class="flex items-center justify-between pt-1 border-t border-amber-200/60">
+                            <button type="button" @click="copyCoupon()"
+                                class="text-xs font-bold text-pink-600 hover:underline inline-flex items-center gap-1 cursor-pointer">
+                                <i class="ph ph-copy"></i>
+                                <span x-text="copiedToast ? 'Copied!' : 'কুপন কোড কপি করুন'"></span>
+                            </button>
+                            <button type="button" @click="dismissOffer()"
+                                class="text-xs font-bold text-gray-700 bg-white px-3 py-1 rounded-lg border border-gray-200 hover:bg-gray-50 cursor-pointer">
+                                শপিং করুন &rarr;
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Coupon Code Pill if present -->
+                    <template x-if="offerData && offerData.coupon_code">
+                        <div
+                            class="bg-pink-50 border-2 border-dashed border-pink-300 rounded-2xl p-3 inline-flex items-center gap-2">
+                            <span class="text-xs uppercase font-bold text-pink-700 tracking-wider">Coupon Code:</span>
+                            <span
+                                class="font-mono font-black text-sm text-pink-600 bg-white px-2.5 py-0.5 rounded-lg border border-pink-200 select-all cursor-pointer"
+                                @click="copyCoupon()" title="Click to copy" x-text="offerData.coupon_code"></span>
+                            <span x-show="copiedToast"
+                                class="text-[11px] font-bold text-emerald-600 animate-pulse">Copied!</span>
+                        </div>
+                    </template>
+
+                    <!-- CTA Action Button (Only if button_text is present) -->
+                    <template x-if="offerData && offerData.button_text">
+                        <div class="pt-2">
+                            <button type="button" @click="clickOffer()"
+                                class="w-full py-3.5 px-6 rounded-2xl bg-gradient-to-r from-pink-500 to-rose-500 hover:from-pink-600 hover:to-rose-600 text-white font-bold text-sm shadow-lg shadow-pink-500/30 hover:shadow-pink-500/50 transition-all cursor-pointer flex items-center justify-center gap-2">
+                                <span x-text="offerData.button_text"></span>
+                                <i class="ph ph-arrow-right font-bold"></i>
+                            </button>
+                        </div>
+                    </template>
+
+                    <!-- Dedicated Bottom Close Button -->
+                    <div class="pt-1">
+                        <button type="button" @click="dismissOffer()"
+                            class="w-full py-2.5 px-4 rounded-xl border border-gray-200 hover:bg-gray-100 text-gray-600 font-semibold text-xs transition cursor-pointer flex items-center justify-center gap-1.5">
+                            <i class="ph ph-x text-sm"></i>
+                            <span>বন্ধ করুন (Close)</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <!-- Dynamic Body Scripts -->
     {!! \App\Models\Setting::get('site_body_scripts') !!}

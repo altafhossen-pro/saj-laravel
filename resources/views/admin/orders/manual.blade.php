@@ -52,6 +52,7 @@
             <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-4 relative">
                 <i class="ph ph-magnifying-glass absolute left-8 top-1/2 -translate-y-1/2 text-gray-400 text-lg"></i>
                 <input type="text" x-ref="searchInput" x-model="searchQuery" @input.debounce.300ms="searchProducts()"
+                    @focus="if(searchQuery.length >= 2 && suggestions.length > 0) showSuggestions = true"
                     placeholder="Scan Barcode or Search by Name/SKU.."
                     class="w-full pl-12 pr-4 py-2.5 bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 transition-colors text-sm">
 
@@ -63,7 +64,7 @@
                     class="absolute z-50 left-4 right-4 mt-2 bg-white rounded-xl shadow-xl border border-gray-100 max-h-96 overflow-y-auto">
                     <template x-for="product in suggestions" :key="product.id">
                         <div class="p-3 border-b border-gray-50 last:border-0 hover:bg-gray-50 transition-colors cursor-pointer"
-                            @click="if(product.product_type === 'single') { addToCart(product) } else { expandedProduct = expandedProduct === product.id ? null : product.id }">
+                            @click="if(product.product_type === 'variable' && product.variants && product.variants.length > 0) { expandedProduct = expandedProduct === product.id ? null : product.id } else { addToCart(product) }">
                             <div class="flex items-center gap-3 mb-2">
                                 <div
                                     class="w-12 h-12 bg-gray-100 rounded-lg overflow-hidden flex-shrink-0 flex items-center justify-center relative">
@@ -74,12 +75,12 @@
                                 <div class="flex-1 min-w-0">
                                     <div class="flex items-center gap-2">
                                         <h4 class="font-medium text-gray-900 truncate text-sm" x-text="product.title"></h4>
-                                        <span x-show="product.product_type === 'single'"
+                                        <span x-show="product.product_type !== 'variable'"
                                             class="px-1.5 py-0.5 bg-gray-100 text-gray-600 rounded text-[9px] font-medium uppercase tracking-wider">Single</span>
                                         <span x-show="product.product_type === 'variable'"
                                             class="px-1.5 py-0.5 bg-brand-50 text-brand-600 rounded text-[9px] font-medium uppercase tracking-wider">Variable</span>
                                     </div>
-                                    <p class="text-xs text-gray-500 mt-1" x-show="product.product_type === 'single'">
+                                    <p class="text-xs text-gray-500 mt-1" x-show="product.product_type !== 'variable'">
                                         <span x-text="'SKU: ' + (product.sku || 'N/A') + ' · ৳' + (product.current_price || product.regular_price)"></span>
                                         <span class="mx-1">&bull;</span>
                                         <span :class="product.stock > 0 ? 'text-green-600' : 'text-red-500 font-medium'" x-text="product.stock > 0 ? 'Stock: ' + product.stock : 'Out of Stock'"></span>
@@ -90,18 +91,18 @@
                                         <span :class="product.stock > 0 ? 'text-green-600' : 'text-red-500 font-medium'" x-text="product.stock > 0 ? 'Total Stock: ' + product.stock : 'Out of Stock'"></span>
                                     </p>
                                 </div>
-                                <div x-show="product.product_type === 'single'">
-                                    <button @click.stop="addToCart(product)"
+                                <div x-show="product.product_type !== 'variable'">
+                                    <button type="button" @click.stop="addToCart(product)"
                                         class="px-3 py-1.5 bg-brand-50 hover:bg-brand-100 text-brand-600 rounded text-xs font-medium transition-colors cursor-pointer">Add</button>
                                 </div>
                             </div>
 
                             <!-- Variants (if applicable) -->
-                            <div x-show="product.product_type === 'variable' && product.variants.length > 0 && expandedProduct === product.id"
+                            <div x-show="product.product_type === 'variable' && product.variants && product.variants.length > 0 && expandedProduct === product.id"
                                 class="pl-14 pr-2 pb-2 space-y-1.5 mt-2">
                                 <template x-for="variant in product.variants" :key="variant.id">
                                     <div class="flex items-center justify-between bg-white border border-gray-100 rounded-lg p-2.5 hover:border-brand-300 hover:shadow-sm transition-all cursor-pointer group"
-                                        @click="addToCart(product, variant)">
+                                        @click.stop="addToCart(product, variant)">
                                         <div class="flex items-center gap-3">
                                             <div
                                                 class="w-10 h-10 bg-gray-50 rounded-md overflow-hidden flex items-center justify-center flex-shrink-0 border border-gray-100">
@@ -135,8 +136,8 @@
                                                 </div>
                                             </div>
                                         </div>
-                                        <button @click.stop="addToCart(product, variant)"
-                                            class="px-3 py-1.5 bg-brand-50 group-hover:bg-brand-600 group-hover:text-white text-brand-600 rounded-md text-xs font-semibold transition-colors flex-shrink-0 flex items-center">
+                                        <button type="button" @click.stop="addToCart(product, variant)"
+                                            class="px-3 py-1.5 bg-brand-50 group-hover:bg-brand-600 group-hover:text-white text-brand-600 rounded-md text-xs font-semibold transition-colors flex-shrink-0 flex items-center cursor-pointer">
                                             <i class="ph ph-plus mr-1"></i> Add
                                         </button>
                                     </div>
@@ -467,6 +468,12 @@
                                             exactMatchProduct = product;
                                             break;
                                         }
+                                    } else {
+                                        const sku = (product.sku || (product.variants && product.variants[0] ? product.variants[0].sku : '') || '').toLowerCase().trim();
+                                        if (sku && sku === this.searchQuery.toLowerCase().trim()) {
+                                            this.addToCart(product);
+                                            return;
+                                        }
                                     }
                                 }
 
@@ -565,7 +572,13 @@
                             }
                             item.variantLabel = attrParts.join(', ');
                         } else {
-                            item.variant_id = null;
+                            if (product.variants && product.variants.length > 0) {
+                                item.variant_id = product.variants[0].id;
+                                item.variant_sku = product.variants[0].sku || product.sku;
+                            } else {
+                                item.variant_id = null;
+                                item.variant_sku = product.sku || null;
+                            }
                             item.variantLabel = null;
                         }
 

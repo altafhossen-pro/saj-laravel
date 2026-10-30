@@ -60,6 +60,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['stats'])) {
                             'title' => $item['title'] ?? 'Storefront',
                             'device' => $item['device'] ?? 'Desktop',
                             'ip' => $item['ip'] ?? '',
+                            'is_engaged' => !empty($item['is_engaged']),
+                            'is_visible' => isset($item['is_visible']) ? (bool)$item['is_visible'] : true,
+                            'scroll_percent' => (int)($item['scroll_percent'] ?? 0),
                             'seconds_ago' => max(0, $diff),
                             'duration' => isset($item['first_seen']) ? max(0, $now - (int)$item['first_seen']) : 0,
                             'history' => isset($item['history']) && is_array($item['history']) ? $item['history'] : [
@@ -169,6 +172,9 @@ $dailyFile = $storageDir . '/daily_' . $today . '.json';
 $url = isset($payload['url']) ? substr(strip_tags((string)$payload['url']), 0, 255) : '/';
 $title = isset($payload['title']) ? substr(strip_tags((string)$payload['title']), 0, 120) : '';
 $device = isset($payload['device']) ? substr(strip_tags((string)$payload['device']), 0, 20) : 'Desktop';
+$isEngaged = !empty($payload['is_engaged']);
+$isVisible = isset($payload['is_visible']) ? (bool)$payload['is_visible'] : true;
+$scrollPercent = isset($payload['scroll_percent']) ? max(0, min(100, (int)$payload['scroll_percent'])) : 0;
 $profile = isset($payload['profile']) && is_array($payload['profile']) ? $payload['profile'] : [];
 
 $pUserId = !empty($profile['user_id']) ? (int)$profile['user_id'] : null;
@@ -288,6 +294,9 @@ if ($fp) {
                 'email' => $savedEmail,
                 'is_logged_in' => $isLoggedIn,
                 'last_seen_as' => $savedLastSeenAs,
+                'is_engaged' => $isEngaged,
+                'is_visible' => $isVisible,
+                'scroll_percent' => $scrollPercent,
                 'history' => $history,
             ];
             if (!isset($existing['last_seen'])) {
@@ -327,5 +336,30 @@ if ($isNewDaily) {
     }
 }
 
-echo '{"status":"ok"}';
+// 4. Check for pending offers for this visitor (0ms RAM lookup, Zero Database hits)
+$pendingOffer = null;
+$offersFile = $storageDir . '/pending_offers.json';
+if (file_exists($offersFile)) {
+    $ofp = @fopen($offersFile, 'r');
+    if ($ofp) {
+        $oSize = filesize($offersFile);
+        $oContent = $oSize > 0 ? fread($ofp, $oSize) : '';
+        fclose($ofp);
+        $cachedOffers = json_decode($oContent, true);
+        if (is_array($cachedOffers)) {
+            if (isset($cachedOffers[$visitorId])) {
+                $pendingOffer = $cachedOffers[$visitorId];
+            } elseif ($pPhone && isset($cachedOffers['phone_' . $pPhone])) {
+                $pendingOffer = $cachedOffers['phone_' . $pPhone];
+            } elseif ($pUserId && isset($cachedOffers['uid_' . $pUserId])) {
+                $pendingOffer = $cachedOffers['uid_' . $pUserId];
+            }
+        }
+    }
+}
+
+echo json_encode([
+    'status' => 'ok',
+    'offer' => $pendingOffer
+]);
 exit;
