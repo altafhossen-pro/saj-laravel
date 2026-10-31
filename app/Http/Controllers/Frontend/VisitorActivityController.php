@@ -19,8 +19,9 @@ class VisitorActivityController extends Controller
         $payload['ip'] = $request->ip();
         $payload['user_agent'] = $request->header('User-Agent');
 
+        $session = null;
         try {
-            VisitorActivityService::record($payload, $request);
+            $session = VisitorActivityService::record($payload, $request);
         } catch (\Throwable $e) {
             // Silently fail to never disrupt user experience
         }
@@ -73,6 +74,7 @@ class VisitorActivityController extends Controller
 
         return response()->json([
             'status' => 'ok',
+            'serial' => $session?->daily_serial ?? 0,
             'offer' => $offer,
         ]);
     }

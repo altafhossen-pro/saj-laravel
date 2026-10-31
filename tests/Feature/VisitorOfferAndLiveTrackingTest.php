@@ -115,5 +115,56 @@ class VisitorOfferAndLiveTrackingTest extends TestCase
         $response->assertSee('fb_offer_target_');
         $response->assertSee('__triggerModalOpen');
     }
+
+    /**
+     * Test daily serial allocation and address capture
+     */
+    public function test_daily_serial_and_checkout_address_sync(): void
+    {
+        $testToken = 'test_vid_serial_' . uniqid();
+
+        // 1. Send first pulse with profile containing address
+        $res = $this->postJson('/api/visitor/pulse', [
+            'vid' => $testToken,
+            'url' => '/checkout',
+            'title' => 'Checkout - Saj.bd',
+            'device' => 'Mobile',
+            'profile' => [
+                'name' => 'Karim Shopper',
+                'phone' => '01711000000',
+                'address' => 'House 12, Road 5, Dhanmondi, Dhaka',
+            ]
+        ]);
+
+        $res->assertStatus(200);
+        $this->assertNotNull($res->json('serial'));
+        $serialNumber = $res->json('serial');
+        $this->assertGreaterThan(0, $serialNumber);
+
+        // Verify VisitorSession has daily_serial and customer_address
+        $session = VisitorSession::where('visitor_token', $testToken)->first();
+        $this->assertNotNull($session);
+        $this->assertEquals($serialNumber, $session->daily_serial);
+        $this->assertEquals('Karim Shopper', $session->customer_name);
+        $this->assertEquals('01711000000', $session->customer_phone);
+        $this->assertEquals('House 12, Road 5, Dhanmondi, Dhaka', $session->customer_address);
+
+        // 2. Test Checkout typing info sync endpoint
+        $cartSyncRes = $this->postJson('/api/cart/update-info', [
+            'visitor_token' => $testToken,
+            'name' => 'Karim Updated',
+            'phone' => '01799887766',
+            'address' => 'Mirpur-10, Block C, Dhaka',
+        ]);
+
+        $cartSyncRes->assertStatus(200);
+        $cartSyncRes->assertJson(['success' => true]);
+
+        // Verify session was updated with new address & info
+        $session->refresh();
+        $this->assertEquals('Karim Updated', $session->customer_name);
+        $this->assertEquals('01799887766', $session->customer_phone);
+        $this->assertEquals('Mirpur-10, Block C, Dhaka', $session->customer_address);
+    }
 }
 

@@ -58,20 +58,34 @@ class VisitorActivityService
         $customerName = $profile['name'] ?? null;
         $customerPhone = $profile['phone'] ?? null;
         $customerEmail = $profile['email'] ?? null;
+        $customerAddress = $profile['address'] ?? ($data['address'] ?? null);
 
-        // Check cart status
-        $hasCart = CartSession::where('visitor_token', $token)
-            ->where('total_items', '>', 0)
-            ->exists();
+        // Check cart status & address fallback
+        $cartSession = CartSession::where('visitor_token', $token)->latest('id')->first();
+        $hasCart = $cartSession && $cartSession->total_items > 0;
+        if (!$customerAddress && $cartSession && !empty($cartSession->customer_address)) {
+            $customerAddress = $cartSession->customer_address;
+        }
 
         $visitedCheckout = str_contains($url, '/checkout');
+
+        // Determine daily serial (keeps same sequential serial for today)
+        $passedSerial = !empty($data['daily_serial']) ? (int)$data['daily_serial'] : 0;
+        if ($passedSerial <= 0) {
+            $maxSerial = VisitorSession::where('session_date', $today)->max('daily_serial') ?? 0;
+            $dailySerial = $maxSerial + 1;
+        } else {
+            $dailySerial = $passedSerial;
+        }
 
         if (!$session) {
             $session = VisitorSession::create([
                 'visitor_token' => $token,
+                'daily_serial' => $dailySerial,
                 'user_id' => $userId,
                 'customer_name' => $customerName,
                 'customer_phone' => $customerPhone,
+                'customer_address' => $customerAddress,
                 'customer_email' => $customerEmail,
                 'ip_address' => $ip,
                 'device' => $device,
@@ -116,9 +130,11 @@ class VisitorActivityService
                 $updateData['page_views_count'] = $session->page_views_count + 1;
             }
 
+            if (!$session->daily_serial && $dailySerial > 0) $updateData['daily_serial'] = $dailySerial;
             if ($userId && !$session->user_id) $updateData['user_id'] = $userId;
             if ($customerName && !$session->customer_name) $updateData['customer_name'] = $customerName;
             if ($customerPhone && !$session->customer_phone) $updateData['customer_phone'] = $customerPhone;
+            if ($customerAddress && !$session->customer_address) $updateData['customer_address'] = $customerAddress;
             if ($customerEmail && !$session->customer_email) $updateData['customer_email'] = $customerEmail;
             if ($hasCart) $updateData['has_cart'] = true;
             if ($visitedCheckout) $updateData['visited_checkout'] = true;

@@ -13,9 +13,11 @@ class VisitorSession extends Model
 
     protected $fillable = [
         'visitor_token',
+        'daily_serial',
         'user_id',
         'customer_name',
         'customer_phone',
+        'customer_address',
         'customer_email',
         'ip_address',
         'device',
@@ -36,6 +38,7 @@ class VisitorSession extends Model
     ];
 
     protected $casts = [
+        'daily_serial' => 'integer',
         'page_views_count' => 'integer',
         'duration_seconds' => 'integer',
         'has_cart' => 'boolean',

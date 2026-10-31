@@ -29,7 +29,15 @@
             </div>
 
             <div class="relative">
-                <input type="text" name="search" value="{{ $search }}" placeholder="Search IP, phone, URL..."
+                <select name="sort" onchange="this.form.submit()"
+                    class="px-3.5 py-2 bg-white border border-gray-200 rounded-xl text-sm font-medium text-gray-700 shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 cursor-pointer">
+                    <option value="serial" {{ ($sort ?? 'serial') === 'serial' ? 'selected' : '' }}>Sort: Visitor ID (#1, #2...)</option>
+                    <option value="recent" {{ ($sort ?? '') === 'recent' ? 'selected' : '' }}>Sort: Most Recent Active</option>
+                </select>
+            </div>
+
+            <div class="relative">
+                <input type="text" name="search" value="{{ $search }}" placeholder="Search ID, phone, name..."
                     class="pl-9 pr-3.5 py-2 bg-white border border-gray-200 rounded-xl text-sm text-gray-700 shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 w-48 sm:w-64">
                 <i class="ph ph-magnifying-glass absolute left-3 top-2.5 text-gray-400 text-base"></i>
             </div>
@@ -38,7 +46,7 @@
                 Filter
             </button>
 
-            @if($search || $date !== date('Y-m-d') || $filter !== 'all')
+            @if($search || $date !== date('Y-m-d') || $filter !== 'all' || ($sort ?? 'serial') !== 'serial')
                 <a href="{{ route('admin.visitors.footprint') }}" class="px-3 py-2 text-gray-500 hover:text-gray-800 text-sm font-medium">
                     Reset
                 </a>
@@ -118,34 +126,34 @@
 
     <!-- Filter Tabs -->
     <div class="flex items-center gap-2 border-b border-gray-200 pb-3 overflow-x-auto text-xs font-medium">
-        <a href="{{ route('admin.visitors.footprint', ['date' => $date, 'filter' => 'all', 'search' => $search]) }}"
+        <a href="{{ route('admin.visitors.footprint', ['date' => $date, 'filter' => 'all', 'search' => $search, 'sort' => $sort]) }}"
             class="px-3.5 py-1.5 rounded-lg transition-colors flex items-center gap-1.5 {{ $filter === 'all' ? 'bg-indigo-600 text-white font-semibold' : 'bg-gray-100 text-gray-600 hover:text-gray-900' }}">
             <span>All Shoppers</span>
             <span class="px-1.5 py-0.2 rounded-full text-[10px] {{ $filter === 'all' ? 'bg-indigo-700 text-white' : 'bg-gray-200 text-gray-700' }}">{{ $metrics['total_visitors'] }}</span>
         </a>
 
-        <a href="{{ route('admin.visitors.footprint', ['date' => $date, 'filter' => 'returning', 'search' => $search]) }}"
+        <a href="{{ route('admin.visitors.footprint', ['date' => $date, 'filter' => 'returning', 'search' => $search, 'sort' => $sort]) }}"
             class="px-3.5 py-1.5 rounded-lg transition-colors flex items-center gap-1.5 {{ $filter === 'returning' ? 'bg-indigo-600 text-white font-semibold' : 'bg-gray-100 text-gray-600 hover:text-gray-900' }}">
             <i class="ph ph-arrow-counter-clockwise"></i>
             <span>Returning Visitors</span>
             <span class="px-1.5 py-0.2 rounded-full text-[10px] {{ $filter === 'returning' ? 'bg-indigo-700 text-white' : 'bg-gray-200 text-gray-700' }}">{{ $metrics['returning_count'] }}</span>
         </a>
 
-        <a href="{{ route('admin.visitors.footprint', ['date' => $date, 'filter' => 'with_cart', 'search' => $search]) }}"
+        <a href="{{ route('admin.visitors.footprint', ['date' => $date, 'filter' => 'with_cart', 'search' => $search, 'sort' => $sort]) }}"
             class="px-3.5 py-1.5 rounded-lg transition-colors flex items-center gap-1.5 {{ $filter === 'with_cart' ? 'bg-indigo-600 text-white font-semibold' : 'bg-gray-100 text-gray-600 hover:text-gray-900' }}">
             <i class="ph ph-shopping-cart"></i>
             <span>With Cart Items</span>
             <span class="px-1.5 py-0.2 rounded-full text-[10px] {{ $filter === 'with_cart' ? 'bg-indigo-700 text-white' : 'bg-gray-200 text-gray-700' }}">{{ $metrics['cart_visitors'] }}</span>
         </a>
 
-        <a href="{{ route('admin.visitors.footprint', ['date' => $date, 'filter' => 'checkout', 'search' => $search]) }}"
+        <a href="{{ route('admin.visitors.footprint', ['date' => $date, 'filter' => 'checkout', 'search' => $search, 'sort' => $sort]) }}"
             class="px-3.5 py-1.5 rounded-lg transition-colors flex items-center gap-1.5 {{ $filter === 'checkout' ? 'bg-indigo-600 text-white font-semibold' : 'bg-gray-100 text-gray-600 hover:text-gray-900' }}">
             <i class="ph ph-credit-card"></i>
             <span>Visited Checkout</span>
             <span class="px-1.5 py-0.2 rounded-full text-[10px] {{ $filter === 'checkout' ? 'bg-indigo-700 text-white' : 'bg-gray-200 text-gray-700' }}">{{ $metrics['checkout_visitors'] }}</span>
         </a>
 
-        <a href="{{ route('admin.visitors.footprint', ['date' => $date, 'filter' => 'identified', 'search' => $search]) }}"
+        <a href="{{ route('admin.visitors.footprint', ['date' => $date, 'filter' => 'identified', 'search' => $search, 'sort' => $sort]) }}"
             class="px-3.5 py-1.5 rounded-lg transition-colors flex items-center gap-1.5 {{ $filter === 'identified' ? 'bg-indigo-600 text-white font-semibold' : 'bg-gray-100 text-gray-600 hover:text-gray-900' }}">
             <i class="ph ph-identification-badge"></i>
             <span>Recognized Profiles</span>
@@ -159,6 +167,7 @@
             <table class="w-full text-left text-sm">
                 <thead class="bg-gray-50/80 text-gray-500 font-medium border-b border-gray-100 text-xs uppercase tracking-wider">
                     <tr>
+                        <th class="px-5 py-4 text-center">ID</th>
                         <th class="px-6 py-4">Visitor Identity</th>
                         <th class="px-6 py-4">Entry & Last Seen Page</th>
                         <th class="px-6 py-4">Device / System</th>
@@ -171,6 +180,13 @@
                 <tbody class="divide-y divide-gray-100">
                     @forelse($sessions as $s)
                     <tr class="hover:bg-gray-50/80 transition-colors">
+                        <!-- Visitor ID -->
+                        <td class="px-5 py-4 text-center">
+                            <span class="inline-flex items-center justify-center min-w-8 h-7 px-2 rounded-lg bg-indigo-50 font-mono font-bold text-xs text-indigo-700 border border-indigo-200" title="Daily Visitor ID">
+                                #{{ $s->daily_serial ?: $s->id }}
+                            </span>
+                        </td>
+
                         <!-- Visitor Identity -->
                         <td class="px-6 py-4">
                             <div class="flex items-center gap-3">
@@ -180,11 +196,14 @@
                                     @elseif($s->user?->name)
                                         {{ strtoupper(substr($s->user->name, 0, 2)) }}
                                     @else
-                                        <i class="ph ph-user"></i>
+                                        <span class="font-mono text-[10px]">#{{ $s->daily_serial ?: $s->id }}</span>
                                     @endif
                                 </div>
                                 <div>
-                                    <div class="font-semibold text-gray-900 flex items-center gap-1.5">
+                                    <div class="font-semibold text-gray-900 flex items-center gap-1.5 flex-wrap">
+                                        <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                                            Visitor #{{ $s->daily_serial ?: $s->id }}
+                                        </span>
                                         @if($s->customer_name)
                                             <span>{{ $s->customer_name }}</span>
                                         @elseif($s->user?->name)
@@ -202,13 +221,21 @@
                                     </div>
 
                                     @if($s->customer_phone || $s->user?->phone)
-                                        <div class="text-xs text-gray-500 font-mono flex items-center gap-1 mt-0.5">
-                                            <i class="ph ph-phone text-gray-400"></i>
+                                        <div class="text-xs text-gray-700 font-mono font-medium flex items-center gap-1 mt-0.5">
+                                            <i class="ph ph-phone text-brand-600"></i>
                                             <span>{{ $s->customer_phone ?: $s->user?->phone }}</span>
                                         </div>
                                     @endif
 
-                                    <div class="text-[11px] text-gray-400 font-mono mt-0.5" title="Visitor Token: {{ $s->visitor_token }}">
+                                    @php $addr = $s->customer_address ?: ($s->cartSession?->customer_address ?? null); @endphp
+                                    @if($addr)
+                                        <div class="text-[11px] text-gray-600 flex items-center gap-1 mt-0.5 max-w-xs truncate" title="{{ $addr }}">
+                                            <i class="ph ph-map-pin text-rose-500 shrink-0"></i>
+                                            <span class="truncate">{{ $addr }}</span>
+                                        </div>
+                                    @endif
+
+                                    <div class="text-[10px] text-gray-400 font-mono mt-0.5" title="Visitor Token: {{ $s->visitor_token }}">
                                         Token: {{ substr($s->visitor_token, 0, 14) }}...
                                     </div>
                                 </div>
@@ -334,7 +361,7 @@
                     </tr>
                     @empty
                     <tr>
-                        <td colspan="7" class="px-6 py-12 text-center">
+                        <td colspan="8" class="px-6 py-12 text-center">
                             <div class="w-12 h-12 bg-gray-50 text-gray-400 rounded-full flex items-center justify-center mx-auto mb-3 text-xl">
                                 <i class="ph ph-footprints"></i>
                             </div>
@@ -397,8 +424,12 @@
                         <div class="bg-gray-50 p-4 rounded-xl border border-gray-200/70 grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
                             <div>
                                 <span class="text-gray-400 uppercase tracking-wider block text-[10px] font-semibold">Name / Identity</span>
-                                <span class="font-bold text-gray-900" x-text="selectedSession.name"></span>
-                                <span x-show="selectedSession.phone" class="block font-mono text-gray-600 mt-0.5" x-text="selectedSession.phone"></span>
+                                <div class="flex items-center gap-1.5 mt-0.5">
+                                    <span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-indigo-100 text-indigo-700 font-mono" x-text="'Visitor #' + (selectedSession.daily_serial || selectedSession.id)"></span>
+                                    <span class="font-bold text-gray-900" x-text="selectedSession.name"></span>
+                                </div>
+                                <span x-show="selectedSession.phone" class="block font-mono text-gray-700 font-medium mt-0.5" x-text="selectedSession.phone"></span>
+                                <span x-show="selectedSession.address" class="block text-gray-600 text-[11px] mt-1" x-text="'Address: ' + selectedSession.address"></span>
                             </div>
 
                             <div>
@@ -423,22 +454,42 @@
                             </div>
                         </div>
 
-                        <!-- Abandoned Cart Banner if present -->
+                        <!-- Abandoned Cart Banner with Products if present -->
                         <template x-if="selectedSession.cart">
-                            <div class="bg-amber-50 border border-amber-200 rounded-xl p-3 flex items-center justify-between text-xs">
-                                <div class="flex items-center gap-2">
-                                    <i class="ph ph-shopping-cart text-amber-600 text-lg"></i>
-                                    <div>
-                                        <span class="font-bold text-amber-900">Cart Attached:</span>
-                                        <span class="text-amber-800" x-text="selectedSession.cart.total_items + ' items (৳' + selectedSession.cart.total_amount + ')'"></span>
-                                        <span class="text-[10px] px-1.5 py-0.2 rounded font-semibold uppercase ml-1"
-                                            :class="selectedSession.cart.status === 'abandoned' ? 'bg-rose-100 text-rose-700' : 'bg-emerald-100 text-emerald-700'"
-                                            x-text="selectedSession.cart.status"></span>
+                            <div class="bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs space-y-2">
+                                <div class="flex items-center justify-between">
+                                    <div class="flex items-center gap-2">
+                                        <i class="ph ph-shopping-cart text-amber-600 text-lg"></i>
+                                        <div>
+                                            <span class="font-bold text-amber-900">Cart Attached:</span>
+                                            <span class="text-amber-800" x-text="selectedSession.cart.total_items + ' items (৳' + selectedSession.cart.total_amount + ')'"></span>
+                                            <span class="text-[10px] px-1.5 py-0.2 rounded font-semibold uppercase ml-1"
+                                                :class="selectedSession.cart.status === 'abandoned' ? 'bg-rose-100 text-rose-700' : 'bg-emerald-100 text-emerald-700'"
+                                                x-text="selectedSession.cart.status"></span>
+                                        </div>
                                     </div>
+                                    <a href="{{ route('admin.carts.index') }}" class="font-bold text-amber-700 hover:text-amber-900 hover:underline">
+                                        Open Carts &rarr;
+                                    </a>
                                 </div>
-                                <a href="{{ route('admin.carts.index') }}" class="font-bold text-amber-700 hover:text-amber-900 hover:underline">
-                                    Open Carts &rarr;
-                                </a>
+
+                                <template x-if="selectedSession.cart.items && selectedSession.cart.items.length > 0">
+                                    <div class="pt-2 border-t border-amber-200/60 space-y-1.5">
+                                        <template x-for="ci in selectedSession.cart.items" :key="ci.product_id">
+                                            <div class="flex items-center justify-between text-xs text-amber-950 bg-white/80 px-2.5 py-1.5 rounded-lg border border-amber-100">
+                                                <div class="flex items-center gap-2 truncate">
+                                                    <img x-show="ci.image" :src="ci.image && ci.image.startsWith('http') ? ci.image : '/storage/' + ci.image" class="w-6 h-6 rounded object-cover">
+                                                    <span class="truncate font-medium" x-text="ci.name"></span>
+                                                    <span x-show="ci.variant_name" class="text-[10px] text-gray-500 font-normal" x-text="'(' + ci.variant_name + ')'"></span>
+                                                </div>
+                                                <div class="text-right shrink-0 font-mono text-[11px] font-bold">
+                                                    <span x-text="ci.quantity + 'x'"></span>
+                                                    <span x-text="'৳' + (ci.price * ci.quantity)"></span>
+                                                </div>
+                                            </div>
+                                        </template>
+                                    </div>
+                                </template>
                             </div>
                         </template>
 

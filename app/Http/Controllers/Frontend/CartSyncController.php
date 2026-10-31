@@ -111,6 +111,7 @@ class CartSyncController extends Controller
 
         $name = trim((string) $request->input('name', ''));
         $phone = trim((string) $request->input('phone', ''));
+        $address = trim((string) $request->input('address', ''));
 
         $update = [];
         if (!empty($name)) {
@@ -119,10 +120,21 @@ class CartSyncController extends Controller
         if (!empty($phone)) {
             $update['customer_phone'] = $phone;
         }
+        if (!empty($address)) {
+            $update['customer_address'] = $address;
+        }
 
         if (!empty($update)) {
+            // Update active CartSession
             CartSession::where('visitor_token', $visitorToken)
                 ->where('status', 'active')
+                ->latest('id')
+                ->first()
+                ?->update($update);
+
+            // Also synchronize with today's VisitorSession
+            \App\Models\VisitorSession::where('visitor_token', $visitorToken)
+                ->where('session_date', date('Y-m-d'))
                 ->latest('id')
                 ->first()
                 ?->update($update);

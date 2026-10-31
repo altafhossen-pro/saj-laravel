@@ -203,6 +203,12 @@
                                                 <span class="text-gray-400" x-text="'Token: ' + (cart.visitor_token ? cart.visitor_token.substring(0, 10) + '...' : 'Unknown')"></span>
                                             </template>
                                         </div>
+                                        <template x-if="cart.customer_address">
+                                            <div class="text-[11px] text-gray-600 mt-0.5 flex items-center gap-1 max-w-[220px] truncate" :title="cart.customer_address">
+                                                <i class="ph ph-map-pin text-rose-500 shrink-0"></i>
+                                                <span class="truncate" x-text="cart.customer_address"></span>
+                                            </div>
+                                        </template>
                                     </div>
                                 </div>
                             </td>

@@ -98,7 +98,7 @@
                             <div class="sm:col-span-2">
                                 <label class="block text-xs font-bold text-gray-700 mb-1.5">Delivery Address / ডেলিভারি
                                     এড্রেসঃ <span class="text-red-500">*</span></label>
-                                <textarea x-model="form.address" rows="3" placeholder="Delivery Address"
+                                <textarea x-model="form.address" @input="syncContactInfo()" rows="3" placeholder="Delivery Address"
                                     class="w-full bg-white border border-gray-200 rounded-md px-4 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-brand-500 focus:border-brand-500 transition-colors text-gray-800 placeholder-gray-400"></textarea>
                             </div>
                             <div class="sm:col-span-2">
@@ -394,13 +394,14 @@
                     this.syncContactTimer = setTimeout(() => {
                         try {
                             const vid = localStorage.getItem('fb_vid') || '';
-                            if (!vid || (!this.form.name && !this.form.phone)) return;
+                            if (!vid || (!this.form.name && !this.form.phone && !this.form.address)) return;
 
-                            // Persist shopper profile locally for live monitor recognition
+                            // Persist shopper profile locally for live monitor recognition & auto-fill
                             try {
                                 var p = JSON.parse(localStorage.getItem('fb_v_profile') || '{}') || {};
                                 if (this.form.name) p.name = this.form.name;
                                 if (this.form.phone) p.phone = this.form.phone;
+                                if (this.form.address) p.address = this.form.address;
                                 if (this.form.name) p.last_seen_as = this.form.name;
                                 localStorage.setItem('fb_v_profile', JSON.stringify(p));
                             } catch (e) {}
@@ -415,14 +416,23 @@
                                 body: JSON.stringify({
                                     visitor_token: vid,
                                     name: this.form.name,
-                                    phone: this.form.phone
+                                    phone: this.form.phone,
+                                    address: this.form.address
                                 })
                             }).catch(() => {});
                         } catch (e) {}
-                    }, 1000);
+                    }, 800);
                 },
 
                 init() {
+                    // Auto-fill from remembered customer profile if fields are empty
+                    try {
+                        const savedProfile = JSON.parse(localStorage.getItem('fb_v_profile') || '{}') || {};
+                        if (!this.form.name && savedProfile.name) this.form.name = savedProfile.name;
+                        if (!this.form.phone && savedProfile.phone) this.form.phone = savedProfile.phone;
+                        if (!this.form.address && savedProfile.address) this.form.address = savedProfile.address;
+                    } catch (e) {}
+
                     this.$nextTick(() => {
                         if (typeof window.trackFbEvent === 'function') {
                             const cart = typeof Alpine !== 'undefined' ? Alpine.store('cart') : null;

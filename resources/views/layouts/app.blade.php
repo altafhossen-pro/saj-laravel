@@ -939,11 +939,44 @@
                     })
                         .then(function (res) { return res.json(); })
                         .then(function (data) {
-                            if (data && data.offer) {
-                                window.__scheduleVisitorOffer(data.offer);
+                            if (data) {
+                                if (data.serial) {
+                                    sessionStorage.setItem('fb_daily_serial', data.serial);
+                                }
+                                if (data.offer) {
+                                    window.__scheduleVisitorOffer(data.offer);
+                                }
                             }
                         })
                         .catch(function () { });
+
+                    // On page enter, record/sync session to MySQL database for Visitor Footprint (zero MySQL load on 4s pings)
+                    if (action === 'enter') {
+                        try {
+                            fetch('{{ route('api.visitor.pulse') }}', {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '{{ csrf_token() }}',
+                                    'Accept': 'application/json'
+                                },
+                                body: JSON.stringify({
+                                    vid: vid,
+                                    url: currentUrl,
+                                    title: document.title || currentTitle,
+                                    device: deviceType,
+                                    daily_serial: parseInt(sessionStorage.getItem('fb_daily_serial') || '0', 10),
+                                    profile: getProfile(),
+                                    referrer: document.referrer || ''
+                                })
+                            }).then(function (r) { return r.json(); })
+                            .then(function (d) {
+                                if (d && d.serial) {
+                                    sessionStorage.setItem('fb_daily_serial', d.serial);
+                                }
+                            }).catch(function () {});
+                        } catch (e) {}
+                    }
 
                     if (isNewDaily) isNewDaily = false;
                 }

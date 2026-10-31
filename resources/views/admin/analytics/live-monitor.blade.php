@@ -134,10 +134,11 @@
                 <tbody class="divide-y divide-gray-100">
                     <template x-for="v in filteredVisitors" :key="v.vid">
                         <tr class="hover:bg-gray-50/80 transition-colors">
-                            <!-- Slot Number -->
+                            <!-- Slot / Serial Number -->
                             <td class="px-5 py-4 text-center">
-                                <span class="inline-flex items-center justify-center w-7 h-7 rounded-lg bg-gray-100 font-mono font-bold text-xs text-gray-700 border border-gray-200"
-                                      x-text="'#' + v.slot">
+                                <span class="inline-flex items-center justify-center min-w-8 h-7 px-2 rounded-lg bg-indigo-50 font-mono font-bold text-xs text-indigo-700 border border-indigo-200"
+                                      title="Today's Visitor ID"
+                                      x-text="'#' + (v.serial || v.slot)">
                                 </span>
                             </td>
 
@@ -149,13 +150,13 @@
                                             :class="{
                                                 'bg-emerald-100 text-emerald-700 border border-emerald-200': v.is_logged_in,
                                                 'bg-amber-100 text-amber-800 border border-amber-200': (!v.is_logged_in && (v.name || v.last_seen_as)),
-                                                'bg-gray-100 text-gray-600 border border-gray-200': (!v.is_logged_in && !v.name && !v.last_seen_as)
+                                                'bg-indigo-100 text-indigo-700 border border-indigo-200': (!v.is_logged_in && !v.name && !v.last_seen_as)
                                             }">
                                             <template x-if="v.name || v.last_seen_as">
                                                 <span x-text="(v.name || v.last_seen_as).substring(0, 2).toUpperCase()"></span>
                                             </template>
                                             <template x-if="!v.name && !v.last_seen_as">
-                                                <i class="ph ph-user text-base"></i>
+                                                <span class="font-mono text-[11px]" x-text="'#' + (v.serial || v.slot)"></span>
                                             </template>
                                         </div>
                                         <span class="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-white"
@@ -164,14 +165,15 @@
 
                                     <div class="min-w-0">
                                         <div class="flex items-center gap-2 flex-wrap">
+                                            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                                                <span x-text="'Visitor #' + (v.serial || v.slot)"></span>
+                                            </span>
+
                                             <template x-if="v.is_logged_in">
                                                 <span class="font-bold text-gray-900 truncate" x-text="v.name"></span>
                                             </template>
                                             <template x-if="!v.is_logged_in && (v.name || v.last_seen_as)">
                                                 <span class="font-bold text-gray-900 truncate" x-text="v.last_seen_as || v.name"></span>
-                                            </template>
-                                            <template x-if="!v.is_logged_in && !v.name && !v.last_seen_as">
-                                                <span class="font-semibold text-gray-700">Guest Visitor</span>
                                             </template>
 
                                             <template x-if="v.is_logged_in">
@@ -186,20 +188,27 @@
                                             </template>
                                         </div>
 
-                                        <div class="text-xs text-gray-500 mt-0.5 flex items-center gap-2 truncate">
+                                        <div class="text-xs text-gray-500 mt-1 flex items-center gap-2 flex-wrap">
+                                            <template x-if="v.first_seen_time">
+                                                <span class="inline-flex items-center gap-1 text-[11px] text-gray-600 font-medium bg-gray-50 px-1.5 py-0.5 rounded border border-gray-100">
+                                                    <i class="ph ph-clock text-xs text-gray-400"></i>
+                                                    <span x-text="'Entry: ' + v.first_seen_time"></span>
+                                                </span>
+                                            </template>
                                             <template x-if="v.phone">
                                                 <span class="font-mono text-gray-700 font-medium" x-text="v.phone"></span>
-                                            </template>
-                                            <template x-if="v.phone && v.ip">
-                                                <span>•</span>
                                             </template>
                                             <template x-if="v.ip">
                                                 <span class="font-mono text-[11px] text-gray-400" x-text="'IP: ' + v.ip"></span>
                                             </template>
-                                            <template x-if="!v.phone && !v.ip">
-                                                <span class="font-mono text-[11px] text-gray-400" x-text="'ID: ' + v.vid.substring(0, 10)"></span>
-                                            </template>
                                         </div>
+
+                                        <template x-if="v.address">
+                                            <div class="text-[11px] text-gray-600 mt-1 flex items-center gap-1 truncate max-w-[280px]" :title="v.address">
+                                                <i class="ph ph-map-pin text-rose-500 shrink-0"></i>
+                                                <span class="truncate" x-text="v.address"></span>
+                                            </div>
+                                        </template>
                                     </div>
                                 </div>
                             </td>

@@ -50,10 +50,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['stats'])) {
                     if (is_array($item)) {
                         $liveVisitors[] = [
                             'vid' => $id,
+                            'serial' => (int)($item['serial'] ?? 1),
+                            'first_seen_time' => $item['first_seen_time'] ?? date('h:i:s A', (int)($item['first_seen'] ?? $now)),
                             'user_id' => $item['user_id'] ?? null,
                             'name' => $item['name'] ?? null,
                             'phone' => $item['phone'] ?? null,
                             'email' => $item['email'] ?? null,
+                            'address' => $item['address'] ?? null,
                             'is_logged_in' => !empty($item['is_logged_in']),
                             'last_seen_as' => $item['last_seen_as'] ?? ($item['name'] ?? null),
                             'url' => $item['url'] ?? '/',
@@ -77,9 +80,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['stats'])) {
                     } else {
                         $liveVisitors[] = [
                             'vid' => $id,
+                            'serial' => 1,
+                            'first_seen_time' => date('h:i:s A', $now),
                             'name' => null,
                             'phone' => null,
                             'email' => null,
+                            'address' => null,
                             'is_logged_in' => false,
                             'last_seen_as' => null,
                             'url' => '/',
@@ -181,6 +187,7 @@ $pUserId = !empty($profile['user_id']) ? (int)$profile['user_id'] : null;
 $pName = isset($profile['name']) ? substr(strip_tags((string)$profile['name']), 0, 60) : null;
 $pPhone = isset($profile['phone']) ? substr(strip_tags((string)$profile['phone']), 0, 25) : null;
 $pEmail = isset($profile['email']) ? substr(strip_tags((string)$profile['email']), 0, 80) : null;
+$pAddress = isset($profile['address']) ? substr(strip_tags((string)$profile['address']), 0, 255) : null;
 $isLoggedIn = !empty($profile['is_logged_in']);
 $lastSeenAs = isset($profile['last_seen_as']) ? substr(strip_tags((string)$profile['last_seen_as']), 0, 60) : null;
 if (!$lastSeenAs && $pName) {
@@ -193,6 +200,59 @@ if (strpos($clientIp, ',') !== false) {
     $clientIp = trim(explode(',', $clientIp)[0]);
 }
 $clientIp = substr(preg_replace('/[^a-fA-F0-9:.]/', '', $clientIp), 0, 45);
+
+// 2. Resolve Daily Sequential Serial for this visitor (Visitor #1, #2... fixed for the entire day)
+$assignedSerial = 1;
+$assignedFirstSeenTime = date('h:i:s A', $now);
+
+$dfp = @fopen($dailyFile, 'c+');
+if ($dfp) {
+    if (flock($dfp, LOCK_EX)) {
+        $dSize = filesize($dailyFile);
+        $dContent = $dSize > 0 ? fread($dfp, $dSize) : '';
+        $dData = json_decode($dContent, true);
+        if (!is_array($dData)) {
+            $dData = [
+                'date' => $today,
+                'unique' => 0,
+                'views' => 0,
+                'last_serial' => 0,
+                'serials' => []
+            ];
+        }
+        if (!isset($dData['serials']) || !is_array($dData['serials'])) {
+            $dData['serials'] = [];
+        }
+        if (!isset($dData['last_serial'])) {
+            $dData['last_serial'] = count($dData['serials']);
+        }
+
+        if (isset($dData['serials'][$visitorId])) {
+            $assignedSerial = (int)($dData['serials'][$visitorId]['s'] ?? 1);
+            $assignedFirstSeenTime = (string)($dData['serials'][$visitorId]['t'] ?? date('h:i:s A', $now));
+        } else {
+            $assignedSerial = (int)$dData['last_serial'] + 1;
+            $dData['last_serial'] = $assignedSerial;
+            $assignedFirstSeenTime = date('h:i:s A', $now);
+            $dData['serials'][$visitorId] = [
+                's' => $assignedSerial,
+                't' => $assignedFirstSeenTime,
+                'ts' => $now,
+            ];
+            $dData['unique'] = count($dData['serials']);
+        }
+
+        if (!empty($payload['is_new'])) {
+            $dData['views'] = (int)($dData['views'] ?? 0) + 1;
+        }
+
+        ftruncate($dfp, 0);
+        rewind($dfp);
+        fwrite($dfp, json_encode($dData));
+        flock($dfp, LOCK_UN);
+    }
+    fclose($dfp);
+}
 
 $fp = @fopen($activeFile, 'c+');
 if ($fp) {
@@ -229,6 +289,7 @@ if ($fp) {
             $savedName = $pName ?: ($existing['name'] ?? null);
             $savedPhone = $pPhone ?: ($existing['phone'] ?? null);
             $savedEmail = $pEmail ?: ($existing['email'] ?? null);
+            $savedAddress = $pAddress ?: ($existing['address'] ?? null);
             $savedLastSeenAs = $lastSeenAs ?: ($existing['last_seen_as'] ?? $savedName);
 
             // Accept persistent multi-page journey timeline from client localStorage
@@ -284,6 +345,8 @@ if ($fp) {
             $activeSessions[$visitorId] = [
                 'last_seen' => $now,
                 'first_seen' => $firstSeen,
+                'serial' => $assignedSerial,
+                'first_seen_time' => $assignedFirstSeenTime,
                 'url' => $currentUrl,
                 'title' => $currentTitle,
                 'device' => $device ?: ($existing['device'] ?? 'Desktop'),
@@ -292,6 +355,7 @@ if ($fp) {
                 'name' => $savedName,
                 'phone' => $savedPhone,
                 'email' => $savedEmail,
+                'address' => $savedAddress,
                 'is_logged_in' => $isLoggedIn,
                 'last_seen_as' => $savedLastSeenAs,
                 'is_engaged' => $isEngaged,
@@ -313,30 +377,7 @@ if ($fp) {
     fclose($fp);
 }
 
-// 3. Increment daily unique counter in a super lightweight daily file (1 write per new daily session)
-$isNewDaily = !empty($payload['is_new']);
-if ($isNewDaily) {
-    $dfp = @fopen($dailyFile, 'c+');
-    if ($dfp) {
-        if (flock($dfp, LOCK_EX)) {
-            $dSize = filesize($dailyFile);
-            $dContent = $dSize > 0 ? fread($dfp, $dSize) : '';
-            $dData = json_decode($dContent, true);
-            if (!is_array($dData)) {
-                $dData = ['date' => $today, 'unique' => 0, 'views' => 0];
-            }
-            $dData['unique'] = (int)($dData['unique'] ?? 0) + 1;
-            $dData['views'] = (int)($dData['views'] ?? 0) + 1;
-            ftruncate($dfp, 0);
-            rewind($dfp);
-            fwrite($dfp, json_encode($dData));
-            flock($dfp, LOCK_UN);
-        }
-        fclose($dfp);
-    }
-}
-
-// 4. Check for pending offers for this visitor (0ms RAM lookup, Zero Database hits)
+// 3. Check for pending offers for this visitor (0ms RAM lookup, Zero Database hits)
 $pendingOffer = null;
 $offersFile = $storageDir . '/pending_offers.json';
 if (file_exists($offersFile)) {
@@ -360,6 +401,8 @@ if (file_exists($offersFile)) {
 
 echo json_encode([
     'status' => 'ok',
+    'serial' => $assignedSerial,
+    'first_seen_time' => $assignedFirstSeenTime,
     'offer' => $pendingOffer
 ]);
 exit;

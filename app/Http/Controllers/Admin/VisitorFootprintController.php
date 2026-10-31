@@ -45,9 +45,15 @@ class VisitorFootprintController extends Controller
         $filter = $request->input('filter', 'all'); // 'all', 'returning', 'with_cart', 'checkout', 'identified'
         $search = trim($request->input('search', ''));
 
+        $sort = $request->input('sort', 'serial'); // 'serial' (#1, #2...) or 'recent'
         $query = VisitorSession::with(['user', 'cartSession', 'customOffers'])
-            ->whereDate('session_date', $date)
-            ->latest('last_seen_at');
+            ->whereDate('session_date', $date);
+
+        if ($sort === 'recent') {
+            $query->latest('last_seen_at');
+        } else {
+            $query->orderByRaw('CASE WHEN daily_serial > 0 THEN daily_serial ELSE id END ASC');
+        }
 
         if ($filter === 'returning') {
             $query->where('is_returning', true);
@@ -59,7 +65,8 @@ class VisitorFootprintController extends Controller
             $query->where(function ($q) {
                 $q->whereNotNull('user_id')
                     ->orWhereNotNull('customer_phone')
-                    ->orWhereNotNull('customer_name');
+                    ->orWhereNotNull('customer_name')
+                    ->orWhereNotNull('customer_address');
             });
         }
 
@@ -69,8 +76,13 @@ class VisitorFootprintController extends Controller
                     ->orWhere('ip_address', 'like', "%{$search}%")
                     ->orWhere('customer_name', 'like', "%{$search}%")
                     ->orWhere('customer_phone', 'like', "%{$search}%")
+                    ->orWhere('customer_address', 'like', "%{$search}%")
                     ->orWhere('last_title', 'like', "%{$search}%")
                     ->orWhere('entry_url', 'like', "%{$search}%");
+
+                if (is_numeric($search)) {
+                    $q->orWhere('daily_serial', (int)$search);
+                }
             });
         }
 
@@ -99,6 +111,7 @@ class VisitorFootprintController extends Controller
             'date',
             'filter',
             'search',
+            'sort',
             'metrics',
             'templates'
         ));
@@ -148,10 +161,12 @@ class VisitorFootprintController extends Controller
             'success' => true,
             'session' => [
                 'id' => $session->id,
+                'daily_serial' => $session->daily_serial ?: $session->id,
                 'vid' => $session->visitor_token,
                 'name' => $session->customer_name ?: ($session->user?->name ?: 'Guest Shopper'),
                 'phone' => $session->customer_phone ?: ($session->user?->phone ?: null),
                 'email' => $session->customer_email ?: ($session->user?->email ?: null),
+                'address' => $session->customer_address ?: ($session->cartSession?->customer_address ?? null),
                 'ip' => $session->ip_address,
                 'device' => $session->device,
                 'browser' => $session->browser,
