@@ -10,6 +10,13 @@ use Tests\TestCase;
 
 class VisitorOfferAndLiveTrackingTest extends TestCase
 {
+    protected function tearDown(): void
+    {
+        \App\Models\VisitorCustomOffer::where('visitor_token', 'like', 'test_%')->orWhere('coupon_code', 'TEST15')->delete();
+        \App\Models\VisitorSession::where('visitor_token', 'like', 'test_%')->delete();
+        parent::tearDown();
+    }
+
     /**
      * Test pulse API logs activity and returns pending offer with custom delay and button
      */

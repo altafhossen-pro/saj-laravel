@@ -9,6 +9,12 @@ use Tests\TestCase;
 
 class ManualOrderPosTest extends TestCase
 {
+    protected function tearDown(): void
+    {
+        \App\Models\Order\Order::where('shipping_address->name', 'Test POS Customer')->delete();
+        parent::tearDown();
+    }
+
     /**
      * Test manual order POS page loads cleanly for admin
      */
