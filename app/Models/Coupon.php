@@ -206,7 +206,7 @@ class Coupon extends Model
             }
         }
 
-        $discount = round(min($discount, $subtotal + ($this->discount_type === 'free_shipping' ? $shippingCost : 0)), 2);
+        $discount = (float) round(min($discount, $subtotal + ($this->discount_type === 'free_shipping' ? $shippingCost : 0)));
 
         return [
             'valid' => true,

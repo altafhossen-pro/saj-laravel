@@ -470,11 +470,11 @@
                 },
 
                 get couponDiscount() {
-                    return this.appliedCoupon ? (parseFloat(this.appliedCoupon.discount) || 0) : 0;
+                    return this.appliedCoupon ? Math.round(parseFloat(this.appliedCoupon.discount) || 0) : 0;
                 },
 
                 get grandTotal() {
-                    return Math.max(0, this.cartTotal + this.deliveryCharge - this.couponDiscount);
+                    return Math.max(0, Math.round(this.cartTotal + this.deliveryCharge - this.couponDiscount));
                 },
 
                 async applyCoupon() {
@@ -518,7 +518,7 @@
                         if (response.ok && data.success) {
                             this.appliedCoupon = {
                                 code: data.coupon_code,
-                                discount: parseFloat(data.discount) || 0,
+                                discount: Math.round(parseFloat(data.discount) || 0),
                                 discount_type: data.discount_type,
                                 discount_amount: parseFloat(data.discount_amount) || 0,
                                 message: data.message

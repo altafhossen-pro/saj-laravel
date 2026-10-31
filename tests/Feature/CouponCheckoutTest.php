@@ -227,6 +227,28 @@ class CouponCheckoutTest extends TestCase
         $resShip->assertStatus(200);
         $this->assertGreaterThan(0, (float)$resShip->json('discount'));
         $this->assertEquals('free_shipping', $resShip->json('discount_type'));
+
+        // Variety D: Integer rounding - 5% on ৳850 (which is 42.5) must round up to full integer ৳43
+        $fivePercentCoupon = Coupon::create([
+            'code' => 'TEST5_' . uniqid(),
+            'discount_type' => 'percentage',
+            'discount_amount' => 5,
+            'is_active' => true,
+        ]);
+        $resFive = $this->postJson(route('checkout.apply-coupon'), [
+            'coupon_code' => $fivePercentCoupon->code,
+            'items' => [
+                [
+                    'product_id' => $product->id,
+                    'quantity' => 1,
+                    'price' => 850.00,
+                ]
+            ],
+            'delivery_type' => 'inside',
+        ]);
+        $resFive->assertStatus(200);
+        $this->assertEquals(43, $resFive->json('discount'));
+        $this->assertIsInt($resFive->json('discount') + 0);
     }
 
     /**

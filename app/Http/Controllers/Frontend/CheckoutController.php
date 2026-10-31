@@ -78,7 +78,7 @@ class CheckoutController extends Controller
             'success' => true,
             'message' => $result['message'],
             'coupon_code' => $coupon->code,
-            'discount' => $result['discount'],
+            'discount' => (float) round($result['discount']),
             'discount_type' => $result['discount_type'],
             'discount_amount' => $result['discount_amount'],
         ]);
@@ -218,10 +218,10 @@ class CheckoutController extends Controller
                     throw new Exception($couponResult['message']);
                 }
 
-                $couponDiscount = $couponResult['discount'];
+                $couponDiscount = (float) round($couponResult['discount']);
             }
 
-            $total = max(0, $totalSubtotal + $shippingCost - $couponDiscount);
+            $total = max(0, (float) round($totalSubtotal + $shippingCost - $couponDiscount));
 
             // 3. Create Order
             $order = new Order();
