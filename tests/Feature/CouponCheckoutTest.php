@@ -12,6 +12,16 @@ use Tests\TestCase;
 
 class CouponCheckoutTest extends TestCase
 {
+    protected function tearDown(): void
+    {
+        // Automatically cleanup any test records created during test execution
+        Coupon::where('id', '!=', 1)->where('code', '!=', 'SAJ5')->delete();
+        CouponUsage::where('customer_phone', 'like', '018%')->delete();
+        Order::where('shipping_address->name', 'Coupon Test Customer')->delete();
+
+        parent::tearDown();
+    }
+
     /**
      * 1. Test Admin Coupons Index Page renders cleanly without missing route exception
      */
