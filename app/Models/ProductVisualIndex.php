@@ -26,11 +26,13 @@ class ProductVisualIndex extends Model
         'color_signature',
         'aspect_ratio',
         'search_text',
+        'ai_embedding',
     ];
 
     protected $casts = [
         'is_featured' => 'boolean',
         'color_signature' => 'array',
+        'ai_embedding' => 'array',
         'aspect_ratio' => 'float',
     ];
 

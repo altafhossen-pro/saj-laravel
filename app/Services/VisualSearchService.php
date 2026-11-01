@@ -303,8 +303,23 @@ class VisualSearchService
      * Compare query fingerprint and optional text against an indexed product image.
      * Returns a composite score from 0.0 to 100.0%.
      */
-    public static function calculateMatchScore(array $queryFp, ProductVisualIndex $index, ?string $extractedText = null): float
+    public static function calculateMatchScore(array $queryFp, ProductVisualIndex $index, ?string $extractedText = null, ?array $queryAiEmbedding = null): float
     {
+        // 0. AI Semantic Vector Match (Cloudflare Workers AI - CLIP ViT)
+        // If both query and catalog image have AI embeddings, use deep semantic cosine similarity
+        if (!empty($queryAiEmbedding) && !empty($index->ai_embedding)) {
+            $aiSimilarity = CloudflareAiService::computeCosineSimilarity($queryAiEmbedding, $index->ai_embedding);
+            $baseScore = $aiSimilarity * 100.0;
+
+            // Barcode / SKU / Text boost applies on top (+85% for exact barcode match!)
+            if (!empty($extractedText) && !empty($index->search_text)) {
+                $textBoost = self::calculateTextBoost($extractedText, $index->search_text);
+                $baseScore += $textBoost;
+            }
+
+            return min(100.0, max(0.0, round($baseScore, 1)));
+        }
+
         // 1. dHash match (difference gradients, 64-bit)
         $dDist = self::computeHammingDistance($queryFp['dhash'], $index->dhash);
         $dScore = max(0.0, (1.0 - ($dDist / 32.0)));
@@ -428,12 +443,18 @@ class VisualSearchService
 
         $productMatches = [];
 
+        // Generate query image AI embedding if Cloudflare Workers AI is ready
+        $queryAiEmbedding = null;
+        if (CloudflareAiService::isReady()) {
+            $queryAiEmbedding = CloudflareAiService::generateImageEmbedding($uploadedTempPath);
+        }
+
         foreach ($indexes as $index) {
             $product = $index->product;
             if (!$product)
                 continue;
 
-            $score = self::calculateMatchScore($queryFp, $index, $extractedText);
+            $score = self::calculateMatchScore($queryFp, $index, $extractedText, $queryAiEmbedding);
 
             if ($score >= $minScore) {
                 $productId = $product->id;
@@ -459,24 +480,26 @@ class VisualSearchService
 
         $topScore = $sortedMatches[0]['score'];
 
-        // If top item doesn't reach at least 18%, no confident match
-        if ($topScore < 18.0) {
-            return [];
-        }
-
-        // Adaptive Quality Gate:
-        // 1. If top match is an exact Barcode/SKU/Text match (>= 80%):
-        //    Keep the exact match at the top, and also keep other visually matching products (>= 15%)
-        // 2. If top match is a strong visual match (60% - 79%):
-        //    Keep items within 25% of top match to prevent false positives (e.g. Dove shampoo vs Laikou Sakura)
-        // 3. If top match is moderate (18% - 59%):
-        //    Keep items with at least 18% similarity
-        if ($topScore >= 80.0) {
-            $cutoff = 15.0;
-        } elseif ($topScore >= 60.0) {
-            $cutoff = max(20.0, $topScore - 25.0);
+        // Adaptive Quality Gate
+        if (!empty($queryAiEmbedding)) {
+            // When using AI semantic vectors, unrelated items (Rubik's cube, random desk items) score < 30%.
+            // Only genuine matching products score >= 35%.
+            if ($topScore < 35.0 && empty($extractedText)) {
+                return [];
+            }
+            $cutoff = ($topScore >= 80.0) ? 25.0 : max(28.0, $topScore - 22.0);
         } else {
-            $cutoff = 18.0;
+            // Local perceptual hash quality gate:
+            if ($topScore < 18.0) {
+                return [];
+            }
+            if ($topScore >= 80.0) {
+                $cutoff = 15.0;
+            } elseif ($topScore >= 60.0) {
+                $cutoff = max(20.0, $topScore - 25.0);
+            } else {
+                $cutoff = 18.0;
+            }
         }
 
         $filtered = array_filter($sortedMatches, fn($item) => $item['score'] >= $cutoff);
@@ -532,6 +555,7 @@ class VisualSearchService
             if ($fullPath && file_exists($fullPath)) {
                 $fp = self::createFingerprintFromPath($fullPath);
                 if ($fp) {
+                    $aiEmb = CloudflareAiService::isReady() ? CloudflareAiService::generateImageEmbedding($fullPath) : null;
                     ProductVisualIndex::create([
                         'product_id' => $product->id,
                         'variant_id' => null,
@@ -543,6 +567,7 @@ class VisualSearchService
                         'ahash' => $fp['ahash'],
                         'center_dhash' => $fp['center_dhash'] ?? null,
                         'color_signature' => $fp['color_signature'],
+                        'ai_embedding' => $aiEmb,
                         'aspect_ratio' => $fp['aspect_ratio'],
                         'search_text' => $baseSearchText,
                     ]);
@@ -566,6 +591,7 @@ class VisualSearchService
                 if ($fullPath && file_exists($fullPath)) {
                     $fp = self::createFingerprintFromPath($fullPath);
                     if ($fp) {
+                        $aiEmb = CloudflareAiService::isReady() ? CloudflareAiService::generateImageEmbedding($fullPath) : null;
                         ProductVisualIndex::create([
                             'product_id' => $product->id,
                             'variant_id' => null,
@@ -577,6 +603,7 @@ class VisualSearchService
                             'ahash' => $fp['ahash'],
                             'center_dhash' => $fp['center_dhash'] ?? null,
                             'color_signature' => $fp['color_signature'],
+                            'ai_embedding' => $aiEmb,
                             'aspect_ratio' => $fp['aspect_ratio'],
                             'search_text' => $baseSearchText,
                         ]);
@@ -618,6 +645,7 @@ class VisualSearchService
                     if ($fullPath && file_exists($fullPath)) {
                         $fp = self::createFingerprintFromPath($fullPath);
                         if ($fp) {
+                            $aiEmb = CloudflareAiService::isReady() ? CloudflareAiService::generateImageEmbedding($fullPath) : null;
                             ProductVisualIndex::create([
                                 'product_id' => $product->id,
                                 'variant_id' => $variant->id,
@@ -629,6 +657,7 @@ class VisualSearchService
                                 'ahash' => $fp['ahash'],
                                 'center_dhash' => $fp['center_dhash'] ?? null,
                                 'color_signature' => $fp['color_signature'],
+                                'ai_embedding' => $aiEmb,
                                 'aspect_ratio' => $fp['aspect_ratio'],
                                 'search_text' => $variantSearchText,
                             ]);

@@ -438,6 +438,86 @@ class SettingController extends Controller
 
         return response()->json($result);
     }
+
+    public function visualSearch()
+    {
+        $enabled = Setting::get('visual_search_ai_enabled', false);
+        $accountId = Setting::get('cloudflare_account_id', env('CLOUDFLARE_ACCOUNT_ID', ''));
+        $apiToken = Setting::get('cloudflare_ai_token', env('CLOUDFLARE_AI_TOKEN', ''));
+        $model = \App\Services\CloudflareAiService::MODEL_CLIP;
+
+        $totalImages = \App\Models\ProductVisualIndex::count();
+        $aiIndexed = \App\Models\ProductVisualIndex::whereNotNull('ai_embedding')->count();
+
+        return view('admin.settings.visual-search', compact(
+            'enabled', 'accountId', 'apiToken', 'model', 'totalImages', 'aiIndexed'
+        ));
+    }
+
+    public function updateVisualSearch(Request $request)
+    {
+        $request->validate([
+            'cloudflare_account_id' => 'nullable|string|max:100',
+            'cloudflare_ai_token' => 'nullable|string|max:200',
+        ]);
+
+        $enabled = $request->boolean('visual_search_ai_enabled');
+        Setting::set('visual_search_ai_enabled', $enabled ? '1' : '0', 'boolean', 'visual_search');
+        Setting::set('cloudflare_account_id', trim($request->input('cloudflare_account_id', '')), 'string', 'visual_search');
+        Setting::set('cloudflare_ai_token', trim($request->input('cloudflare_ai_token', '')), 'string', 'visual_search');
+
+        if ($request->wantsJson() || $request->ajax()) {
+            return response()->json([
+                'status' => 'success',
+                'message' => 'AI Visual Search settings updated successfully!'
+            ]);
+        }
+
+        return redirect()->back()->with('success', 'AI Visual Search settings updated successfully!');
+    }
+
+    public function testVisualSearchAi(Request $request)
+    {
+        $acc = trim($request->input('account_id', '')) ?: Setting::get('cloudflare_account_id');
+        $token = trim($request->input('api_token', '')) ?: Setting::get('cloudflare_ai_token');
+
+        $result = \App\Services\CloudflareAiService::testConnection($acc, $token);
+        return response()->json($result);
+    }
+
+    public function syncVisualSearchAi(Request $request)
+    {
+        if (!\App\Services\CloudflareAiService::isConfigured()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Cloudflare Account ID and API Token must be configured first.'
+            ], 422);
+        }
+
+        $records = \App\Models\ProductVisualIndex::whereNull('ai_embedding')->take(10)->get();
+        $count = 0;
+
+        foreach ($records as $rec) {
+            $fullPath = \App\Services\VisualSearchService::resolveProductImagePath($rec->image_path);
+            if ($fullPath && file_exists($fullPath)) {
+                $emb = \App\Services\CloudflareAiService::generateImageEmbedding($fullPath);
+                if ($emb) {
+                    $rec->ai_embedding = $emb;
+                    $rec->save();
+                    $count++;
+                }
+            }
+        }
+
+        $remaining = \App\Models\ProductVisualIndex::whereNull('ai_embedding')->count();
+
+        return response()->json([
+            'success' => true,
+            'processed' => $count,
+            'remaining' => $remaining,
+            'message' => "Successfully generated AI embeddings for {$count} image(s). Remaining: {$remaining}."
+        ]);
+    }
 }
 
 

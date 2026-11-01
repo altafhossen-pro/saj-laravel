@@ -206,6 +206,12 @@ Route::middleware(['auth', 'role:super_admin'])->prefix('admin/dashboard')->grou
     Route::post('/settings/facebook-pixel', [\App\Http\Controllers\Admin\SettingController::class, 'updateFacebookPixel'])->name('admin.settings.facebook-pixel.update');
     Route::post('/settings/facebook-pixel/test', [\App\Http\Controllers\Admin\SettingController::class, 'testFacebookPixel'])->name('admin.settings.facebook-pixel.test');
 
+    // AI Visual Search Settings
+    Route::get('/settings/visual-search', [\App\Http\Controllers\Admin\SettingController::class, 'visualSearch'])->name('admin.settings.visual-search');
+    Route::post('/settings/visual-search', [\App\Http\Controllers\Admin\SettingController::class, 'updateVisualSearch'])->name('admin.settings.visual-search.update');
+    Route::post('/settings/visual-search/test', [\App\Http\Controllers\Admin\SettingController::class, 'testVisualSearchAi'])->name('admin.settings.visual-search.test');
+    Route::post('/settings/visual-search/sync', [\App\Http\Controllers\Admin\SettingController::class, 'syncVisualSearchAi'])->name('admin.settings.visual-search.sync');
+
     // Email & SMTP Server Settings
     Route::get('/settings/smtp', [\App\Http\Controllers\Admin\SmtpSettingsController::class, 'index'])->name('admin.settings.smtp');
     Route::post('/settings/smtp', [\App\Http\Controllers\Admin\SmtpSettingsController::class, 'update'])->name('admin.settings.smtp.update');
