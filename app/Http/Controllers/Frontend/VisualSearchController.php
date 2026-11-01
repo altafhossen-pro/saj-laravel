@@ -64,7 +64,7 @@ class VisualSearchController extends Controller
             }
 
             $limit = (int) $request->input('limit', 24);
-            $minScore = (float) $request->input('min_score', 25.0);
+            $minScore = (float) $request->input('min_score', 45.0);
 
             $extractedText = $request->input('ocr_text', $request->input('text', null));
             if ($request->hasFile('image')) {
@@ -164,7 +164,7 @@ class VisualSearchController extends Controller
             $extractedText = trim(($extractedText ?? '') . ' ' . str_replace(['_', '-'], ' ', $clientFilename));
         }
 
-        $rawResults = VisualSearchService::searchByImage($tempPath, 30, 25.0, $extractedText);
+        $rawResults = VisualSearchService::searchByImage($tempPath, 30, 45.0, $extractedText);
 
         $token = Str::random(16);
         $publicImageUrl = self::storePublicTempThumbnail($tempPath, $token);

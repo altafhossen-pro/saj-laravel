@@ -363,7 +363,8 @@ class VisualSearchService
     {
         $q = strtolower(trim($queryText));
         $target = strtolower(trim($indexedText));
-        if ($q === '' || $target === '') return 0.0;
+        if ($q === '' || $target === '')
+            return 0.0;
 
         $boost = 0.0;
 
@@ -373,7 +374,8 @@ class VisualSearchService
 
         foreach ($tokens as $token) {
             $tok = strtolower($token);
-            if (strlen($tok) < 3) continue;
+            if (strlen($tok) < 3)
+                continue;
 
             // Direct word boundary or substring match
             if (str_contains($target, $tok)) {
@@ -410,7 +412,8 @@ class VisualSearchService
 
         foreach ($indexes as $index) {
             $product = $index->product;
-            if (!$product) continue;
+            if (!$product)
+                continue;
 
             $score = self::calculateMatchScore($queryFp, $index, $extractedText);
 
@@ -429,9 +432,29 @@ class VisualSearchService
         }
 
         // Sort desc by similarity score
-        uasort($productMatches, fn ($a, $b) => $b['score'] <=> $a['score']);
+        uasort($productMatches, fn($a, $b) => $b['score'] <=> $a['score']);
 
-        return array_slice(array_values($productMatches), 0, $limit);
+        $sortedMatches = array_values($productMatches);
+        if (empty($sortedMatches)) {
+            return [];
+        }
+
+        $topScore = $sortedMatches[0]['score'];
+
+        // Strict Adaptive Quality Gate:
+        // 1. If top match is strong (>= 75%), discard any product whose score is less than max(50.0, topScore - 25.0).
+        //    This eliminates accidental low-similarity false positives completely!
+        // 2. If top match is moderate (45% - 74%), only keep items with >= 45.0%.
+        // 3. If top match is below 45%, treat as no confident match to prevent irrelevant noise.
+        if ($topScore < 45.0) {
+            return [];
+        }
+
+        $cutoff = ($topScore >= 75.0) ? max(50.0, $topScore - 25.0) : 45.0;
+
+        $filtered = array_filter($sortedMatches, fn($item) => $item['score'] >= $cutoff);
+
+        return array_slice(array_values($filtered), 0, $limit);
     }
 
     /**
@@ -492,7 +515,8 @@ class VisualSearchService
 
         if (is_array($gallery)) {
             foreach ($gallery as $gImg) {
-                if (empty($gImg) || isset($indexedPaths[$gImg])) continue;
+                if (empty($gImg) || isset($indexedPaths[$gImg]))
+                    continue;
 
                 $fullPath = self::resolveProductImagePath($gImg);
                 if ($fullPath && file_exists($fullPath)) {
@@ -543,7 +567,8 @@ class VisualSearchService
                 }
 
                 foreach ($variantImages as $vImg) {
-                    if (empty($vImg) || isset($indexedPaths[$vImg])) continue;
+                    if (empty($vImg) || isset($indexedPaths[$vImg]))
+                        continue;
 
                     $fullPath = self::resolveProductImagePath($vImg);
                     if ($fullPath && file_exists($fullPath)) {
