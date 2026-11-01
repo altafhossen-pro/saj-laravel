@@ -229,7 +229,8 @@ class CloudflareAiService
             return null;
         }
 
-        $imageBytes = self::prepareImageBytes($imagePath, 512);
+        // Resize to 384px to keep vision token usage minimal (~8.5 neurons per search)
+        $imageBytes = self::prepareImageBytes($imagePath, 384);
         if (!$imageBytes) {
             return null;
         }
@@ -252,6 +253,8 @@ class CloudflareAiService
                 ->post($url, [
                     'image' => $imageBytes,
                     'prompt' => $prompt,
+                    'max_tokens' => 60,
+                    'temperature' => 0.1,
                 ]);
 
             if ($response->successful()) {
