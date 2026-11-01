@@ -49,29 +49,42 @@
                     <div @dragover.prevent="isDragging = true"
                          @dragleave.prevent="isDragging = false"
                          @drop.prevent="handleDrop($event)"
-                         @click="$refs.imageFileInput.click()"
+                         @click="$refs.galleryInput.click()"
                          :class="isDragging ? 'border-brand-500 bg-brand-50/50 scale-[0.99]' : 'border-gray-200 hover:border-brand-400 hover:bg-gray-50/70'"
-                         class="border-2 border-dashed rounded-2xl p-8 text-center cursor-pointer transition-all duration-200 group">
+                         class="border-2 border-dashed rounded-2xl p-6 sm:p-8 text-center cursor-pointer transition-all duration-200 group">
                         
                         <div class="w-14 h-14 rounded-2xl bg-brand-50 text-brand-600 flex items-center justify-center mx-auto mb-3 group-hover:scale-110 transition-transform shadow-xs">
                             <i class="ph-bold ph-image text-2xl"></i>
                         </div>
                         
-                        <h4 class="font-bold text-gray-800 text-sm mb-1">Upload or Drag & Drop Product Image</h4>
-                        <p class="text-xs text-gray-500 max-w-xs mx-auto">Upload a photo, screenshot, or snap with your camera to find matching products</p>
+                        <h4 class="font-bold text-gray-800 text-sm mb-1">Upload or Take Product Photo</h4>
+                        <p class="text-xs text-gray-500 max-w-xs mx-auto">Snap with your mobile camera or upload from gallery to find matching products</p>
                         
-                        <div class="mt-4 flex items-center justify-center gap-2 flex-wrap">
-                            <span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white border border-gray-200 text-xs font-semibold text-gray-700 shadow-xs">
-                                <i class="ph ph-upload-simple"></i> Choose File
-                            </span>
-                            <span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white border border-gray-200 text-xs font-semibold text-gray-700 shadow-xs">
-                                <i class="ph ph-camera"></i> Take Photo
-                            </span>
+                        <div class="mt-4 flex items-center justify-center gap-2.5 flex-wrap" @click.stop>
+                            <button type="button"
+                                    @click.stop="$refs.galleryInput.click()"
+                                    class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white hover:bg-gray-50 border border-gray-200 text-xs font-semibold text-gray-700 shadow-xs transition active:scale-95 cursor-pointer">
+                                <i class="ph ph-upload-simple text-sm"></i> Choose File
+                            </button>
+                            <button type="button"
+                                    @click.stop="$refs.cameraInput.click()"
+                                    class="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-brand-600 hover:bg-brand-700 text-white text-xs font-semibold shadow-xs transition active:scale-95 cursor-pointer">
+                                <i class="ph-bold ph-camera text-sm"></i> Take Photo
+                            </button>
                         </div>
                         
+                        <!-- Standard Gallery / File Picker -->
                         <input type="file"
-                               x-ref="imageFileInput"
+                               x-ref="galleryInput"
                                accept="image/*,.heic,.heif"
+                               @change="handleFileSelect($event)"
+                               class="hidden">
+
+                        <!-- Direct Live Mobile Camera Input (Environment / Back Camera) -->
+                        <input type="file"
+                               x-ref="cameraInput"
+                               accept="image/*"
+                               capture="environment"
                                @change="handleFileSelect($event)"
                                class="hidden">
                     </div>
@@ -79,7 +92,7 @@
                     <!-- Quick hints -->
                     <div class="bg-gray-50 rounded-xl p-3 text-[11px] text-gray-500 flex items-start gap-2 border border-gray-100">
                         <i class="ph-bold ph-lightbulb text-amber-500 text-base shrink-0 mt-0.5"></i>
-                        <span><strong>Tip:</strong> For best accuracy, use a clear photo centered on the product or a clean screenshot from Facebook / Instagram.</span>
+                        <span><strong>Tip:</strong> For best accuracy, snap a photo centered on the product or clean screenshot with good lighting.</span>
                     </div>
                 </div>
             </template>
@@ -227,8 +240,11 @@
                 this.errorMessage = null;
                 this.results = [];
                 this.isSearching = false;
-                if (this.$refs.imageFileInput) {
-                    this.$refs.imageFileInput.value = '';
+                if (this.$refs.galleryInput) {
+                    this.$refs.galleryInput.value = '';
+                }
+                if (this.$refs.cameraInput) {
+                    this.$refs.cameraInput.value = '';
                 }
             },
 
