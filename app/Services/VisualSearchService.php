@@ -459,8 +459,8 @@ class VisualSearchService
 
         $topScore = $sortedMatches[0]['score'];
 
-        // If top item doesn't reach at least 20%, no confident match
-        if ($topScore < 20.0) {
+        // If top item doesn't reach at least 18%, no confident match
+        if ($topScore < 18.0) {
             return [];
         }
 
@@ -469,14 +469,14 @@ class VisualSearchService
         //    Keep the exact match at the top, and also keep other visually matching products (>= 15%)
         // 2. If top match is a strong visual match (60% - 79%):
         //    Keep items within 25% of top match to prevent false positives (e.g. Dove shampoo vs Laikou Sakura)
-        // 3. If top match is moderate (20% - 59%):
-        //    Keep items with at least 20% similarity
+        // 3. If top match is moderate (18% - 59%):
+        //    Keep items with at least 18% similarity
         if ($topScore >= 80.0) {
             $cutoff = 15.0;
         } elseif ($topScore >= 60.0) {
-            $cutoff = max(25.0, $topScore - 25.0);
+            $cutoff = max(20.0, $topScore - 25.0);
         } else {
-            $cutoff = 20.0;
+            $cutoff = 18.0;
         }
 
         $filtered = array_filter($sortedMatches, fn($item) => $item['score'] >= $cutoff);

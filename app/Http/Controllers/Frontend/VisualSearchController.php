@@ -71,7 +71,7 @@ class VisualSearchController extends Controller
             }
 
             $limit = (int) $request->input('limit', 24);
-            $minScore = (float) $request->input('min_score', 45.0);
+            $minScore = (float) $request->input('min_score', 18.0);
 
             $extractedText = $request->input('ocr_text', $request->input('text', null));
             if ($request->hasFile('image')) {
@@ -226,9 +226,12 @@ class VisualSearchController extends Controller
             if ($info) {
                 $src = null;
                 $mime = $info['mime'] ?? '';
-                if ($mime === 'image/jpeg' || $mime === 'image/pjpeg') $src = @imagecreatefromjpeg($sourcePath);
-                elseif ($mime === 'image/png') $src = @imagecreatefrompng($sourcePath);
-                elseif ($mime === 'image/webp') $src = @imagecreatefromwebp($sourcePath);
+                if ($mime === 'image/jpeg' || $mime === 'image/pjpeg')
+                    $src = @imagecreatefromjpeg($sourcePath);
+                elseif ($mime === 'image/png')
+                    $src = @imagecreatefrompng($sourcePath);
+                elseif ($mime === 'image/webp')
+                    $src = @imagecreatefromwebp($sourcePath);
 
                 if ($src) {
                     $w = imagesx($src);

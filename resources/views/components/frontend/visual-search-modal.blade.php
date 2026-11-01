@@ -210,7 +210,7 @@
                         <img :src="previewUrl" class="w-full h-full object-cover">
                         <!-- Animated Scanner Line -->
                         <div class="absolute inset-x-0 h-1 bg-gradient-to-r from-transparent via-brand-400 to-transparent shadow-lg shadow-brand-500/50 animate-bounce"></div>
-                        <div class="absolute inset-0 bg-brand-600/10 backdrop-blur-[1px]"></div>
+                        <div class="absolute inset-0 bg-brand-600/5 pointer-events-none"></div>
                     </div>
                     <div>
                         <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-brand-50 text-brand-700 text-xs font-bold">
@@ -684,11 +684,16 @@
                     } catch (e) {}
                 }
 
-                // 2. Client-side OCR for packaging text / brand names (e.g. NIVEA, Dove, Vaseline)
+                // If barcode was detected, return immediately for instant search!
+                if (detected.trim()) {
+                    return detected.trim();
+                }
+
+                // 2. Client-side OCR for packaging text / brand names (e.g. NIVEA, INOHERB, Dove, Vaseline)
                 if (window.Tesseract && typeof window.Tesseract.recognize === 'function') {
                     try {
                         const ocrPromise = window.Tesseract.recognize(file, 'eng');
-                        const timeoutPromise = new Promise(resolve => setTimeout(() => resolve(null), 3000));
+                        const timeoutPromise = new Promise(resolve => setTimeout(() => resolve(null), 3500));
                         const res = await Promise.race([ocrPromise, timeoutPromise]);
                         if (res && res.data && res.data.text) {
                             detected += ' ' + res.data.text;
