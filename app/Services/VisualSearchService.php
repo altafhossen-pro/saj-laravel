@@ -386,6 +386,33 @@ class VisualSearchService
     }
 
     /**
+     * Stop words and conversational filler words to prevent false-positive score boosts.
+     */
+    protected static array $stopWords = [
+        'and' => true, 'are' => true, 'the' => true, 'with' => true, 'for' => true,
+        'from' => true, 'this' => true, 'that' => true, 'they' => true, 'them' => true,
+        'have' => true, 'has' => true, 'had' => true, 'been' => true, 'being' => true,
+        'image' => true, 'photo' => true, 'picture' => true, 'item' => true, 'items' => true,
+        'product' => true, 'products' => true, 'category' => true, 'categories' => true,
+        'shows' => true, 'shown' => true, 'worn' => true, 'wearing' => true, 'pair' => true,
+        'type' => true, 'types' => true, 'words' => true, 'word' => true, 'description' => true,
+        'small' => true, 'large' => true, 'good' => true, 'well' => true, 'also' => true,
+        'some' => true, 'any' => true, 'each' => true, 'such' => true, 'more' => true,
+        'most' => true, 'very' => true, 'only' => true, 'made' => true, 'like' => true,
+        'likely' => true, 'suitable' => true, 'formal' => true, 'special' => true,
+        'appear' => true, 'design' => true, 'look' => true, 'looks' => true, 'color' => true,
+        'which' => true, 'what' => true, 'their' => true, 'there' => true, 'here' => true,
+        'into' => true, 'onto' => true, 'about' => true, 'above' => true, 'below' => true,
+        'under' => true, 'over' => true, 'between' => true, 'end' => true, 'start' => true,
+        'view' => true, 'side' => true, 'front' => true, 'back' => true, 'clean' => true,
+        'pure' => true, 'style' => true, 'fashion' => true, 'brand' => true, 'name' => true,
+        'visible' => true, 'indicated' => true, 'suit' => true, 'order' => true,
+        'can' => true, 'not' => true, 'all' => true, 'its' => true, 'these' => true,
+        'those' => true, 'feature' => true, 'featuring' => true, 'features' => true,
+        'high' => true, 'quality' => true, 'due' => true, 'occasions' => true, 'occasion' => true,
+    ];
+
+    /**
      * Calculate score boost when text found in the image (or filename) matches product text/SKU/brand.
      */
     protected static function calculateTextBoost(string $queryText, string $indexedText): float
@@ -403,11 +430,12 @@ class VisualSearchService
 
         foreach ($tokens as $token) {
             $tok = strtolower($token);
-            if (strlen($tok) < 3)
+            if (strlen($tok) < 3 || isset(self::$stopWords[$tok])) {
                 continue;
+            }
 
-            // Direct word boundary or substring match
-            if (str_contains($target, $tok)) {
+            // Word-boundary matching to prevent false substring matches (e.g. 'are' inside 'care')
+            if (preg_match('/\b' . preg_quote($tok, '/') . '\b/i', $target)) {
                 // 1. Exact Global Barcode match (EAN-13, EAN-8, UPC-A, 6-14 digits)
                 if (preg_match('/^\d{6,14}$/', $tok)) {
                     $boost += 85.0; // High confidence barcode match
@@ -497,18 +525,21 @@ class VisualSearchService
             if ($topScore < 35.0 && empty($extractedText)) {
                 return [];
             }
-            $cutoff = ($topScore >= 80.0) ? 25.0 : max(28.0, $topScore - 22.0);
+            $cutoff = ($topScore >= 80.0) ? max(50.0, $topScore - 25.0) : max(30.0, $topScore - 25.0);
         } else {
-            // Local perceptual hash quality gate:
-            if ($topScore < 18.0) {
-                return [];
-            }
+            // High confidence top match (e.g. >= 80%): show only high-confidence matching items
             if ($topScore >= 80.0) {
-                $cutoff = 15.0;
+                $cutoff = max(50.0, $topScore - 25.0);
             } elseif ($topScore >= 60.0) {
-                $cutoff = max(20.0, $topScore - 25.0);
+                $cutoff = max(35.0, $topScore - 25.0);
+            } elseif ($topScore >= 35.0) {
+                $cutoff = max(25.0, $topScore - 20.0);
             } else {
-                $cutoff = 18.0;
+                // If top match is weak (< 35%), require at least 25% or discard as irrelevant noise
+                $cutoff = 25.0;
+                if ($topScore < 25.0) {
+                    return [];
+                }
             }
         }
 

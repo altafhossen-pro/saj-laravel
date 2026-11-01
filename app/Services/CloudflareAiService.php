@@ -239,7 +239,7 @@ class CloudflareAiService
         $url = "https://api.cloudflare.com/client/v4/accounts/{$acc}/ai/run/" . self::MODEL_VISION;
 
         $categories = self::getActiveStoreCategories();
-        $prompt = "You are an AI catalog classifier for an e-commerce shop whose inventory covers these product categories: {$categories}. Examine the product in the uploaded image carefully. If the item clearly does NOT match or belong to ANY of these categories (for example: toys, rubik's cube, tools, electronics, animals, food/produce, vehicles, heavy hardware, furniture), respond ONLY with the word \"REJECT_UNRELATED\". If it matches or is related to any of the store's categories, extract and output ONLY its brand name and key product description words concisely.";
+        $prompt = "You are an AI catalog classifier for an e-commerce shop whose inventory covers these product categories: {$categories}. Examine the product in the uploaded image carefully. If the item clearly does NOT match or belong to ANY of these categories (for example: toys, rubik's cube, tools, electronics, animals, food/produce, vehicles, heavy hardware, furniture), respond ONLY with the word \"REJECT_UNRELATED\". If it matches or is related to any of the store's categories, output ONLY comma-separated essential keywords (brand name, specific product type, and distinct visual features, e.g.: Nivea, soft cream or snowflake, tassel, earrings, gold). Do NOT write conversational sentences, explanations, or filler words.";
 
         try {
             $response = Http::timeout(12)
