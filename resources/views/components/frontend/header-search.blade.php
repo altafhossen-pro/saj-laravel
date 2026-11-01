@@ -119,82 +119,86 @@
      }"
      @click.away="show = false; isFocused = false"
 >
-    <div class="relative">
-        <i class="ph ph-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-lg"></i>
-        <input type="text" 
-               x-model="query" 
-               @input.debounce.300ms="performSearch()"
-               @focus="isFocused = true; if(query.length > 0) show = true"
-               @blur="isFocused = false"
-               @keydown.enter="goToSearch()"
-               :placeholder="isFocused ? 'Search for products...' : 'Search ' + placeholderText" 
-               class="w-full bg-gray-50 border border-gray-200 rounded-lg pl-10 pr-20 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 transition-shadow">
-        
-        <!-- Search by Image Camera Button -->
+    <div class="flex items-center gap-2">
+        <div class="relative flex-1">
+            <i class="ph ph-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-lg pointer-events-none"></i>
+            <input type="text" 
+                   x-model="query" 
+                   @input.debounce.300ms="performSearch()"
+                   @focus="isFocused = true; if(query.length > 0) show = true"
+                   @blur="isFocused = false"
+                   @keydown.enter="goToSearch()"
+                   :placeholder="isFocused ? 'Search for products...' : 'Search ' + placeholderText" 
+                   class="w-full bg-gray-50 border border-gray-200 rounded-lg pl-10 pr-12 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 transition-shadow">
+
+            <button @click="goToSearch()" class="absolute right-1.5 top-1/2 -translate-y-1/2 h-7 px-3 flex items-center justify-center bg-brand-600 hover:bg-brand-700 text-white rounded transition-colors cursor-pointer" title="Search">
+                <i class="ph ph-magnifying-glass font-bold text-sm"></i>
+            </button>
+
+            <!-- Search Results Dropdown -->
+            <div x-show="show" style="display: none;"
+                 class="absolute top-full left-0 right-0 mt-2 bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden z-[100]"
+                 x-transition:enter="transition ease-out duration-100"
+                 x-transition:enter-start="opacity-0 translate-y-2"
+                 x-transition:enter-end="opacity-100 translate-y-0">
+                 
+                 <div x-show="loading" class="p-4 text-center text-sm text-gray-500 flex items-center justify-center gap-2">
+                     <i class="ph ph-spinner animate-spin text-lg"></i> Searching...
+                 </div>
+                 
+                 <div x-show="!loading && results.length === 0 && query.length > 0" class="p-4 text-center text-sm text-gray-500">
+                     No products found matching "<span x-text="query" class="font-semibold text-gray-800"></span>"
+                 </div>
+                 
+                 <ul x-show="!loading && results.length > 0" class="divide-y divide-gray-100 max-h-[400px] overflow-y-auto">
+                     <template x-for="item in results" :key="item.id">
+                         <li>
+                             <a :href="'/product/' + item.slug" @click="onSuggestionClick(item)" class="flex items-center gap-3 p-3 hover:bg-gray-50 transition-colors group">
+                                 <!-- Image -->
+                                 <div class="w-12 h-12 rounded-lg bg-gray-100 overflow-hidden shrink-0 relative">
+                                    <template x-if="item.featured_image">
+                                        <img :src="item.featured_image.startsWith('http') ? item.featured_image : '/storage/' + item.featured_image" class="absolute inset-0 w-full h-full object-cover">
+                                    </template>
+                                    <template x-if="!item.featured_image">
+                                        <div class="absolute inset-0 flex items-center justify-center text-gray-300">
+                                            <i class="ph ph-image text-xl"></i>
+                                        </div>
+                                    </template>
+                                 </div>
+                                 <!-- Info -->
+                                 <div class="flex-1 min-w-0">
+                                     <h4 class="text-sm font-medium text-gray-800 truncate group-hover:text-brand-600 transition-colors" x-text="item.title"></h4>
+                                     <!-- Price -->
+                                     <div class="text-xs mt-0.5">
+                                         <template x-if="!item.price_range || item.price_range.length === 0">
+                                             <span class="font-bold text-brand-600" x-text="'৳' + item.base_price"></span>
+                                         </template>
+                                         <template x-if="item.price_range && item.price_range.length > 1">
+                                             <span class="font-bold text-brand-600" x-text="'৳' + item.price_range[0] + ' - ৳' + item.price_range[1]"></span>
+                                         </template>
+                                     </div>
+                                 </div>
+                             </a>
+                         </li>
+                     </template>
+                 </ul>
+                 
+                 <!-- See More -->
+                 <div x-show="hasMore" style="display: none;" class="p-3 border-t border-gray-100 text-center bg-gray-50">
+                     <button @click="goToSearch()" class="text-brand-600 font-semibold text-sm hover:text-brand-700 transition-colors inline-flex items-center gap-1 cursor-pointer">
+                         See all results <i class="ph ph-arrow-right"></i>
+                     </button>
+                 </div>
+            </div>
+        </div>
+
+        <!-- Search by Image (Visual Search) Separate Circular Button -->
         <button type="button"
                 @click="window.dispatchEvent(new CustomEvent('open-visual-search'))"
-                class="absolute right-11 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-brand-600 transition-colors cursor-pointer"
-                title="Search by Image">
-            <i class="ph-bold ph-camera text-base"></i>
+                class="w-[38px] h-[38px] rounded-full shrink-0 flex items-center justify-center bg-white hover:bg-brand-50 text-gray-600 hover:text-brand-600 border border-gray-200 hover:border-brand-300 shadow-xs hover:shadow-sm transition-all duration-200 cursor-pointer active:scale-95 group"
+                title="Search by Image (ছবি দিয়ে খুঁজুন)"
+                aria-label="Search by Image">
+            <i class="ph-bold ph-camera text-lg group-hover:scale-110 transition-transform"></i>
         </button>
-
-        <button @click="goToSearch()" class="absolute right-1.5 top-1/2 -translate-y-1/2 h-7 px-3 flex items-center justify-center bg-brand-600 hover:bg-brand-700 text-white rounded transition-colors cursor-pointer" title="Search">
-            <i class="ph ph-magnifying-glass font-bold text-sm"></i>
-        </button>
-    </div>
-    <!-- Search Results Dropdown -->
-    <div x-show="show" style="display: none;"
-         class="absolute top-full left-0 right-0 mt-2 bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden z-[100]"
-         x-transition:enter="transition ease-out duration-100"
-         x-transition:enter-start="opacity-0 translate-y-2"
-         x-transition:enter-end="opacity-100 translate-y-0">
-         
-         <div x-show="loading" class="p-4 text-center text-sm text-gray-500 flex items-center justify-center gap-2">
-             <i class="ph ph-spinner animate-spin text-lg"></i> Searching...
-         </div>
-         
-         <div x-show="!loading && results.length === 0 && query.length > 0" class="p-4 text-center text-sm text-gray-500">
-             No products found matching "<span x-text="query" class="font-semibold text-gray-800"></span>"
-         </div>
-         
-         <ul x-show="!loading && results.length > 0" class="divide-y divide-gray-100 max-h-[400px] overflow-y-auto">
-             <template x-for="item in results" :key="item.id">
-                 <li>
-                     <a :href="'/product/' + item.slug" @click="onSuggestionClick(item)" class="flex items-center gap-3 p-3 hover:bg-gray-50 transition-colors group">
-                         <!-- Image -->
-                         <div class="w-12 h-12 rounded-lg bg-gray-100 overflow-hidden shrink-0 relative">
-                            <template x-if="item.featured_image">
-                                <img :src="item.featured_image.startsWith('http') ? item.featured_image : '/storage/' + item.featured_image" class="absolute inset-0 w-full h-full object-cover">
-                            </template>
-                            <template x-if="!item.featured_image">
-                                <div class="absolute inset-0 flex items-center justify-center text-gray-300">
-                                    <i class="ph ph-image text-xl"></i>
-                                </div>
-                            </template>
-                         </div>
-                         <!-- Info -->
-                         <div class="flex-1 min-w-0">
-                             <h4 class="text-sm font-medium text-gray-800 truncate group-hover:text-brand-600 transition-colors" x-text="item.title"></h4>
-                             <!-- Price -->
-                             <div class="text-xs mt-0.5">
-                                 <template x-if="!item.price_range || item.price_range.length === 0">
-                                     <span class="font-bold text-brand-600" x-text="'৳' + item.base_price"></span>
-                                 </template>
-                                 <template x-if="item.price_range && item.price_range.length > 1">
-                                     <span class="font-bold text-brand-600" x-text="'৳' + item.price_range[0] + ' - ৳' + item.price_range[1]"></span>
-                                 </template>
-                             </div>
-                         </div>
-                     </a>
-                 </li>
-             </template>
-         </ul>
-         
-         <!-- See More -->
-         <div x-show="hasMore" style="display: none;" class="p-3 border-t border-gray-100 text-center bg-gray-50">
-             <button @click="goToSearch()" class="text-brand-600 font-semibold text-sm hover:text-brand-700 transition-colors inline-flex items-center gap-1 cursor-pointer">
-                 See all results <i class="ph ph-arrow-right"></i>
-             </button>
-         </div>
     </div>
 </div>

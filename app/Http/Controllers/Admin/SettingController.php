@@ -25,7 +25,12 @@ class SettingController extends Controller
         $metaKeywords = Setting::get('site_meta_keywords', 'saj, saj bd, jewelry bangladesh, cosmetics bd, online shopping bangladesh, earrings, necklaces, fashion');
 
         return view('admin.settings.branding', compact(
-            'logo', 'favicon', 'ogImage', 'siteTitle', 'metaDescription', 'metaKeywords'
+            'logo',
+            'favicon',
+            'ogImage',
+            'siteTitle',
+            'metaDescription',
+            'metaKeywords'
         ));
     }
 
@@ -107,9 +112,9 @@ class SettingController extends Controller
         $smartRatingMax = Setting::get('smart_rating_max_rating', 5.0);
 
         return view('admin.settings.smart-ratings', compact(
-            'smartRatingEnabled', 
-            'smartRatingInterval', 
-            'smartRatingMin', 
+            'smartRatingEnabled',
+            'smartRatingInterval',
+            'smartRatingMin',
             'smartRatingMax'
         ));
     }
@@ -144,10 +149,17 @@ class SettingController extends Controller
         $siteYoutube = Setting::get('site_youtube', '');
         $siteTiktok = Setting::get('site_tiktok', '');
         $siteLinkedin = Setting::get('site_linkedin', '');
-        
+
         return view('admin.settings.site-info', compact(
-            'siteName', 'sitePhone', 'siteWhatsapp', 'siteEmail', 
-            'siteFacebook', 'siteInstagram', 'siteYoutube', 'siteTiktok', 'siteLinkedin'
+            'siteName',
+            'sitePhone',
+            'siteWhatsapp',
+            'siteEmail',
+            'siteFacebook',
+            'siteInstagram',
+            'siteYoutube',
+            'siteTiktok',
+            'siteLinkedin'
         ));
     }
 
@@ -182,7 +194,7 @@ class SettingController extends Controller
     {
         $headScripts = Setting::get('site_head_scripts', '');
         $bodyScripts = Setting::get('site_body_scripts', '');
-        
+
         return view('admin.settings.scripts', compact('headScripts', 'bodyScripts'));
     }
 
@@ -294,8 +306,8 @@ class SettingController extends Controller
         $customChatId = $request->input('chat_id');
         $siteName = Setting::get('site_name', config('app.name', 'Famous Bazar'));
         $defaultMsg = "🚀 <b>{$siteName} - Telegram Test Notification</b>\n\n" .
-                      "✅ Your Telegram Bot connection is successfully configured and working!\n" .
-                      "🕒 <i>Sent at: " . now()->format('Y-m-d h:i:s A') . "</i>";
+            "✅ Your Telegram Bot connection is successfully configured and working!\n" .
+            "🕒 <i>Sent at: " . now()->format('Y-m-d h:i:s A') . "</i>";
 
         $message = $request->input('message') ?: $defaultMsg;
 
@@ -365,10 +377,20 @@ class SettingController extends Controller
         $trackContact = (bool) Setting::get('fb_track_contact', true);
 
         return view('admin.settings.facebook-pixel', compact(
-            'enabled', 'pixelScript', 'pixelId', 'capiToken', 'testEventCode',
-            'trackPageView', 'trackViewContent', 'trackViewCategory', 'trackSearch',
-            'trackAddToCart', 'trackInitiateCheckout', 'trackPurchase',
-            'trackCompleteRegistration', 'trackContact'
+            'enabled',
+            'pixelScript',
+            'pixelId',
+            'capiToken',
+            'testEventCode',
+            'trackPageView',
+            'trackViewContent',
+            'trackViewCategory',
+            'trackSearch',
+            'trackAddToCart',
+            'trackInitiateCheckout',
+            'trackPurchase',
+            'trackCompleteRegistration',
+            'trackContact'
         ));
     }
 
@@ -473,9 +495,20 @@ class SettingController extends Controller
             ->paginate(15);
 
         return view('admin.settings.visual-search', compact(
-            'enabled', 'accountId', 'apiToken', 'model', 'totalImages', 'aiIndexed',
-            'todayRequests', 'todayMatched', 'todayRejected', 'totalAllTimeSearches',
-            'dailyQuotaLimit', 'remainingQuota', 'quotaPercentage', 'searchLogs'
+            'enabled',
+            'accountId',
+            'apiToken',
+            'model',
+            'totalImages',
+            'aiIndexed',
+            'todayRequests',
+            'todayMatched',
+            'todayRejected',
+            'totalAllTimeSearches',
+            'dailyQuotaLimit',
+            'remainingQuota',
+            'quotaPercentage',
+            'searchLogs'
         ));
     }
 
