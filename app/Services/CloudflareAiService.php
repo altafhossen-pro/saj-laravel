@@ -2,7 +2,9 @@
 
 namespace App\Services;
 
+use App\Models\Category;
 use App\Models\Setting;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Throwable;
@@ -10,6 +12,7 @@ use Throwable;
 class CloudflareAiService
 {
     public const MODEL_VISION = '@cf/meta/llama-3.2-11b-vision-instruct';
+    public const MODEL_CLIP = '@cf/meta/llama-3.2-11b-vision-instruct';
     public const MODEL_EMBEDDING = '@cf/baai/bge-base-en-v1.5';
     public const MODEL_RESNET = '@cf/microsoft/resnet-50';
 
@@ -187,6 +190,33 @@ class CloudflareAiService
     }
 
     /**
+     * Get active store category names from database for dynamic AI prompt context.
+     * Automatically adapts when new categories (ladies fashion, bags, watches, shoes, etc.) are added.
+     * Cached for 1 hour to ensure zero database latency on searches.
+     */
+    public static function getActiveStoreCategories(): string
+    {
+        try {
+            return Cache::remember('active_store_category_names', 3600, function () {
+                $categories = Category::where('is_active', true)
+                    ->pluck('name')
+                    ->filter()
+                    ->unique()
+                    ->values()
+                    ->toArray();
+
+                if (!empty($categories)) {
+                    return implode(', ', $categories);
+                }
+
+                return 'cosmetics, skincare, beauty, jewelry, fashion, accessories';
+            });
+        } catch (Throwable $e) {
+            return 'cosmetics, skincare, beauty, jewelry, fashion, accessories';
+        }
+    }
+
+    /**
      * Analyze image with Cloudflare Vision AI:
      * 1. Rejects completely unrelated objects (e.g. Rubik's cube, toys, electronics, furniture, animals)
      * 2. Extracts product brand, title keywords, and category for exact matching
@@ -208,7 +238,8 @@ class CloudflareAiService
         $token = self::getApiToken();
         $url = "https://api.cloudflare.com/client/v4/accounts/{$acc}/ai/run/" . self::MODEL_VISION;
 
-        $prompt = 'Identify the physical product in the image. If it is NOT cosmetics, skincare, hair care, personal care, beauty, or jewelry/accessories, output ONLY "REJECT_UNRELATED". If it IS a beauty/cosmetics/jewelry product, output its brand name and key product type words.';
+        $categories = self::getActiveStoreCategories();
+        $prompt = "You are an AI catalog classifier for an e-commerce shop whose inventory covers these product categories: {$categories}. Examine the product in the uploaded image carefully. If the item clearly does NOT match or belong to ANY of these categories (for example: toys, rubik's cube, tools, electronics, animals, food/produce, vehicles, heavy hardware, furniture), respond ONLY with the word \"REJECT_UNRELATED\". If it matches or is related to any of the store's categories, extract and output ONLY its brand name and key product description words concisely.";
 
         try {
             $response = Http::timeout(12)

@@ -77,6 +77,7 @@ class Category extends Model
     {
         static::saved(function ($category) {
             \Illuminate\Support\Facades\Cache::forget('sidebar_categories');
+            \Illuminate\Support\Facades\Cache::forget('active_store_category_names');
             \Illuminate\Support\Facades\Cache::forget('category_descendants_' . $category->id);
             \Illuminate\Support\Facades\Cache::forget('category_slug_' . $category->slug);
             if ($category->isDirty('slug') && $category->getOriginal('slug')) {
@@ -89,6 +90,7 @@ class Category extends Model
 
         static::deleted(function ($category) {
             \Illuminate\Support\Facades\Cache::forget('sidebar_categories');
+            \Illuminate\Support\Facades\Cache::forget('active_store_category_names');
             \Illuminate\Support\Facades\Cache::forget('category_descendants_' . $category->id);
             \Illuminate\Support\Facades\Cache::forget('category_slug_' . $category->slug);
             if ($category->parent_id) {

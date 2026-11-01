@@ -444,7 +444,7 @@ class SettingController extends Controller
         $enabled = Setting::get('visual_search_ai_enabled', false);
         $accountId = Setting::get('cloudflare_account_id', env('CLOUDFLARE_ACCOUNT_ID', ''));
         $apiToken = Setting::get('cloudflare_ai_token', env('CLOUDFLARE_AI_TOKEN', ''));
-        $model = \App\Services\CloudflareAiService::MODEL_CLIP;
+        $model = \App\Services\CloudflareAiService::MODEL_VISION;
 
         $totalImages = \App\Models\ProductVisualIndex::count();
         $aiIndexed = \App\Models\ProductVisualIndex::whereNotNull('ai_embedding')->count();
