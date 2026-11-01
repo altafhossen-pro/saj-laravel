@@ -29,6 +29,41 @@
         <!-- Modal Body -->
         <div class="p-5 overflow-y-auto flex-1 space-y-4">
 
+            <!-- Camera Permission / Access Helper Card -->
+            <template x-if="cameraPermissionBlocked">
+                <div class="p-4 bg-amber-50 border border-amber-200 rounded-2xl space-y-3 animate-in fade-in">
+                    <div class="flex items-start gap-3">
+                        <div class="w-9 h-9 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center shrink-0 text-lg shadow-xs">
+                            <i class="ph-bold ph-video-camera-slash"></i>
+                        </div>
+                        <div class="flex-1 text-xs">
+                            <h4 class="font-bold text-amber-900 text-sm leading-tight mb-1">Camera Permission Needed</h4>
+                            <p class="text-amber-800 leading-relaxed">
+                                To scan products directly with your camera/webcam, your browser needs camera access. Click the button below, or click the lock/settings icon 🔒 in your browser's address bar next to the URL to set Camera to <strong>"Allow"</strong>.
+                            </p>
+                        </div>
+                        <button type="button" @click="cameraPermissionBlocked = false" class="text-amber-400 hover:text-amber-700 cursor-pointer">
+                            <i class="ph ph-x text-base"></i>
+                        </button>
+                    </div>
+
+                    <div class="flex items-center gap-2 pt-1 flex-wrap">
+                        <button type="button"
+                                @click="requestCameraPermission()"
+                                class="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold shadow-xs transition active:scale-95 cursor-pointer">
+                            <i class="ph-bold ph-shield-check text-sm"></i>
+                            <span>Grant Permission</span>
+                        </button>
+                        <button type="button"
+                                @click="$refs.galleryInput.click(); cameraPermissionBlocked = false"
+                                class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white hover:bg-amber-100/70 border border-amber-300 text-amber-900 text-xs font-semibold shadow-xs transition cursor-pointer">
+                            <i class="ph ph-upload-simple text-sm"></i>
+                            <span>Choose Photo from Files</span>
+                        </button>
+                    </div>
+                </div>
+            </template>
+
             <!-- In-Modal Dismissable Error Card -->
             <template x-if="errorMessage">
                 <div class="p-3.5 bg-red-50 border border-red-200 rounded-xl flex items-start gap-2.5 text-xs text-red-800 animate-in fade-in">
@@ -44,95 +79,156 @@
             </template>
 
             <!-- Live WebRTC Camera Viewfinder (Desktop Webcam & Mobile Live Stream) -->
-            <template x-if="!previewUrl && isCameraActive">
-                <div class="space-y-3">
-                    <div class="relative w-full aspect-video sm:aspect-[4/3] bg-gray-950 rounded-2xl overflow-hidden shadow-xl border-2 border-brand-500">
-                        <video x-ref="liveVideo" autoplay playsinline muted class="w-full h-full object-cover"></video>
+            <div x-show="!previewUrl && isCameraActive" x-cloak class="space-y-3">
+                <div class="relative w-full aspect-video sm:aspect-[4/3] bg-gray-950 rounded-2xl overflow-hidden shadow-xl border-2 border-brand-500 flex items-center justify-center">
+                    <!-- Persistent Video Element (playsinline + webkit-playsinline for mobile iOS/Android) -->
+                    <video x-ref="liveVideo"
+                           autoplay
+                           playsinline
+                           webkit-playsinline
+                           muted
+                           class="w-full h-full object-cover">
+                    </video>
 
-                        <!-- Centered Target Overlay Frame -->
-                        <div class="absolute inset-0 pointer-events-none flex items-center justify-center p-6 sm:p-8">
-                            <div class="w-full h-full max-w-xs max-h-64 border-2 border-dashed border-white/70 rounded-2xl shadow-lg relative flex items-center justify-center">
-                                <span class="absolute -top-3 left-1/2 -translate-x-1/2 bg-black/80 backdrop-blur-xs text-white text-[11px] font-medium px-3 py-0.5 rounded-full shadow-xs whitespace-nowrap">
-                                    Center product here
-                                </span>
-                            </div>
+                    <!-- Camera Initializing Loader (Prevents Black Screen Void) -->
+                    <div x-show="cameraLoading"
+                         class="absolute inset-0 flex flex-col items-center justify-center bg-gray-950/95 text-white z-10 transition-opacity">
+                        <div class="w-9 h-9 border-3 border-brand-400 border-t-transparent rounded-full animate-spin mb-2"></div>
+                        <span class="text-xs font-semibold text-gray-200">Starting camera...</span>
+                        <span class="text-[11px] text-gray-400 mt-0.5">Please allow camera access if prompted</span>
+                    </div>
+
+                    <!-- Centered Target Overlay Frame -->
+                    <div x-show="!cameraLoading" class="absolute inset-0 pointer-events-none flex items-center justify-center p-6 sm:p-8">
+                        <div class="w-full h-full max-w-xs max-h-64 border-2 border-dashed border-white/70 rounded-2xl shadow-lg relative flex items-center justify-center">
+                            <span class="absolute -top-3 left-1/2 -translate-x-1/2 bg-black/80 backdrop-blur-xs text-white text-[11px] font-medium px-3 py-0.5 rounded-full shadow-xs whitespace-nowrap">
+                                Center product here
+                            </span>
                         </div>
+                    </div>
 
-                        <!-- Close Camera button (top-right) -->
-                        <button type="button" @click="stopLiveCamera()" class="absolute top-3 right-3 w-8 h-8 rounded-full bg-black/60 hover:bg-black text-white flex items-center justify-center transition cursor-pointer shadow-md">
+                    <!-- Viewfinder Top Bar (Flip Camera & Close) -->
+                    <div class="absolute top-3 inset-x-3 flex items-center justify-between z-20 pointer-events-auto">
+                        <!-- Camera Flip (Front / Back toggle) -->
+                        <button type="button"
+                                @click="toggleCameraFacing()"
+                                class="inline-flex items-center gap-1 px-3 py-1.5 rounded-full bg-black/60 hover:bg-black/80 text-white text-xs font-medium backdrop-blur-xs transition cursor-pointer shadow-md">
+                            <i class="ph-bold ph-arrows-clockwise text-sm"></i>
+                            <span x-text="cameraFacingMode === 'environment' ? 'Flip to Front' : 'Flip to Back'"></span>
+                        </button>
+
+                        <!-- Close Camera button -->
+                        <button type="button"
+                                @click="stopLiveCamera()"
+                                class="w-8 h-8 rounded-full bg-black/60 hover:bg-black text-white flex items-center justify-center transition cursor-pointer shadow-md">
                             <i class="ph ph-x text-base"></i>
                         </button>
                     </div>
 
-                    <!-- Live Camera Controls -->
-                    <div class="flex items-center justify-between gap-3 px-2 pt-1">
-                        <button type="button" @click="stopLiveCamera()" class="text-xs font-semibold text-gray-500 hover:text-gray-800 px-3 py-2 rounded-xl hover:bg-gray-100 transition cursor-pointer">
-                            &larr; Upload File
+                    <!-- Fallback Notice for Mobile if Stream takes too long -->
+                    <div x-show="showNativeCameraFallback"
+                         class="absolute bottom-3 inset-x-3 z-20 text-center animate-in fade-in">
+                        <button type="button"
+                                @click="useNativeCamera()"
+                                class="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-brand-600 hover:bg-brand-700 text-white text-xs font-semibold shadow-lg backdrop-blur-xs transition cursor-pointer">
+                            <i class="ph-bold ph-camera text-sm"></i>
+                            <span>Switch to Phone Camera App</span>
                         </button>
-
-                        <button type="button" @click="captureLivePhoto()" class="inline-flex items-center gap-2 px-6 py-2.5 rounded-full bg-brand-600 hover:bg-brand-700 text-white text-xs font-bold shadow-md shadow-brand-600/30 active:scale-95 transition cursor-pointer">
-                            <i class="ph-bold ph-camera text-base"></i>
-                            <span>Snap Photo</span>
-                        </button>
-
-                        <div class="w-20 hidden sm:block"></div>
                     </div>
                 </div>
-            </template>
+
+                <!-- Live Camera Controls -->
+                <div class="flex items-center justify-between gap-2 px-2 pt-1 flex-wrap">
+                    <button type="button"
+                            @click="stopLiveCamera()"
+                            class="text-xs font-semibold text-gray-500 hover:text-gray-800 px-3 py-2 rounded-xl hover:bg-gray-100 transition cursor-pointer">
+                        &larr; Upload File
+                    </button>
+
+                    <button type="button"
+                            @click="captureLivePhoto()"
+                            :disabled="cameraLoading"
+                            class="inline-flex items-center gap-2 px-6 py-2.5 rounded-full bg-brand-600 hover:bg-brand-700 disabled:opacity-50 text-white text-xs font-bold shadow-md shadow-brand-600/30 active:scale-95 transition cursor-pointer">
+                        <i class="ph-bold ph-camera text-base"></i>
+                        <span>Snap Photo</span>
+                    </button>
+
+                    <!-- Option to use native phone camera -->
+                    <button type="button"
+                            @click="useNativeCamera()"
+                            class="text-xs font-semibold text-brand-600 hover:text-brand-800 px-3 py-2 rounded-xl hover:bg-brand-50 transition cursor-pointer">
+                        <i class="ph-bold ph-device-mobile text-sm mr-1"></i> Phone App
+                    </button>
+                </div>
+            </div>
 
             <!-- Upload Area (when no image selected and camera inactive) -->
-            <template x-if="!previewUrl && !isCameraActive">
-                <div class="space-y-4">
-                    <div @dragover.prevent="isDragging = true"
-                         @dragleave.prevent="isDragging = false"
-                         @drop.prevent="handleDrop($event)"
-                         @click="$refs.galleryInput.click()"
-                         :class="isDragging ? 'border-brand-500 bg-brand-50/50 scale-[0.99]' : 'border-gray-200 hover:border-brand-400 hover:bg-gray-50/70'"
-                         class="border-2 border-dashed rounded-2xl p-6 sm:p-8 text-center cursor-pointer transition-all duration-200 group">
-                        
-                        <div class="w-14 h-14 rounded-2xl bg-brand-50 text-brand-600 flex items-center justify-center mx-auto mb-3 group-hover:scale-110 transition-transform shadow-xs">
-                            <i class="ph-bold ph-image text-2xl"></i>
-                        </div>
-                        
-                        <h4 class="font-bold text-gray-800 text-sm mb-1">Upload or Take Product Photo</h4>
-                        <p class="text-xs text-gray-500 max-w-xs mx-auto">Snap with your webcam / camera or upload from files to find matching products</p>
-                        
-                        <div class="mt-4 flex items-center justify-center gap-2.5 flex-wrap" @click.stop>
+            <div x-show="!previewUrl && !isCameraActive" class="space-y-4">
+                <div @dragover.prevent="isDragging = true"
+                     @dragleave.prevent="isDragging = false"
+                     @drop.prevent="handleDrop($event)"
+                     @click="$refs.galleryInput.click()"
+                     :class="isDragging ? 'border-brand-500 bg-brand-50/50 scale-[0.99]' : 'border-gray-200 hover:border-brand-400 hover:bg-gray-50/70'"
+                     class="border-2 border-dashed rounded-2xl p-6 sm:p-8 text-center cursor-pointer transition-all duration-200 group">
+                    
+                    <div class="w-14 h-14 rounded-2xl bg-brand-50 text-brand-600 flex items-center justify-center mx-auto mb-3 group-hover:scale-110 transition-transform shadow-xs">
+                        <i class="ph-bold ph-image text-2xl"></i>
+                    </div>
+                    
+                    <h4 class="font-bold text-gray-800 text-sm mb-1">Upload or Take Product Photo</h4>
+                    <p class="text-xs text-gray-500 max-w-xs mx-auto">Snap with your camera or upload from files to find matching products</p>
+                    
+                    <!-- Action Buttons: Responsive for Mobile vs Desktop -->
+                    <div class="mt-4 flex items-center justify-center gap-2 flex-wrap" @click.stop>
+                        <!-- Mobile Specific: Direct Phone Camera App Button -->
+                        <template x-if="isMobile">
                             <button type="button"
-                                    @click.stop="$refs.galleryInput.click()"
-                                    class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white hover:bg-gray-50 border border-gray-200 text-xs font-semibold text-gray-700 shadow-xs transition active:scale-95 cursor-pointer">
-                                <i class="ph ph-upload-simple text-sm"></i> Choose File
-                            </button>
-                            <button type="button"
-                                    @click.stop="openCamera()"
+                                    @click.stop="useNativeCamera()"
                                     class="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-brand-600 hover:bg-brand-700 text-white text-xs font-semibold shadow-xs transition active:scale-95 cursor-pointer">
-                                <i class="ph-bold ph-camera text-sm"></i> Take Photo
+                                <i class="ph-bold ph-camera text-sm"></i> Phone Camera
                             </button>
-                        </div>
-                        
-                        <!-- Standard Gallery / File Picker -->
-                        <input type="file"
-                               x-ref="galleryInput"
-                               accept="image/*,.heic,.heif"
-                               @change="handleFileSelect($event)"
-                               class="hidden">
+                        </template>
 
-                        <!-- Direct Live Mobile Camera Input (Environment / Back Camera) -->
-                        <input type="file"
-                               x-ref="cameraInput"
-                               accept="image/*"
-                               capture="environment"
-                               @change="handleFileSelect($event)"
-                               class="hidden">
-                    </div>
+                        <!-- Live Viewfinder Button (Webcam on Desktop / Live on Mobile) -->
+                        <button type="button"
+                                @click.stop="openCamera()"
+                                class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-gray-200 hover:border-brand-300 bg-white hover:bg-brand-50/50 text-gray-800 text-xs font-semibold shadow-xs transition active:scale-95 cursor-pointer"
+                                :class="!isMobile ? 'bg-brand-600 hover:bg-brand-700 text-white border-transparent' : ''">
+                            <i class="ph-bold ph-video-camera text-sm" :class="isMobile ? 'text-brand-600' : 'text-white'"></i>
+                            <span x-text="isMobile ? 'Live Scanner' : 'Take Photo / Webcam'"></span>
+                        </button>
 
-                    <!-- Quick hints -->
-                    <div class="bg-gray-50 rounded-xl p-3 text-[11px] text-gray-500 flex items-start gap-2 border border-gray-100">
-                        <i class="ph-bold ph-lightbulb text-amber-500 text-base shrink-0 mt-0.5"></i>
-                        <span><strong>Tip:</strong> For best accuracy, snap a photo centered on the product or clean screenshot with good lighting.</span>
+                        <!-- Standard File / Gallery Button -->
+                        <button type="button"
+                                @click.stop="$refs.galleryInput.click()"
+                                class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white hover:bg-gray-50 border border-gray-200 text-xs font-semibold text-gray-700 shadow-xs transition active:scale-95 cursor-pointer">
+                            <i class="ph ph-upload-simple text-sm"></i>
+                            <span x-text="isMobile ? 'Gallery' : 'Choose File'"></span>
+                        </button>
                     </div>
+                    
+                    <!-- Standard Gallery / File Picker -->
+                    <input type="file"
+                           x-ref="galleryInput"
+                           accept="image/*,.heic,.heif"
+                           @change="handleFileSelect($event)"
+                           class="hidden">
+
+                    <!-- Direct Live Mobile Camera Input (Environment / Back Camera) -->
+                    <input type="file"
+                           x-ref="cameraInput"
+                           accept="image/*"
+                           capture="environment"
+                           @change="handleFileSelect($event)"
+                           class="hidden">
                 </div>
-            </template>
+
+                <!-- Quick hints -->
+                <div class="bg-gray-50 rounded-xl p-3 text-[11px] text-gray-500 flex items-start gap-2 border border-gray-100">
+                    <i class="ph-bold ph-lightbulb text-amber-500 text-base shrink-0 mt-0.5"></i>
+                    <span><strong>Tip:</strong> For best accuracy, snap a photo centered on the product or clean screenshot with good lighting.</span>
+                </div>
+            </div>
 
             <!-- Scanning & Analyzing State -->
             <template x-if="previewUrl && isSearching">
@@ -246,14 +342,22 @@
             isOpen: false,
             isDragging: false,
             isSearching: false,
+            isMobile: false,
             isCameraActive: false,
+            cameraLoading: false,
+            cameraFacingMode: 'environment',
+            showNativeCameraFallback: false,
+            cameraPermissionBlocked: false,
             cameraStream: null,
+            fallbackTimer: null,
             previewUrl: null,
             pageUrl: null,
             errorMessage: null,
             results: [],
 
             init() {
+                this.isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+
                 // Lazily load Tesseract.js in background so OCR is ready on demand without slowing page load
                 if (!window.Tesseract && !document.getElementById('tesseract-cdn-script')) {
                     const s = document.createElement('script');
@@ -267,15 +371,18 @@
             openModal() {
                 this.isOpen = true;
                 this.errorMessage = null;
+                this.cameraPermissionBlocked = false;
             },
 
             closeModal() {
                 this.stopLiveCamera();
+                this.cameraPermissionBlocked = false;
                 this.isOpen = false;
             },
 
             resetSearch() {
                 this.stopLiveCamera();
+                this.cameraPermissionBlocked = false;
                 this.previewUrl = null;
                 this.pageUrl = null;
                 this.errorMessage = null;
@@ -289,62 +396,164 @@
                 }
             },
 
-            /**
-             * Open Live Camera Viewfinder (Desktop Webcam & Mobile WebRTC)
-             */
-            async openCamera() {
+            async requestCameraPermission() {
+                this.cameraPermissionBlocked = false;
                 this.errorMessage = null;
-                const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+                await this.openCamera();
+            },
 
-                // Use getUserMedia for live viewfinder on desktop webcams and modern mobile browsers
-                if (navigator.mediaDevices && typeof navigator.mediaDevices.getUserMedia === 'function') {
-                    try {
-                        const constraints = {
-                            video: {
-                                facingMode: { ideal: 'environment' },
-                                width: { ideal: 1280 },
-                                height: { ideal: 720 }
-                            }
-                        };
-                        const stream = await navigator.mediaDevices.getUserMedia(constraints);
-                        this.cameraStream = stream;
-                        this.isCameraActive = true;
-                        this.$nextTick(() => {
-                            if (this.$refs.liveVideo) {
-                                this.$refs.liveVideo.srcObject = stream;
-                                this.$refs.liveVideo.play().catch(e => console.warn(e));
-                            }
-                        });
-                        return;
-                    } catch (err) {
-                        console.warn('Live camera stream error:', err);
-                        // If camera permission blocked on mobile, fallback to native camera app capture
-                        if (isMobile && this.$refs.cameraInput) {
-                            this.$refs.cameraInput.click();
-                            return;
-                        }
-                        this.errorMessage = 'Camera access was blocked or not found. Please allow camera permissions in your browser.';
-                        return;
-                    }
-                }
-
-                // Fallback for browsers without getUserMedia
+            useNativeCamera() {
+                this.stopLiveCamera();
                 if (this.$refs.cameraInput) {
                     this.$refs.cameraInput.click();
                 }
             },
 
+            async toggleCameraFacing() {
+                this.cameraFacingMode = this.cameraFacingMode === 'environment' ? 'user' : 'environment';
+                await this.startCameraStream();
+            },
+
             /**
-             * Stop Live Camera stream and release hardware
+             * Open Live Camera Viewfinder (Desktop Webcam & Mobile WebRTC)
              */
-            stopLiveCamera() {
+            async openCamera() {
+                this.errorMessage = null;
+                this.cameraPermissionBlocked = false;
+
+                // Check for Insecure Context (HTTP instead of HTTPS):
+                if (!window.isSecureContext && location.protocol !== 'https:' && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
+                    if (this.isMobile && this.$refs.cameraInput) {
+                        this.$refs.cameraInput.click();
+                        return;
+                    }
+                    this.cameraPermissionBlocked = true;
+                    this.errorMessage = 'Live camera requires an encrypted HTTPS connection. Please access via HTTPS or select a photo from your files.';
+                    return;
+                }
+
+                // Fallback if browser does not support getUserMedia:
+                if (!navigator.mediaDevices || typeof navigator.mediaDevices.getUserMedia !== 'function') {
+                    if (this.isMobile && this.$refs.cameraInput) {
+                        this.$refs.cameraInput.click();
+                    } else {
+                        this.cameraPermissionBlocked = true;
+                    }
+                    return;
+                }
+
+                await this.startCameraStream();
+            },
+
+            async startCameraStream() {
+                this.stopLiveCameraStreamOnly();
+                this.isCameraActive = true;
+                this.cameraLoading = true;
+                this.showNativeCameraFallback = false;
+                this.errorMessage = null;
+
+                if (this.fallbackTimer) clearTimeout(this.fallbackTimer);
+                this.fallbackTimer = setTimeout(() => {
+                    if (this.isCameraActive && this.cameraLoading) {
+                        this.showNativeCameraFallback = true;
+                    }
+                }, 3500);
+
+                try {
+                    let stream = null;
+
+                    // Flexible constraints without hardcoded landscape resolutions that break portrait mobile cameras
+                    try {
+                        stream = await navigator.mediaDevices.getUserMedia({
+                            audio: false,
+                            video: {
+                                facingMode: { ideal: this.cameraFacingMode }
+                            }
+                        });
+                    } catch (err1) {
+                        console.warn('Ideal facingMode constraint failed, falling back to basic video constraint:', err1);
+                        stream = await navigator.mediaDevices.getUserMedia({
+                            audio: false,
+                            video: true
+                        });
+                    }
+
+                    this.cameraStream = stream;
+                    this.cameraPermissionBlocked = false;
+
+                    const video = this.$refs.liveVideo;
+                    if (video) {
+                        // Critical mobile properties (must be set in JS DOM):
+                        video.muted = true;
+                        video.defaultMuted = true;
+                        video.playsInline = true;
+                        video.setAttribute('playsinline', '');
+                        video.setAttribute('webkit-playsinline', '');
+                        video.srcObject = stream;
+
+                        const onVideoActive = () => {
+                            this.cameraLoading = false;
+                            this.showNativeCameraFallback = false;
+                            if (this.fallbackTimer) clearTimeout(this.fallbackTimer);
+                        };
+
+                        video.onloadedmetadata = () => {
+                            video.play().then(onVideoActive).catch(e => {
+                                console.warn('Video play error on loadedmetadata:', e);
+                            });
+                        };
+
+                        video.onplaying = onVideoActive;
+                        video.onloadeddata = onVideoActive;
+
+                        // Immediate play attempt
+                        video.play().then(onVideoActive).catch(e => {
+                            // Autoplay may wait for loadedmetadata
+                        });
+                    }
+                } catch (err) {
+                    console.warn('Live camera stream error:', err);
+                    this.stopLiveCamera();
+
+                    // Fallback to phone's native camera app if on mobile
+                    if (this.isMobile && this.$refs.cameraInput) {
+                        this.$refs.cameraInput.click();
+                        return;
+                    }
+
+                    this.cameraPermissionBlocked = true;
+                }
+            },
+
+            /**
+             * Stop Live Camera stream and release hardware without resetting UI flags
+             */
+            stopLiveCameraStreamOnly() {
                 if (this.cameraStream) {
                     try {
                         this.cameraStream.getTracks().forEach(track => track.stop());
                     } catch (e) {}
                     this.cameraStream = null;
                 }
+                if (this.$refs.liveVideo) {
+                    try {
+                        this.$refs.liveVideo.srcObject = null;
+                    } catch (e) {}
+                }
+            },
+
+            /**
+             * Stop Live Camera stream and return UI to idle
+             */
+            stopLiveCamera() {
+                this.stopLiveCameraStreamOnly();
                 this.isCameraActive = false;
+                this.cameraLoading = false;
+                this.showNativeCameraFallback = false;
+                if (this.fallbackTimer) {
+                    clearTimeout(this.fallbackTimer);
+                    this.fallbackTimer = null;
+                }
             },
 
             /**
@@ -354,11 +563,19 @@
                 if (!this.$refs.liveVideo) return;
                 const video = this.$refs.liveVideo;
 
+                if (!video.videoWidth || video.videoWidth === 0) {
+                    this.errorMessage = 'Camera is still initializing. Please wait a moment and tap again.';
+                    return;
+                }
+
+                const width = video.videoWidth;
+                const height = video.videoHeight;
+
                 const canvas = document.createElement('canvas');
-                canvas.width = video.videoWidth || 640;
-                canvas.height = video.videoHeight || 480;
+                canvas.width = width;
+                canvas.height = height;
                 const ctx = canvas.getContext('2d');
-                ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                ctx.drawImage(video, 0, 0, width, height);
 
                 this.stopLiveCamera();
 
