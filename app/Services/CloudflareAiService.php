@@ -22,7 +22,7 @@ class CloudflareAiService
     public static function isEnabled(): bool
     {
         // Keep unit tests fast and isolated without burning Cloudflare API quota
-        if (app()->environment('testing')) {
+        if (app()->runningUnitTests() || app()->environment('testing')) {
             return false;
         }
 
