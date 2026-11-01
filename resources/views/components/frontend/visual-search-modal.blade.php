@@ -43,8 +43,45 @@
                 </div>
             </template>
 
-            <!-- Upload Area (when no image selected) -->
-            <template x-if="!previewUrl">
+            <!-- Live WebRTC Camera Viewfinder (Desktop Webcam & Mobile Live Stream) -->
+            <template x-if="!previewUrl && isCameraActive">
+                <div class="space-y-3">
+                    <div class="relative w-full aspect-video sm:aspect-[4/3] bg-gray-950 rounded-2xl overflow-hidden shadow-xl border-2 border-brand-500">
+                        <video x-ref="liveVideo" autoplay playsinline muted class="w-full h-full object-cover"></video>
+
+                        <!-- Centered Target Overlay Frame -->
+                        <div class="absolute inset-0 pointer-events-none flex items-center justify-center p-6 sm:p-8">
+                            <div class="w-full h-full max-w-xs max-h-64 border-2 border-dashed border-white/70 rounded-2xl shadow-lg relative flex items-center justify-center">
+                                <span class="absolute -top-3 left-1/2 -translate-x-1/2 bg-black/80 backdrop-blur-xs text-white text-[11px] font-medium px-3 py-0.5 rounded-full shadow-xs whitespace-nowrap">
+                                    Center product here
+                                </span>
+                            </div>
+                        </div>
+
+                        <!-- Close Camera button (top-right) -->
+                        <button type="button" @click="stopLiveCamera()" class="absolute top-3 right-3 w-8 h-8 rounded-full bg-black/60 hover:bg-black text-white flex items-center justify-center transition cursor-pointer shadow-md">
+                            <i class="ph ph-x text-base"></i>
+                        </button>
+                    </div>
+
+                    <!-- Live Camera Controls -->
+                    <div class="flex items-center justify-between gap-3 px-2 pt-1">
+                        <button type="button" @click="stopLiveCamera()" class="text-xs font-semibold text-gray-500 hover:text-gray-800 px-3 py-2 rounded-xl hover:bg-gray-100 transition cursor-pointer">
+                            &larr; Upload File
+                        </button>
+
+                        <button type="button" @click="captureLivePhoto()" class="inline-flex items-center gap-2 px-6 py-2.5 rounded-full bg-brand-600 hover:bg-brand-700 text-white text-xs font-bold shadow-md shadow-brand-600/30 active:scale-95 transition cursor-pointer">
+                            <i class="ph-bold ph-camera text-base"></i>
+                            <span>Snap Photo</span>
+                        </button>
+
+                        <div class="w-20 hidden sm:block"></div>
+                    </div>
+                </div>
+            </template>
+
+            <!-- Upload Area (when no image selected and camera inactive) -->
+            <template x-if="!previewUrl && !isCameraActive">
                 <div class="space-y-4">
                     <div @dragover.prevent="isDragging = true"
                          @dragleave.prevent="isDragging = false"
@@ -58,7 +95,7 @@
                         </div>
                         
                         <h4 class="font-bold text-gray-800 text-sm mb-1">Upload or Take Product Photo</h4>
-                        <p class="text-xs text-gray-500 max-w-xs mx-auto">Snap with your mobile camera or upload from gallery to find matching products</p>
+                        <p class="text-xs text-gray-500 max-w-xs mx-auto">Snap with your webcam / camera or upload from files to find matching products</p>
                         
                         <div class="mt-4 flex items-center justify-center gap-2.5 flex-wrap" @click.stop>
                             <button type="button"
@@ -67,7 +104,7 @@
                                 <i class="ph ph-upload-simple text-sm"></i> Choose File
                             </button>
                             <button type="button"
-                                    @click.stop="$refs.cameraInput.click()"
+                                    @click.stop="openCamera()"
                                     class="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-brand-600 hover:bg-brand-700 text-white text-xs font-semibold shadow-xs transition active:scale-95 cursor-pointer">
                                 <i class="ph-bold ph-camera text-sm"></i> Take Photo
                             </button>
@@ -209,6 +246,8 @@
             isOpen: false,
             isDragging: false,
             isSearching: false,
+            isCameraActive: false,
+            cameraStream: null,
             previewUrl: null,
             pageUrl: null,
             errorMessage: null,
@@ -231,10 +270,12 @@
             },
 
             closeModal() {
+                this.stopLiveCamera();
                 this.isOpen = false;
             },
 
             resetSearch() {
+                this.stopLiveCamera();
                 this.previewUrl = null;
                 this.pageUrl = null;
                 this.errorMessage = null;
@@ -246,6 +287,87 @@
                 if (this.$refs.cameraInput) {
                     this.$refs.cameraInput.value = '';
                 }
+            },
+
+            /**
+             * Open Live Camera Viewfinder (Desktop Webcam & Mobile WebRTC)
+             */
+            async openCamera() {
+                this.errorMessage = null;
+                const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+
+                // Use getUserMedia for live viewfinder on desktop webcams and modern mobile browsers
+                if (navigator.mediaDevices && typeof navigator.mediaDevices.getUserMedia === 'function') {
+                    try {
+                        const constraints = {
+                            video: {
+                                facingMode: { ideal: 'environment' },
+                                width: { ideal: 1280 },
+                                height: { ideal: 720 }
+                            }
+                        };
+                        const stream = await navigator.mediaDevices.getUserMedia(constraints);
+                        this.cameraStream = stream;
+                        this.isCameraActive = true;
+                        this.$nextTick(() => {
+                            if (this.$refs.liveVideo) {
+                                this.$refs.liveVideo.srcObject = stream;
+                                this.$refs.liveVideo.play().catch(e => console.warn(e));
+                            }
+                        });
+                        return;
+                    } catch (err) {
+                        console.warn('Live camera stream error:', err);
+                        // If camera permission blocked on mobile, fallback to native camera app capture
+                        if (isMobile && this.$refs.cameraInput) {
+                            this.$refs.cameraInput.click();
+                            return;
+                        }
+                        this.errorMessage = 'Camera access was blocked or not found. Please allow camera permissions in your browser.';
+                        return;
+                    }
+                }
+
+                // Fallback for browsers without getUserMedia
+                if (this.$refs.cameraInput) {
+                    this.$refs.cameraInput.click();
+                }
+            },
+
+            /**
+             * Stop Live Camera stream and release hardware
+             */
+            stopLiveCamera() {
+                if (this.cameraStream) {
+                    try {
+                        this.cameraStream.getTracks().forEach(track => track.stop());
+                    } catch (e) {}
+                    this.cameraStream = null;
+                }
+                this.isCameraActive = false;
+            },
+
+            /**
+             * Snap a high-res photo from the live video stream
+             */
+            captureLivePhoto() {
+                if (!this.$refs.liveVideo) return;
+                const video = this.$refs.liveVideo;
+
+                const canvas = document.createElement('canvas');
+                canvas.width = video.videoWidth || 640;
+                canvas.height = video.videoHeight || 480;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+                this.stopLiveCamera();
+
+                canvas.toBlob((blob) => {
+                    if (blob) {
+                        const file = new File([blob], 'snapshot_' + Date.now() + '.jpg', { type: 'image/jpeg' });
+                        this.processImage(file);
+                    }
+                }, 'image/jpeg', 0.85);
             },
 
             handleFileSelect(event) {
