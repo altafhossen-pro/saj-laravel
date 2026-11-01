@@ -229,6 +229,10 @@ class ProductController extends Controller
             }
         }
 
+        try {
+            \App\Services\VisualSearchService::indexProduct($product);
+        } catch (\Throwable $e) {}
+
         return redirect()->route('admin.products.index')->with('success', 'Product saved successfully!');
     }
 
@@ -427,6 +431,10 @@ class ProductController extends Controller
             ]);
         }
 
+        try {
+            \App\Services\VisualSearchService::indexProduct($product);
+        } catch (\Throwable $e) {}
+
         return redirect()->back()->with('success', 'Product updated successfully!');
     }
 
@@ -434,6 +442,12 @@ class ProductController extends Controller
     {
         $product->delete();
         return redirect()->back()->with('success', 'Product deleted successfully!');
+    }
+
+    public function reindexVisual()
+    {
+        $count = \App\Services\VisualSearchService::indexAllProducts();
+        return redirect()->back()->with('success', "Visual search index refreshed successfully! Total {$count} images indexed.");
     }
 
     public function checkSlug(Request $request)

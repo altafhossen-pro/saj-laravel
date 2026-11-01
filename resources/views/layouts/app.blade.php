@@ -580,6 +580,8 @@
 
     <x-frontend.floating-whatsapp />
 
+    <x-frontend.visual-search-modal />
+
     <script>
         document.addEventListener('alpine:init', () => {
             Alpine.store('cart', {

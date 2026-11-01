@@ -86,19 +86,22 @@
                             <div>
                                 <label class="block text-xs font-bold text-gray-700 mb-1.5">Full Name / আপনার পুরো নামঃ
                                     <span class="text-red-500">*</span></label>
-                                <input type="text" x-model="form.name" @input="syncContactInfo()" placeholder="Enter your full name here"
+                                <input type="text" x-model="form.name" @input="syncContactInfo()"
+                                    placeholder="Enter your full name here"
                                     class="w-full bg-white border border-gray-200 rounded-md px-4 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-brand-500 focus:border-brand-500 transition-colors text-gray-800 placeholder-gray-400">
                             </div>
                             <div>
                                 <label class="block text-xs font-bold text-gray-700 mb-1.5">Mobile Number / মোবাইল নম্বরঃ
                                     <span class="text-red-500">*</span></label>
-                                <input type="tel" x-model="form.phone" @input="syncContactInfo()" placeholder="Enter your mobile number here"
+                                <input type="tel" x-model="form.phone" @input="syncContactInfo()"
+                                    placeholder="Enter your mobile number here"
                                     class="w-full bg-white border border-gray-200 rounded-md px-4 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-brand-500 focus:border-brand-500 transition-colors text-gray-800 placeholder-gray-400">
                             </div>
                             <div class="sm:col-span-2">
                                 <label class="block text-xs font-bold text-gray-700 mb-1.5">Delivery Address / ডেলিভারি
                                     এড্রেসঃ <span class="text-red-500">*</span></label>
-                                <textarea x-model="form.address" @input="syncContactInfo()" rows="3" placeholder="Delivery Address"
+                                <textarea x-model="form.address" @input="syncContactInfo()" rows="3"
+                                    placeholder="Delivery Address"
                                     class="w-full bg-white border border-gray-200 rounded-md px-4 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-brand-500 focus:border-brand-500 transition-colors text-gray-800 placeholder-gray-400"></textarea>
                             </div>
                             <div class="sm:col-span-2">
@@ -179,7 +182,8 @@
                 </div>
 
                 <!-- Actions (Desktop Only) -->
-                <div class="checkout-actions-desktop hidden lg:flex flex-col-reverse sm:flex-row justify-end items-center gap-4 mt-8">
+                <div
+                    class="checkout-actions-desktop hidden lg:flex flex-col-reverse sm:flex-row justify-end items-center gap-4 mt-8">
                     <a href="{{ route('home') }}"
                         class="cursor-pointer inline-flex items-center justify-center w-full sm:w-auto px-6 py-3 text-gray-600 font-semibold hover:bg-gray-100 hover:text-gray-900 rounded-md transition-colors text-center text-sm">Back
                         to Shopping</a>
@@ -187,7 +191,8 @@
                         class="cursor-pointer w-full sm:w-auto px-8 py-3 bg-brand-600 hover:bg-brand-700 text-white font-bold rounded-md shadow transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
                         <span x-text="isSubmitting ? 'Processing...' : 'Confirm Order'" class="pointer-events-none"></span>
                         <i class="ph-bold ph-arrow-right text-lg pointer-events-none" x-show="!isSubmitting"></i>
-                        <i class="ph-bold ph-spinner animate-spin text-lg pointer-events-none" x-show="isSubmitting" style="display: none;"></i>
+                        <i class="ph-bold ph-spinner animate-spin text-lg pointer-events-none" x-show="isSubmitting"
+                            style="display: none;"></i>
                     </button>
                 </div>
 
@@ -257,7 +262,7 @@
                         <label class="block text-[10px] font-bold text-gray-500 mb-1.5 uppercase tracking-wider">
                             Enter your coupon code
                         </label>
-                        
+
                         <!-- When NO coupon applied -->
                         <div x-show="!appliedCoupon">
                             <div class="relative">
@@ -270,23 +275,29 @@
                                     <span x-text="isApplyingCoupon ? 'Checking...' : 'Apply'"></span>
                                 </button>
                             </div>
-                            <p x-show="couponError" x-text="couponError" style="display: none;" class="text-xs text-red-500 mt-1.5 font-medium"></p>
+                            <p x-show="couponError" x-text="couponError" style="display: none;"
+                                class="text-xs text-red-500 mt-1.5 font-medium"></p>
                         </div>
 
                         <!-- When coupon IS applied -->
                         <div x-show="appliedCoupon" style="display: none;"
                             class="flex items-center justify-between p-3.5 bg-emerald-50 border border-emerald-200 rounded-xl">
                             <div class="flex items-center gap-2.5">
-                                <div class="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
+                                <div
+                                    class="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
                                     <i class="ph-fill ph-tag text-lg"></i>
                                 </div>
                                 <div>
                                     <div class="flex items-center gap-2">
-                                        <span class="text-xs font-bold text-emerald-950 font-mono tracking-wider uppercase" x-text="appliedCoupon ? appliedCoupon.code : ''"></span>
-                                        <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-200/80 text-emerald-800" x-text="couponRateLabel"></span>
+                                        <span class="text-xs font-bold text-emerald-950 font-mono tracking-wider uppercase"
+                                            x-text="appliedCoupon ? appliedCoupon.code : ''"></span>
+                                        <span
+                                            class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-200/80 text-emerald-800"
+                                            x-text="couponRateLabel"></span>
                                     </div>
                                     <span class="text-xs text-emerald-700 font-medium block mt-0.5">
-                                        <span x-text="couponRateLabel"></span> applied! You saved <span class="font-bold text-emerald-800" x-text="couponDiscount"></span> ৳
+                                        <span x-text="couponRateLabel"></span> applied! You saved <span
+                                            class="font-bold text-emerald-800" x-text="couponDiscount"></span> ৳
                                     </span>
                                 </div>
                             </div>
@@ -307,11 +318,14 @@
                             <span class="font-semibold text-gray-900" x-text="deliveryCharge + ' ৳'"></span>
                         </div>
                         <!-- Coupon Discount Line -->
-                        <div x-show="couponDiscount > 0" style="display: none;" class="flex justify-between items-center text-emerald-600 font-medium">
+                        <div x-show="couponDiscount > 0" style="display: none;"
+                            class="flex justify-between items-center text-emerald-600 font-medium">
                             <span class="flex items-center gap-1.5">
                                 <i class="ph-bold ph-tag"></i>
                                 <span>Coupon Discount</span>
-                                <span class="text-[11px] text-emerald-700 bg-emerald-100/80 px-1.5 py-0.5 rounded-md font-bold" x-text="'(' + couponRateLabel + ')'"></span>
+                                <span
+                                    class="text-[11px] text-emerald-700 bg-emerald-100/80 px-1.5 py-0.5 rounded-md font-bold"
+                                    x-text="'(' + couponRateLabel + ')'"></span>
                             </span>
                             <span class="font-bold" x-text="'- ' + couponDiscount + ' ৳'"></span>
                         </div>
@@ -329,7 +343,8 @@
                         class="cursor-pointer w-full py-3.5 bg-brand-600 hover:bg-brand-700 text-white font-bold rounded-md shadow transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed text-base">
                         <span x-text="isSubmitting ? 'Processing...' : 'Confirm Order'" class="pointer-events-none"></span>
                         <i class="ph-bold ph-arrow-right text-lg pointer-events-none" x-show="!isSubmitting"></i>
-                        <i class="ph-bold ph-spinner animate-spin text-lg pointer-events-none" x-show="isSubmitting" style="display: none;"></i>
+                        <i class="ph-bold ph-spinner animate-spin text-lg pointer-events-none" x-show="isSubmitting"
+                            style="display: none;"></i>
                     </button>
                     <a href="{{ route('home') }}"
                         class="cursor-pointer inline-flex items-center justify-center w-full py-2.5 text-gray-600 font-semibold hover:bg-gray-100 hover:text-gray-900 rounded-md transition-colors text-center text-sm">Back
@@ -404,7 +419,7 @@
                                 if (this.form.address) p.address = this.form.address;
                                 if (this.form.name) p.last_seen_as = this.form.name;
                                 localStorage.setItem('fb_v_profile', JSON.stringify(p));
-                            } catch (e) {}
+                            } catch (e) { }
 
                             fetch('{{ route('api.cart.update-info') }}', {
                                 method: 'POST',
@@ -419,8 +434,8 @@
                                     phone: this.form.phone,
                                     address: this.form.address
                                 })
-                            }).catch(() => {});
-                        } catch (e) {}
+                            }).catch(() => { });
+                        } catch (e) { }
                     }, 800);
                 },
 
@@ -431,7 +446,7 @@
                         if (!this.form.name && savedProfile.name) this.form.name = savedProfile.name;
                         if (!this.form.phone && savedProfile.phone) this.form.phone = savedProfile.phone;
                         if (!this.form.address && savedProfile.address) this.form.address = savedProfile.address;
-                    } catch (e) {}
+                    } catch (e) { }
 
                     this.$nextTick(() => {
                         if (typeof window.trackFbEvent === 'function') {

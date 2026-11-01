@@ -128,8 +128,16 @@
                @blur="isFocused = false"
                @keydown.enter="goToSearch()"
                :placeholder="isFocused ? 'Search for products...' : 'Search ' + placeholderText" 
-               class="w-full bg-gray-50 border border-gray-200 rounded-lg pl-10 pr-14 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 transition-shadow">
+               class="w-full bg-gray-50 border border-gray-200 rounded-lg pl-10 pr-20 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 transition-shadow">
         
+        <!-- Search by Image Camera Button -->
+        <button type="button"
+                @click="window.dispatchEvent(new CustomEvent('open-visual-search'))"
+                class="absolute right-11 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-brand-600 transition-colors cursor-pointer"
+                title="Search by Image">
+            <i class="ph-bold ph-camera text-base"></i>
+        </button>
+
         <button @click="goToSearch()" class="absolute right-1.5 top-1/2 -translate-y-1/2 h-7 px-3 flex items-center justify-center bg-brand-600 hover:bg-brand-700 text-white rounded transition-colors cursor-pointer" title="Search">
             <i class="ph ph-magnifying-glass font-bold text-sm"></i>
         </button>

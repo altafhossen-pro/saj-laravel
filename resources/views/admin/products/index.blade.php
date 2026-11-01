@@ -10,6 +10,13 @@
         <p class="text-gray-500 leading-relaxed">Manage your store's inventory, pricing, and visibility. Keep your catalog fresh and updated to drive more sales.</p>
     </div>
     <div class="flex items-center gap-3">
+        <form action="{{ route('admin.products.reindex-visual') }}" method="POST">
+            @csrf
+            <button type="submit" class="px-4 py-2.5 bg-white border border-gray-200 text-gray-700 rounded-xl text-sm font-medium hover:bg-gray-50 transition-colors shadow-sm flex items-center gap-2 cursor-pointer" title="Refresh Visual Search Index">
+                <i class="ph-bold ph-camera text-brand-600 text-lg"></i>
+                <span>Sync Visual Index</span>
+            </button>
+        </form>
         <button class="px-4 py-2.5 bg-white border border-gray-200 text-gray-700 rounded-xl text-sm font-medium hover:bg-gray-50 transition-colors shadow-sm flex items-center gap-2">
             <i class="ph ph-export text-lg"></i> Export
         </button>

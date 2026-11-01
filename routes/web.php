@@ -13,6 +13,7 @@ Route::post('/product/{product}/questions', [\App\Http\Controllers\Frontend\Prod
 
 Route::get('/shop/{category_slug}', [\App\Http\Controllers\Frontend\ShopController::class, 'category'])->name('shop.category');
 Route::get('/api/search', [\App\Http\Controllers\Frontend\ShopController::class, 'search'])->name('api.search');
+Route::post('/api/search/by-image', [\App\Http\Controllers\Frontend\VisualSearchController::class, 'search'])->name('api.search.image');
 Route::post('/api/search/log', [\App\Http\Controllers\Frontend\ShopController::class, 'logSearchClick'])->name('api.search.log');
 Route::get('/search', [\App\Http\Controllers\Frontend\ShopController::class, 'searchPage'])->name('shop.search');
 
@@ -86,6 +87,7 @@ Route::middleware(['auth', 'role:super_admin'])->prefix('admin/dashboard')->grou
 
     // Products
     Route::get('/products', [\App\Http\Controllers\Admin\ProductController::class, 'index'])->name('admin.products.index');
+    Route::post('/products/reindex-visual', [\App\Http\Controllers\Admin\ProductController::class, 'reindexVisual'])->name('admin.products.reindex-visual');
     Route::get('/products/search', [\App\Http\Controllers\Admin\ProductController::class, 'search'])->name('admin.products.search');
     Route::get('/products/check-slug', [\App\Http\Controllers\Admin\ProductController::class, 'checkSlug'])->name('admin.products.check-slug');
     Route::get('/products/create', [\App\Http\Controllers\Admin\ProductController::class, 'create'])->name('admin.products.create');
