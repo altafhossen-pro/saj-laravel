@@ -69,3 +69,4 @@ class IndexVisualAiCommand extends Command
         return Command::SUCCESS;
     }
 }
+

@@ -439,3 +439,4 @@ function visualSearchSettings() {
 }
 </script>
 @endsection
+

@@ -429,6 +429,22 @@ class VisualSearchService
      */
     public static function searchByImage(string $uploadedTempPath, int $limit = 12, float $minScore = 25.0, ?string $extractedText = null): array
     {
+        // 1. Cloudflare Vision AI semantic inspection (if active)
+        if (CloudflareAiService::isReady()) {
+            $aiAnalysis = CloudflareAiService::analyzeImageForVisualSearch($uploadedTempPath);
+            if ($aiAnalysis !== null) {
+                // If AI firmly identifies an unrelated item (e.g. Rubik's cube, toys, electronics, furniture)
+                if ($aiAnalysis['is_relevant'] === false) {
+                    return [];
+                }
+
+                // If AI recognized brand/product keywords (e.g. "NIVEA Soft Cream", "Moisturizing Lotion")
+                if (!empty($aiAnalysis['keywords'])) {
+                    $extractedText = trim(($extractedText ?? '') . ' ' . $aiAnalysis['keywords']);
+                }
+            }
+        }
+
         $queryFp = self::createFingerprintFromPath($uploadedTempPath);
         if (!$queryFp) {
             return [];
@@ -443,18 +459,12 @@ class VisualSearchService
 
         $productMatches = [];
 
-        // Generate query image AI embedding if Cloudflare Workers AI is ready
-        $queryAiEmbedding = null;
-        if (CloudflareAiService::isReady()) {
-            $queryAiEmbedding = CloudflareAiService::generateImageEmbedding($uploadedTempPath);
-        }
-
         foreach ($indexes as $index) {
             $product = $index->product;
             if (!$product)
                 continue;
 
-            $score = self::calculateMatchScore($queryFp, $index, $extractedText, $queryAiEmbedding);
+            $score = self::calculateMatchScore($queryFp, $index, $extractedText);
 
             if ($score >= $minScore) {
                 $productId = $product->id;

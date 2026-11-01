@@ -9,19 +9,26 @@ use Throwable;
 
 class CloudflareAiService
 {
-    public const MODEL_CLIP = '@cf/openai/clip-vit-base-patch32';
+    public const MODEL_VISION = '@cf/meta/llama-3.2-11b-vision-instruct';
+    public const MODEL_EMBEDDING = '@cf/baai/bge-base-en-v1.5';
+    public const MODEL_RESNET = '@cf/microsoft/resnet-50';
 
     /**
      * Check if AI Visual Search is enabled in settings or .env
      */
     public static function isEnabled(): bool
     {
+        // Keep unit tests fast and isolated without burning Cloudflare API quota
+        if (app()->environment('testing')) {
+            return false;
+        }
+
         $setting = Setting::get('visual_search_ai_enabled');
         if ($setting !== null) {
             return filter_var($setting, FILTER_VALIDATE_BOOLEAN);
         }
 
-        return (bool) env('CLOUDFLARE_AI_ENABLED', false);
+        return (bool) env('CLOUDFLARE_AI_ENABLED', true);
     }
 
     /**
@@ -59,7 +66,7 @@ class CloudflareAiService
     }
 
     /**
-     * Check if AI search is fully ready to be used
+     * Check if AI search is ready to be used
      */
     public static function isReady(): bool
     {
@@ -82,7 +89,7 @@ class CloudflareAiService
             ];
         }
 
-        $url = "https://api.cloudflare.com/client/v4/accounts/{$acc}/ai/run/" . self::MODEL_CLIP;
+        $url = "https://api.cloudflare.com/client/v4/accounts/{$acc}/ai/run/" . self::MODEL_EMBEDDING;
         $startTime = microtime(true);
 
         try {
@@ -101,7 +108,7 @@ class CloudflareAiService
                         'success' => true,
                         'message' => 'Cloudflare Workers AI connected successfully!',
                         'latency_ms' => $latency,
-                        'model' => self::MODEL_CLIP,
+                        'model' => self::MODEL_VISION,
                     ];
                 }
             }
@@ -123,9 +130,9 @@ class CloudflareAiService
     }
 
     /**
-     * Prepare image as an array of byte integers (number[]) resized to 224x224 (native CLIP resolution)
+     * Prepare image as an array of byte integers (number[]) resized to max 640px for fast upload
      */
-    protected static function prepareImageBytes(string $imagePath): ?array
+    public static function prepareImageBytes(string $imagePath, int $maxDim = 640): ?array
     {
         if (!file_exists($imagePath) || !is_readable($imagePath)) {
             return null;
@@ -148,19 +155,21 @@ class CloudflareAiService
             }
 
             if (!$src) {
-                // Fallback to raw bytes directly
                 $raw = @file_get_contents($imagePath);
                 return $raw ? array_values(unpack('C*', $raw)) : null;
             }
 
-            // Standardize to 224x224 square for ultra-fast upload (~8KB-12KB) and optimal CLIP ViT input
-            $thumb = imagecreatetruecolor(224, 224);
             $w = imagesx($src);
             $h = imagesy($src);
-            imagecopyresampled($thumb, $src, 0, 0, 0, 0, 224, 224, $w, $h);
+            $scale = min(1.0, $maxDim / max($w, $h));
+            $nw = max(1, (int) round($w * $scale));
+            $nh = max(1, (int) round($h * $scale));
+
+            $thumb = imagecreatetruecolor($nw, $nh);
+            imagecopyresampled($thumb, $src, 0, 0, 0, 0, $nw, $nh, $w, $h);
 
             ob_start();
-            imagejpeg($thumb, null, 88);
+            imagejpeg($thumb, null, 85);
             $jpgData = ob_get_clean();
 
             imagedestroy($thumb);
@@ -178,44 +187,141 @@ class CloudflareAiService
     }
 
     /**
-     * Generate 512-dimensional vector embedding for an image using Cloudflare Workers AI
+     * Analyze image with Cloudflare Vision AI:
+     * 1. Rejects completely unrelated objects (e.g. Rubik's cube, toys, electronics, furniture, animals)
+     * 2. Extracts product brand, title keywords, and category for exact matching
+     *
+     * @return array|null ['is_relevant' => bool, 'keywords' => string]
      */
-    public static function generateImageEmbedding(string $imagePath): ?array
+    public static function analyzeImageForVisualSearch(string $imagePath): ?array
     {
-        if (!self::isConfigured()) {
+        if (!self::isReady()) {
             return null;
         }
 
-        $imageBytes = self::prepareImageBytes($imagePath);
+        $imageBytes = self::prepareImageBytes($imagePath, 512);
         if (!$imageBytes) {
             return null;
         }
 
         $acc = self::getAccountId();
         $token = self::getApiToken();
-        $url = "https://api.cloudflare.com/client/v4/accounts/{$acc}/ai/run/" . self::MODEL_CLIP;
+        $url = "https://api.cloudflare.com/client/v4/accounts/{$acc}/ai/run/" . self::MODEL_VISION;
+
+        $prompt = 'Identify the physical product in the image. If it is NOT cosmetics, skincare, hair care, personal care, beauty, or jewelry/accessories, output ONLY "REJECT_UNRELATED". If it IS a beauty/cosmetics/jewelry product, output its brand name and key product type words.';
 
         try {
             $response = Http::timeout(12)
                 ->withToken($token)
                 ->post($url, [
                     'image' => $imageBytes,
+                    'prompt' => $prompt,
                 ]);
 
             if ($response->successful()) {
-                $data = $response->json();
-                // Workers AI returns { result: [...] } or direct array of floats
-                $embedding = $data['result'] ?? null;
-                if (is_array($embedding) && !empty($embedding)) {
-                    // Normalize vector values to standard floats
-                    return array_map('floatval', $embedding);
+                $text = trim($response->json('result.response') ?? '');
+                if (!empty($text)) {
+                    if (str_contains($text, 'REJECT_UNRELATED')) {
+                        return [
+                            'is_relevant' => false,
+                            'keywords' => '',
+                            'raw' => $text,
+                        ];
+                    }
+
+                    // Clean and sanitize keywords (remove filler words)
+                    $cleanKeywords = preg_replace('/(the item in the image is a|the brand is|the product is|from the brand)/i', '', $text);
+                    $cleanKeywords = trim(preg_replace('/[^a-zA-Z0-9\s\-\.]/', ' ', $cleanKeywords));
+
+                    return [
+                        'is_relevant' => true,
+                        'keywords' => $cleanKeywords,
+                        'raw' => $text,
+                    ];
                 }
             }
 
-            Log::warning('Cloudflare Workers AI embedding error: ' . $response->body());
+            Log::warning('Cloudflare Vision API response error: ' . $response->body());
             return null;
         } catch (Throwable $e) {
-            Log::warning('Cloudflare Workers AI request exception: ' . $e->getMessage());
+            Log::warning('Cloudflare Vision API exception: ' . $e->getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * Generate image class feature embedding using ResNet-50
+     */
+    public static function generateImageEmbedding(string $imagePath): ?array
+    {
+        if (!self::isReady()) {
+            return null;
+        }
+
+        $imageBytes = self::prepareImageBytes($imagePath, 384);
+        if (!$imageBytes) {
+            return null;
+        }
+
+        $acc = self::getAccountId();
+        $token = self::getApiToken();
+        $url = "https://api.cloudflare.com/client/v4/accounts/{$acc}/ai/run/" . self::MODEL_RESNET;
+
+        try {
+            $response = Http::timeout(10)
+                ->withToken($token)
+                ->post($url, [
+                    'image' => $imageBytes,
+                ]);
+
+            if ($response->successful()) {
+                $labels = $response->json('result') ?? [];
+                if (is_array($labels) && !empty($labels)) {
+                    $map = [];
+                    foreach ($labels as $l) {
+                        if (!empty($l['label'])) {
+                            $map[$l['label']] = round((float) ($l['score'] ?? 0.0), 4);
+                        }
+                    }
+                    return $map;
+                }
+            }
+
+            return null;
+        } catch (Throwable $e) {
+            return null;
+        }
+    }
+
+    /**
+     * Generate text embedding for search tokens
+     */
+    public static function generateTextEmbedding(string $text): ?array
+    {
+        if (!self::isReady()) {
+            return null;
+        }
+
+        $acc = self::getAccountId();
+        $token = self::getApiToken();
+        $url = "https://api.cloudflare.com/client/v4/accounts/{$acc}/ai/run/" . self::MODEL_EMBEDDING;
+
+        try {
+            $response = Http::timeout(8)
+                ->withToken($token)
+                ->post($url, [
+                    'text' => [trim($text)],
+                ]);
+
+            if ($response->successful()) {
+                $emb = $response->json('result.data.0');
+                if (is_array($emb)) {
+                    return array_map('floatval', $emb);
+                }
+            }
+
+            return null;
+        } catch (Throwable $e) {
             return null;
         }
     }
