@@ -239,7 +239,12 @@ class CloudflareAiService
         $url = "https://api.cloudflare.com/client/v4/accounts/{$acc}/ai/run/" . self::MODEL_VISION;
 
         $categories = self::getActiveStoreCategories();
-        $prompt = "You are an AI catalog classifier for an e-commerce shop whose inventory covers these product categories: {$categories}. Examine the product in the uploaded image carefully. If the item clearly does NOT match or belong to ANY of these categories (for example: toys, rubik's cube, tools, electronics, animals, food/produce, vehicles, heavy hardware, furniture), respond ONLY with the word \"REJECT_UNRELATED\". If it matches or is related to any of the store's categories, output ONLY comma-separated essential keywords (brand name, specific product type, and distinct visual features, e.g.: Nivea, soft cream or snowflake, tassel, earrings, gold). Do NOT write conversational sentences, explanations, or filler words.";
+        $prompt = "You are an e-commerce catalog visual search assistant. The store inventory covers these product categories: {$categories}. Look at the product in the image.\n"
+            . "1. If the item clearly does NOT belong to ANY of these categories (e.g. rubik's cube, toys, tools, hardware, animals, electronics, vehicles), respond ONLY with: REJECT_UNRELATED\n"
+            . "2. Otherwise, extract structured information in this EXACT format (do not add conversational prose):\n"
+            . "BRAND: [Brand name if visible on packaging/label, or NONE]\n"
+            . "TYPE: [Product type, e.g. Earrings, Shampoo, Body Wash, Face Cream, Body Oil, Necklace, Ring, Abaya, Bag]\n"
+            . "KEYWORDS: [3-5 key distinct product model or design words, e.g. snowflake tassel gold or cocoa radiant or soft cream]";
 
         try {
             $response = Http::timeout(12)
@@ -255,18 +260,46 @@ class CloudflareAiService
                     if (str_contains($text, 'REJECT_UNRELATED')) {
                         return [
                             'is_relevant' => false,
+                            'brand' => null,
+                            'type' => null,
                             'keywords' => '',
                             'raw' => $text,
                         ];
                     }
 
-                    // Clean and sanitize keywords (remove filler words)
-                    $cleanKeywords = preg_replace('/(the item in the image is a|the brand is|the product is|from the brand)/i', '', $text);
-                    $cleanKeywords = trim(preg_replace('/[^a-zA-Z0-9\s\-\.]/', ' ', $cleanKeywords));
+                    $brand = null;
+                    $type = null;
+                    $keywords = '';
+
+                    if (preg_match('/BRAND:\s*([^\r\n]+)/i', $text, $bm)) {
+                        $b = trim($bm[1]);
+                        if (!in_array(strtoupper($b), ['NONE', 'N/A', 'UNKNOWN', 'NULL', ''])) {
+                            $brand = $b;
+                        }
+                    }
+
+                    if (preg_match('/TYPE:\s*([^\r\n]+)/i', $text, $tm)) {
+                        $t = trim($tm[1]);
+                        if (!in_array(strtoupper($t), ['NONE', 'N/A', 'UNKNOWN', 'NULL', ''])) {
+                            $type = $t;
+                        }
+                    }
+
+                    if (preg_match('/KEYWORDS:\s*([^\r\n]+)/i', $text, $km)) {
+                        $keywords = trim($km[1]);
+                    }
+
+                    // Fallback keywords if structured format was partially matched
+                    if (empty($keywords) && empty($brand) && empty($type)) {
+                        $cleanKeywords = preg_replace('/(the item in the image is a|the brand is|the product is|from the brand)/i', '', $text);
+                        $keywords = trim(preg_replace('/[^a-zA-Z0-9\s\-\.]/', ' ', $cleanKeywords));
+                    }
 
                     return [
                         'is_relevant' => true,
-                        'keywords' => $cleanKeywords,
+                        'brand' => $brand,
+                        'type' => $type,
+                        'keywords' => $keywords,
                         'raw' => $text,
                     ];
                 }

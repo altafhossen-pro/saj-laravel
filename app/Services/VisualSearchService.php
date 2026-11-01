@@ -303,7 +303,7 @@ class VisualSearchService
      * Compare query fingerprint and optional text against an indexed product image.
      * Returns a composite score from 0.0 to 100.0%.
      */
-    public static function calculateMatchScore(array $queryFp, ProductVisualIndex $index, ?string $extractedText = null, ?array $queryAiEmbedding = null): float
+    public static function calculateMatchScore(array $queryFp, ProductVisualIndex $index, ?string $extractedText = null, ?array $queryAiEmbedding = null, ?array $structuredAi = null): float
     {
         // 0. AI Semantic Vector Match (Cloudflare Workers AI - CLIP ViT)
         // If both query and catalog image have AI embeddings, use deep semantic cosine similarity
@@ -377,8 +377,59 @@ class VisualSearchService
         $baseScore = $visualComposite * 100.0;
 
         // 6. Text / OCR / SKU / Barcode boost
+        $textBoost = 0.0;
         if (!empty($extractedText) && !empty($index->search_text)) {
             $textBoost = self::calculateTextBoost($extractedText, $index->search_text);
+        }
+
+        // 7. Structured Brand & Product Type Intelligence (from Vision AI)
+        if (!empty($structuredAi) && is_array($structuredAi)) {
+            $detectedBrand = !empty($structuredAi['brand']) ? strtolower(trim($structuredAi['brand'])) : null;
+            $detectedType = !empty($structuredAi['type']) ? strtolower(trim($structuredAi['type'])) : null;
+
+            $target = strtolower($index->search_text ?? '');
+            $prodBrand = strtolower($index->product?->brand?->name ?? '');
+            $prodCat = strtolower($index->product?->category?->name ?? '');
+            $prodTitle = strtolower($index->product?->title ?? '');
+
+            $brandBoost = 0.0;
+            $brandPenalty = 0.0;
+            if ($detectedBrand) {
+                $brandMatch = ($prodBrand && str_contains($prodBrand, $detectedBrand))
+                    || preg_match('/\b' . preg_quote($detectedBrand, '/') . '\b/i', $target)
+                    || preg_match('/\b' . preg_quote($detectedBrand, '/') . '\b/i', $prodTitle);
+
+                if ($brandMatch) {
+                    $brandBoost += 55.0; // High brand priority boost
+                } else {
+                    $brandPenalty += 50.0; // Heavy penalty for conflicting brands
+                }
+            }
+
+            $typeBoost = 0.0;
+            $typePenalty = 0.0;
+            if ($detectedType) {
+                $typeTokens = preg_split('/[\s,\/]+/', $detectedType);
+                $typeMatched = false;
+                foreach ($typeTokens as $tt) {
+                    if (strlen($tt) >= 3 && (str_contains($prodCat, $tt) || preg_match('/\b' . preg_quote($tt, '/') . '\b/i', $target) || preg_match('/\b' . preg_quote($tt, '/') . '\b/i', $prodTitle))) {
+                        $typeMatched = true;
+                        break;
+                    }
+                }
+
+                if ($typeMatched) {
+                    $typeBoost += 30.0;
+                } elseif (!$detectedBrand && in_array($detectedType, ['earrings', 'earring', 'necklace', 'necklaces', 'ring', 'rings', 'jhumka', 'bracelet', 'bracelets'])) {
+                    // If uploaded image is clearly jewelry, penalize cosmetics/haircare products
+                    if (str_contains($prodCat, 'care') || str_contains($prodCat, 'beauty') || str_contains($prodCat, 'skincare') || str_contains($prodCat, 'hair')) {
+                        $typePenalty += 45.0;
+                    }
+                }
+            }
+
+            $baseScore = ($baseScore * 0.45) + $brandBoost + $typeBoost + $textBoost - $brandPenalty - $typePenalty;
+        } else {
             $baseScore += $textBoost;
         }
 
@@ -458,6 +509,7 @@ class VisualSearchService
     public static function searchByImage(string $uploadedTempPath, int $limit = 12, float $minScore = 25.0, ?string $extractedText = null): array
     {
         // 1. Cloudflare Vision AI semantic inspection (if active)
+        $structuredAi = null;
         if (CloudflareAiService::isReady()) {
             $aiAnalysis = CloudflareAiService::analyzeImageForVisualSearch($uploadedTempPath);
             if ($aiAnalysis !== null) {
@@ -466,6 +518,7 @@ class VisualSearchService
                     return [];
                 }
 
+                $structuredAi = $aiAnalysis;
                 // If AI recognized brand/product keywords (e.g. "NIVEA Soft Cream", "Moisturizing Lotion")
                 if (!empty($aiAnalysis['keywords'])) {
                     $extractedText = trim(($extractedText ?? '') . ' ' . $aiAnalysis['keywords']);
@@ -492,7 +545,7 @@ class VisualSearchService
             if (!$product)
                 continue;
 
-            $score = self::calculateMatchScore($queryFp, $index, $extractedText);
+            $score = self::calculateMatchScore($queryFp, $index, $extractedText, null, $structuredAi);
 
             if ($score >= $minScore) {
                 $productId = $product->id;
