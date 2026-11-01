@@ -35,17 +35,25 @@ class VisualSearchService
         // 1. Calculate 64-bit Difference Hash (dHash) - 9x8 grayscale
         $dhash = self::computeDHash($image, $origW, $origH);
 
-        // 2. Calculate 64-bit Average Hash (aHash) - 8x8 grayscale
+        // 2. Calculate 256-bit Detail Difference Hash (dHash Detail) - 17x16 grayscale for fine patterns & logos
+        $dhashDetail = self::computeDHashDetail($image, $origW, $origH);
+
+        // 3. Calculate 64-bit Average Hash (aHash) - 8x8 grayscale
         $ahash = self::computeAHash($image, $origW, $origH);
 
-        // 3. Calculate 52-bin Multi-zone Color Signature (Weighted center focus)
+        // 4. Calculate 64-bit Center-Crop Difference Hash (center 75% crop) to focus on product and ignore background
+        $centerDHash = self::computeCenterDHash($image, $origW, $origH);
+
+        // 5. Calculate 52-bin Multi-zone Color Signature (Weighted center focus)
         $colorSignature = self::computeColorSignature($image, $origW, $origH);
 
         imagedestroy($image);
 
         return [
             'dhash' => $dhash,
+            'dhash_detail' => $dhashDetail,
             'ahash' => $ahash,
+            'center_dhash' => $centerDHash,
             'color_signature' => $colorSignature,
             'aspect_ratio' => $aspectRatio,
         ];
@@ -58,6 +66,70 @@ class VisualSearchService
     {
         $thumb = imagecreatetruecolor(9, 8);
         imagecopyresampled($thumb, $image, 0, 0, 0, 0, 9, 8, $origW, $origH);
+
+        $bits = '';
+        for ($y = 0; $y < 8; $y++) {
+            $prevLum = null;
+            for ($x = 0; $x < 9; $x++) {
+                $rgb = imagecolorat($thumb, $x, $y);
+                $r = ($rgb >> 16) & 0xFF;
+                $g = ($rgb >> 8) & 0xFF;
+                $b = $rgb & 0xFF;
+                $lum = (int) round(0.299 * $r + 0.587 * $g + 0.114 * $b);
+
+                if ($x > 0) {
+                    $bits .= ($prevLum > $lum) ? '1' : '0';
+                }
+                $prevLum = $lum;
+            }
+        }
+
+        imagedestroy($thumb);
+        return $bits;
+    }
+
+    /**
+     * Compute 256-bit Detail Difference Hash (17x16): captures finer edge contours and logo patterns.
+     */
+    protected static function computeDHashDetail($image, int $origW, int $origH): string
+    {
+        $thumb = imagecreatetruecolor(17, 16);
+        imagecopyresampled($thumb, $image, 0, 0, 0, 0, 17, 16, $origW, $origH);
+
+        $bits = '';
+        for ($y = 0; $y < 16; $y++) {
+            $prevLum = null;
+            for ($x = 0; $x < 17; $x++) {
+                $rgb = imagecolorat($thumb, $x, $y);
+                $r = ($rgb >> 16) & 0xFF;
+                $g = ($rgb >> 8) & 0xFF;
+                $b = $rgb & 0xFF;
+                $lum = (int) round(0.299 * $r + 0.587 * $g + 0.114 * $b);
+
+                if ($x > 0) {
+                    $bits .= ($prevLum > $lum) ? '1' : '0';
+                }
+                $prevLum = $lum;
+            }
+        }
+
+        imagedestroy($thumb);
+        return $bits;
+    }
+
+    /**
+     * Compute 64-bit Center-Crop Difference Hash (center 75% crop):
+     * Eliminates table surfaces, hands, or borders in uploaded user photos.
+     */
+    protected static function computeCenterDHash($image, int $origW, int $origH): string
+    {
+        $cw = max(1, (int) round($origW * 0.75));
+        $ch = max(1, (int) round($origH * 0.75));
+        $cx = max(0, (int) round(($origW - $cw) / 2));
+        $cy = max(0, (int) round(($origH - $ch) / 2));
+
+        $thumb = imagecreatetruecolor(9, 8);
+        imagecopyresampled($thumb, $image, 0, 0, $cx, $cy, 9, 8, $cw, $ch);
 
         $bits = '';
         for ($y = 0; $y < 8; $y++) {
@@ -228,45 +300,99 @@ class VisualSearchService
     }
 
     /**
-     * Compare query fingerprint against an indexed product image.
+     * Compare query fingerprint and optional text against an indexed product image.
      * Returns a composite score from 0.0 to 100.0%.
      */
-    public static function calculateMatchScore(array $queryFp, ProductVisualIndex $index): float
+    public static function calculateMatchScore(array $queryFp, ProductVisualIndex $index, ?string $extractedText = null): float
     {
-        // 1. dHash match (difference gradients)
+        // 1. dHash match (difference gradients, 64-bit)
         $dDist = self::computeHammingDistance($queryFp['dhash'], $index->dhash);
-        // Max distance is 64; <= 8 is near identical, <= 20 is strongly similar
         $dScore = max(0.0, (1.0 - ($dDist / 32.0)));
 
-        // 2. aHash match (overall light/dark structure)
+        // 2. Detail dHash match (256-bit fine-grained contours & logos)
+        $detailScore = $dScore;
+        if (!empty($queryFp['dhash_detail']) && !empty($index->dhash_detail)) {
+            $detailDist = self::computeHammingDistance($queryFp['dhash_detail'], $index->dhash_detail);
+            $detailScore = max(0.0, (1.0 - ($detailDist / 128.0)));
+        }
+
+        // 3. Center-crop dHash match (product center 75%, invariant to backgrounds)
+        $centerScore = $dScore;
+        if (!empty($queryFp['center_dhash']) && !empty($index->center_dhash)) {
+            $centerDist = self::computeHammingDistance($queryFp['center_dhash'], $index->center_dhash);
+            $centerScore = max(0.0, (1.0 - ($centerDist / 32.0)));
+        }
+
+        // 4. aHash match (overall light/dark structure, 64-bit)
         $aDist = self::computeHammingDistance($queryFp['ahash'], $index->ahash);
         $aScore = max(0.0, (1.0 - ($aDist / 32.0)));
 
-        // 3. Color signature match
+        // 5. Color signature match
         $cScore = 0.0;
         if (!empty($queryFp['color_signature']) && !empty($index->color_signature)) {
             $cScore = self::computeColorSimilarity($queryFp['color_signature'], $index->color_signature);
         }
 
-        // Composite match score:
-        // 45% dHash (structure) + 20% aHash (layout) + 35% Color (palette & subject tone)
-        $composite = ($dScore * 0.45) + ($aScore * 0.20) + ($cScore * 0.35);
+        // Composite visual match score:
+        // Center Focus (30%) + Detail/Edge (25%) + Global Structure (20%) + Color Harmony (25%)
+        $visualComposite = ($centerScore * 0.30) + ($detailScore * 0.25) + ($dScore * 0.20) + ($cScore * 0.25);
 
         // Aspect ratio boost/penalty: if ratios are very close, slight confidence boost
         $queryRatio = $queryFp['aspect_ratio'] ?? 1.0;
         $targetRatio = $index->aspect_ratio ?? 1.0;
         $ratioDelta = abs($queryRatio - $targetRatio);
         if ($ratioDelta <= 0.15) {
-            $composite = min(1.0, $composite * 1.05);
+            $visualComposite = min(1.0, $visualComposite * 1.05);
         }
 
-        return round($composite * 100.0, 1);
+        $baseScore = $visualComposite * 100.0;
+
+        // 6. Text / OCR / SKU / Barcode boost
+        if (!empty($extractedText) && !empty($index->search_text)) {
+            $textBoost = self::calculateTextBoost($extractedText, $index->search_text);
+            $baseScore += $textBoost;
+        }
+
+        return min(100.0, max(0.0, round($baseScore, 1)));
     }
 
     /**
-     * Search product catalog using an uploaded image.
+     * Calculate score boost when text found in the image (or filename) matches product text/SKU/brand.
      */
-    public static function searchByImage(string $uploadedTempPath, int $limit = 12, float $minScore = 35.0): array
+    protected static function calculateTextBoost(string $queryText, string $indexedText): float
+    {
+        $q = strtolower(trim($queryText));
+        $target = strtolower(trim($indexedText));
+        if ($q === '' || $target === '') return 0.0;
+
+        $boost = 0.0;
+
+        // Split query text into tokens (alphanumeric words)
+        preg_match_all('/[a-z0-9_\-\.]{2,}/i', $q, $matches);
+        $tokens = array_unique($matches[0] ?? []);
+
+        foreach ($tokens as $token) {
+            $tok = strtolower($token);
+            if (strlen($tok) < 3) continue;
+
+            // Direct word boundary or substring match
+            if (str_contains($target, $tok)) {
+                // If it looks like a SKU (contains numbers and letters), higher weight
+                if (preg_match('/[0-9]/', $tok) && preg_match('/[a-z]/i', $tok)) {
+                    $boost += 25.0; // Strong SKU match
+                } else {
+                    $boost += 12.0; // Brand or keyword match
+                }
+            }
+        }
+
+        return min(45.0, $boost);
+    }
+
+    /**
+     * Search product catalog using an uploaded image and optional extracted OCR text.
+     */
+    public static function searchByImage(string $uploadedTempPath, int $limit = 12, float $minScore = 25.0, ?string $extractedText = null): array
     {
         $queryFp = self::createFingerprintFromPath($uploadedTempPath);
         if (!$queryFp) {
@@ -274,7 +400,7 @@ class VisualSearchService
         }
 
         // Fetch all visual indexes with active products
-        $indexes = ProductVisualIndex::with('product')
+        $indexes = ProductVisualIndex::with(['product.brand', 'product.category'])
             ->whereHas('product', function ($q) {
                 $q->where('is_active', true);
             })
@@ -286,7 +412,7 @@ class VisualSearchService
             $product = $index->product;
             if (!$product) continue;
 
-            $score = self::calculateMatchScore($queryFp, $index);
+            $score = self::calculateMatchScore($queryFp, $index, $extractedText);
 
             if ($score >= $minScore) {
                 $productId = $product->id;
@@ -296,6 +422,7 @@ class VisualSearchService
                         'product' => $product,
                         'score' => $score,
                         'matched_image' => $index->image_path,
+                        'matched_source' => $index->source_type,
                     ];
                 }
             }
@@ -308,13 +435,28 @@ class VisualSearchService
     }
 
     /**
-     * Index a single product's featured and gallery images.
+     * Index a single product's featured, gallery, and variant images, with full SKU & keyword metadata.
      */
     public static function indexProduct(Product $product): int
     {
         // Remove existing indexes for this product to keep index clean
         ProductVisualIndex::where('product_id', $product->id)->delete();
 
+        $product->loadMissing(['category', 'brand', 'variants']);
+
+        // Build base searchable keywords for the product
+        $baseKeywords = [
+            $product->title,
+            $product->brand?->name,
+            $product->category?->name,
+            $product->slug,
+        ];
+        if (is_array($product->tags)) {
+            $baseKeywords = array_merge($baseKeywords, $product->tags);
+        }
+        $baseSearchText = strtolower(implode(' ', array_filter($baseKeywords)));
+
+        $indexedPaths = [];
         $indexedCount = 0;
 
         // 1. Index Featured Image
@@ -325,23 +467,32 @@ class VisualSearchService
                 if ($fp) {
                     ProductVisualIndex::create([
                         'product_id' => $product->id,
+                        'variant_id' => null,
                         'image_path' => $product->featured_image,
                         'is_featured' => true,
+                        'source_type' => 'featured',
                         'dhash' => $fp['dhash'],
+                        'dhash_detail' => $fp['dhash_detail'] ?? null,
                         'ahash' => $fp['ahash'],
+                        'center_dhash' => $fp['center_dhash'] ?? null,
                         'color_signature' => $fp['color_signature'],
                         'aspect_ratio' => $fp['aspect_ratio'],
+                        'search_text' => $baseSearchText,
                     ]);
+                    $indexedPaths[$product->featured_image] = true;
                     $indexedCount++;
                 }
             }
         }
 
-        // 2. Index Gallery Images (if available)
-        $gallery = $product->gallery;
+        // 2. Index Gallery Images
+        $gallery = is_array($product->gallery)
+            ? $product->gallery
+            : (is_string($product->gallery) ? json_decode($product->gallery, true) : []);
+
         if (is_array($gallery)) {
             foreach ($gallery as $gImg) {
-                if (empty($gImg) || $gImg === $product->featured_image) continue;
+                if (empty($gImg) || isset($indexedPaths[$gImg])) continue;
 
                 $fullPath = self::resolveProductImagePath($gImg);
                 if ($fullPath && file_exists($fullPath)) {
@@ -349,14 +500,72 @@ class VisualSearchService
                     if ($fp) {
                         ProductVisualIndex::create([
                             'product_id' => $product->id,
+                            'variant_id' => null,
                             'image_path' => $gImg,
                             'is_featured' => false,
+                            'source_type' => 'gallery',
                             'dhash' => $fp['dhash'],
+                            'dhash_detail' => $fp['dhash_detail'] ?? null,
                             'ahash' => $fp['ahash'],
+                            'center_dhash' => $fp['center_dhash'] ?? null,
                             'color_signature' => $fp['color_signature'],
                             'aspect_ratio' => $fp['aspect_ratio'],
+                            'search_text' => $baseSearchText,
                         ]);
+                        $indexedPaths[$gImg] = true;
                         $indexedCount++;
+                    }
+                }
+            }
+        }
+
+        // 3. Index Variant Images with Variant SKU, Barcode, and Attributes
+        if ($product->variants && $product->variants->isNotEmpty()) {
+            foreach ($product->variants as $variant) {
+                $variantKeywords = array_filter([
+                    $variant->sku,
+                    $variant->barcode,
+                    is_array($variant->attributes) ? implode(' ', array_values($variant->attributes)) : null,
+                ]);
+                $variantSearchText = trim($baseSearchText . ' ' . strtolower(implode(' ', $variantKeywords)));
+
+                $variantImages = [];
+                if (!empty($variant->image)) {
+                    $variantImages[] = $variant->image;
+                }
+                if (!empty($variant->images)) {
+                    $vImgs = is_array($variant->images)
+                        ? $variant->images
+                        : (is_string($variant->images) ? json_decode($variant->images, true) : []);
+                    if (is_array($vImgs)) {
+                        $variantImages = array_merge($variantImages, $vImgs);
+                    }
+                }
+
+                foreach ($variantImages as $vImg) {
+                    if (empty($vImg) || isset($indexedPaths[$vImg])) continue;
+
+                    $fullPath = self::resolveProductImagePath($vImg);
+                    if ($fullPath && file_exists($fullPath)) {
+                        $fp = self::createFingerprintFromPath($fullPath);
+                        if ($fp) {
+                            ProductVisualIndex::create([
+                                'product_id' => $product->id,
+                                'variant_id' => $variant->id,
+                                'image_path' => $vImg,
+                                'is_featured' => false,
+                                'source_type' => 'variant',
+                                'dhash' => $fp['dhash'],
+                                'dhash_detail' => $fp['dhash_detail'] ?? null,
+                                'ahash' => $fp['ahash'],
+                                'center_dhash' => $fp['center_dhash'] ?? null,
+                                'color_signature' => $fp['color_signature'],
+                                'aspect_ratio' => $fp['aspect_ratio'],
+                                'search_text' => $variantSearchText,
+                            ]);
+                            $indexedPaths[$vImg] = true;
+                            $indexedCount++;
+                        }
                     }
                 }
             }

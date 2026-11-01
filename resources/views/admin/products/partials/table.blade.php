@@ -77,7 +77,13 @@
                         @endif
                     </td>
                     <td class="p-4 pr-6 text-right">
-                        <div class="flex items-center justify-end gap-2">
+                        <div class="flex items-center justify-end gap-1.5">
+                            <form action="{{ route('admin.products.sync-visual', $product->id) }}" method="POST" class="inline" onsubmit="this.querySelector('button').disabled = true;">
+                                @csrf
+                                <button type="submit" class="w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors cursor-pointer" title="Sync Visual Index (Featured, Gallery, Variants & SKU)">
+                                    <i class="ph-bold ph-camera text-base"></i>
+                                </button>
+                            </form>
                             <a href="{{ route('admin.products.edit', $product->id) }}" class="w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 hover:text-brand-600 hover:bg-brand-50 transition-colors" title="Edit">
                                 <i class="ph ph-pencil-simple text-lg"></i>
                             </a>

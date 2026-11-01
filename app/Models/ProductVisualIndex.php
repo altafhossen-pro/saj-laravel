@@ -15,12 +15,17 @@ class ProductVisualIndex extends Model
 
     protected $fillable = [
         'product_id',
+        'variant_id',
         'image_path',
         'is_featured',
+        'source_type',
         'dhash',
+        'dhash_detail',
         'ahash',
+        'center_dhash',
         'color_signature',
         'aspect_ratio',
+        'search_text',
     ];
 
     protected $casts = [
@@ -32,6 +37,11 @@ class ProductVisualIndex extends Model
     public function product(): BelongsTo
     {
         return $this->belongsTo(Product::class, 'product_id');
+    }
+
+    public function variant(): BelongsTo
+    {
+        return $this->belongsTo(\App\Models\Product\ProductVariant::class, 'variant_id');
     }
 }
 

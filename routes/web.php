@@ -89,6 +89,7 @@ Route::middleware(['auth', 'role:super_admin'])->prefix('admin/dashboard')->grou
     // Products
     Route::get('/products', [\App\Http\Controllers\Admin\ProductController::class, 'index'])->name('admin.products.index');
     Route::post('/products/reindex-visual', [\App\Http\Controllers\Admin\ProductController::class, 'reindexVisual'])->name('admin.products.reindex-visual');
+    Route::post('/products/{product}/sync-visual', [\App\Http\Controllers\Admin\ProductController::class, 'syncVisual'])->name('admin.products.sync-visual');
     Route::get('/products/search', [\App\Http\Controllers\Admin\ProductController::class, 'search'])->name('admin.products.search');
     Route::get('/products/check-slug', [\App\Http\Controllers\Admin\ProductController::class, 'checkSlug'])->name('admin.products.check-slug');
     Route::get('/products/create', [\App\Http\Controllers\Admin\ProductController::class, 'create'])->name('admin.products.create');

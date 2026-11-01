@@ -186,6 +186,17 @@
             pageUrl: null,
             results: [],
 
+            init() {
+                // Lazily load Tesseract.js in background so OCR is ready on demand without slowing page load
+                if (!window.Tesseract && !document.getElementById('tesseract-cdn-script')) {
+                    const s = document.createElement('script');
+                    s.id = 'tesseract-cdn-script';
+                    s.src = 'https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js';
+                    s.async = true;
+                    document.head.appendChild(s);
+                }
+            },
+
             openModal() {
                 this.isOpen = true;
             },
@@ -219,7 +230,38 @@
                 }
             },
 
-            processImage(file) {
+            async extractDetectedText(file) {
+                let detected = '';
+
+                // 1. Native Barcode/SKU detector (instant, 5ms, built into modern browsers)
+                if ('BarcodeDetector' in window) {
+                    try {
+                        const formats = ['code_128', 'ean_13', 'ean_8', 'qr_code', 'upc_a', 'upc_e', 'code_39'];
+                        const detector = new BarcodeDetector({ formats });
+                        const imgBitmap = await createImageBitmap(file);
+                        const barcodes = await detector.detect(imgBitmap);
+                        if (barcodes && barcodes.length > 0) {
+                            detected += barcodes.map(b => b.rawValue).join(' ') + ' ';
+                        }
+                    } catch (e) {}
+                }
+
+                // 2. Client-side OCR for packaging text / brand names (capped at 2.5s for snappy UX)
+                if (window.Tesseract && typeof window.Tesseract.recognize === 'function') {
+                    try {
+                        const ocrPromise = window.Tesseract.recognize(file, 'eng');
+                        const timeoutPromise = new Promise(resolve => setTimeout(() => resolve(null), 2500));
+                        const res = await Promise.race([ocrPromise, timeoutPromise]);
+                        if (res && res.data && res.data.text) {
+                            detected += ' ' + res.data.text;
+                        }
+                    } catch (e) {}
+                }
+
+                return detected.trim();
+            },
+
+            async processImage(file) {
                 if (!file.type.match(/^image\//)) {
                     alert('Please select a valid image file.');
                     return;
@@ -229,8 +271,17 @@
                 this.isSearching = true;
                 this.results = [];
 
+                // Extract text, brand, SKU or barcode from image if present
+                let ocrText = '';
+                try {
+                    ocrText = await this.extractDetectedText(file);
+                } catch (e) {}
+
                 const formData = new FormData();
                 formData.append('image', file);
+                if (ocrText) {
+                    formData.append('ocr_text', ocrText);
+                }
 
                 fetch('{{ route('api.search.image') }}', {
                     method: 'POST',

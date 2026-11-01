@@ -64,9 +64,17 @@ class VisualSearchController extends Controller
             }
 
             $limit = (int) $request->input('limit', 24);
-            $minScore = (float) $request->input('min_score', 30.0);
+            $minScore = (float) $request->input('min_score', 25.0);
 
-            $rawResults = VisualSearchService::searchByImage($tempPath, $limit, $minScore);
+            $extractedText = $request->input('ocr_text', $request->input('text', null));
+            if ($request->hasFile('image')) {
+                $clientFilename = pathinfo($request->file('image')->getClientOriginalName(), PATHINFO_FILENAME);
+                if (!empty($clientFilename) && !preg_match('/^(image|img|screenshot|photo|file|upload|vis_)[\d_\-]*$/i', $clientFilename)) {
+                    $extractedText = trim(($extractedText ?? '') . ' ' . str_replace(['_', '-'], ' ', $clientFilename));
+                }
+            }
+
+            $rawResults = VisualSearchService::searchByImage($tempPath, $limit, $minScore, $extractedText);
 
             // Persist search token and public thumbnail for full-page results (/search?visual=TOKEN)
             $token = Str::random(16);
@@ -150,7 +158,13 @@ class VisualSearchController extends Controller
         $file = $request->file('image');
         $tempPath = $file->getRealPath();
 
-        $rawResults = VisualSearchService::searchByImage($tempPath, 30, 30.0);
+        $extractedText = $request->input('ocr_text', null);
+        $clientFilename = pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME);
+        if (!empty($clientFilename) && !preg_match('/^(image|img|screenshot|photo|file|upload|vis_)[\d_\-]*$/i', $clientFilename)) {
+            $extractedText = trim(($extractedText ?? '') . ' ' . str_replace(['_', '-'], ' ', $clientFilename));
+        }
+
+        $rawResults = VisualSearchService::searchByImage($tempPath, 30, 25.0, $extractedText);
 
         $token = Str::random(16);
         $publicImageUrl = self::storePublicTempThumbnail($tempPath, $token);

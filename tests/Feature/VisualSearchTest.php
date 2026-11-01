@@ -114,4 +114,62 @@ class VisualSearchTest extends TestCase
         $response->assertRedirect();
         $response->assertSessionHas('success');
     }
+
+    /**
+     * 6. Test admin can sync visual index for a single product from the product list table
+     */
+    public function test_admin_can_sync_visual_for_single_product(): void
+    {
+        $admin = User::first() ?? User::factory()->create(['is_admin' => true]);
+        $product = Product::where('is_active', true)->whereNotNull('featured_image')->first();
+        if (!$product) {
+            $this->markTestSkipped('Product required for test');
+        }
+
+        $response = $this->actingAs($admin)->post(route('admin.products.sync-visual', $product->id));
+        $response->assertRedirect();
+        $response->assertSessionHas('success');
+
+        $count = ProductVisualIndex::where('product_id', $product->id)->count();
+        $this->assertGreaterThan(0, $count);
+    }
+
+    /**
+     * 7. Test visual search boosts score when packaging text or SKU is detected
+     */
+    public function test_visual_search_boosts_with_ocr_text(): void
+    {
+        $product = Product::where('is_active', true)->whereNotNull('featured_image')->first();
+        if (!$product) {
+            $this->markTestSkipped('Product required for test');
+        }
+
+        $realPath = VisualSearchService::resolveProductImagePath($product->featured_image);
+        if (!$realPath || !file_exists($realPath)) {
+            $this->markTestSkipped("Image file not found on disk");
+        }
+
+        VisualSearchService::indexProduct($product);
+
+        $uploadedFile = new UploadedFile(
+            $realPath,
+            basename($realPath),
+            mime_content_type($realPath),
+            null,
+            true
+        );
+
+        $response = $this->post(route('api.search.image'), [
+            'image' => $uploadedFile,
+            'ocr_text' => $product->title,
+        ], [
+            'Accept' => 'application/json',
+        ]);
+
+        $response->assertStatus(200);
+        $results = $response->json('results');
+        $this->assertNotEmpty($results);
+        $this->assertEquals($product->id, $results[0]['id']);
+        $this->assertGreaterThanOrEqual(90.0, (float)$results[0]['score']);
+    }
 }

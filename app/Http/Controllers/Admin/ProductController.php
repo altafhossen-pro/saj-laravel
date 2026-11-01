@@ -450,6 +450,21 @@ class ProductController extends Controller
         return redirect()->back()->with('success', "Visual search index refreshed successfully! Total {$count} images indexed.");
     }
 
+    public function syncVisual(\App\Models\Product\Product $product)
+    {
+        $count = \App\Services\VisualSearchService::indexProduct($product);
+
+        if (request()->ajax() || request()->wantsJson()) {
+            return response()->json([
+                'success' => true,
+                'message' => "Visual index synced for \"{$product->title}\"! Total {$count} image(s) indexed.",
+                'count' => $count,
+            ]);
+        }
+
+        return redirect()->back()->with('success', "Visual index synced for \"{$product->title}\"! Total {$count} image(s) indexed (featured, gallery & variants).");
+    }
+
     public function checkSlug(Request $request)
     {
         $slug = \Illuminate\Support\Str::slug($request->slug);
