@@ -271,22 +271,26 @@ class CloudflareAiService
                     $type = null;
                     $keywords = '';
 
-                    if (preg_match('/BRAND:\s*([^\r\n]+)/i', $text, $bm)) {
-                        $b = trim($bm[1]);
-                        if (!in_array(strtoupper($b), ['NONE', 'N/A', 'UNKNOWN', 'NULL', ''])) {
+                    if (preg_match('/(?:\*+\s*)?(?:\*\*)?BRAND(?:\*\*)?:\s*([^\r\n]+)/i', $text, $bm)) {
+                        $b = trim(preg_replace('/[\*#`]+/', '', $bm[1]));
+                        $b = trim(preg_replace('/\s*\(.*?\)/', '', $b));
+                        if (!in_array(strtoupper($b), ['NONE', 'N/A', 'UNKNOWN', 'NULL', 'NO BRAND', ''])) {
                             $brand = $b;
                         }
                     }
 
-                    if (preg_match('/TYPE:\s*([^\r\n]+)/i', $text, $tm)) {
-                        $t = trim($tm[1]);
+                    if (preg_match('/(?:\*+\s*)?(?:\*\*)?TYPE(?:\*\*)?:\s*([^\r\n]+)/i', $text, $tm)) {
+                        $t = trim(preg_replace('/[\*#`]+/', '', $tm[1]));
+                        $t = trim(preg_replace('/\s*\(.*?\)/', '', $t));
                         if (!in_array(strtoupper($t), ['NONE', 'N/A', 'UNKNOWN', 'NULL', ''])) {
                             $type = $t;
                         }
                     }
 
-                    if (preg_match('/KEYWORDS:\s*([^\r\n]+)/i', $text, $km)) {
-                        $keywords = trim($km[1]);
+                    if (preg_match('/(?:\*+\s*)?(?:\*\*)?KEYWORDS(?:\*\*)?:\s*([^\r\n]+)/i', $text, $km)) {
+                        $k = trim(preg_replace('/[\*#`]+/', '', $km[1]));
+                        $k = trim(preg_replace('/\s*\(.*?\)/', '', $k));
+                        $keywords = $k;
                     }
 
                     // Fallback keywords if structured format was partially matched

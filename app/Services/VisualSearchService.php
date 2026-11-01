@@ -418,12 +418,20 @@ class VisualSearchService
                     }
                 }
 
+                $isJewelryUpload = (bool) preg_match('/\b(earrings?|necklace|necklaces|ring|rings|jhumka|bracelet|bracelets|jewelry|jewellery|pendant|pendants|anklet|anklets|nosepin|nosepins)\b/i', $detectedType);
+                $isCosmeticUpload = (bool) preg_match('/\b(shampoo|lotion|cream|serum|skincare|cleanser|oil|face wash|body wash|lipstick|makeup|beauty|moisturiz|perfume|fragrance)\b/i', $detectedType);
+
                 if ($typeMatched) {
                     $typeBoost += 30.0;
-                } elseif (!$detectedBrand && in_array($detectedType, ['earrings', 'earring', 'necklace', 'necklaces', 'ring', 'rings', 'jhumka', 'bracelet', 'bracelets'])) {
-                    // If uploaded image is clearly jewelry, penalize cosmetics/haircare products
-                    if (str_contains($prodCat, 'care') || str_contains($prodCat, 'beauty') || str_contains($prodCat, 'skincare') || str_contains($prodCat, 'hair')) {
-                        $typePenalty += 45.0;
+                } elseif ($isJewelryUpload) {
+                    // Uploaded photo is clearly jewelry, heavily penalize beauty / skincare / haircare
+                    if (str_contains($prodCat, 'care') || str_contains($prodCat, 'beauty') || str_contains($prodCat, 'skincare') || str_contains($prodCat, 'hair') || str_contains($prodCat, 'makeup')) {
+                        $typePenalty += 60.0;
+                    }
+                } elseif ($isCosmeticUpload) {
+                    // Uploaded photo is clearly cosmetics/skincare, heavily penalize jewelry items
+                    if (preg_match('/\b(earring|necklace|ring|bracelet|nosepin|pendant|anklet|jewelry|jewellery)\b/i', $prodCat)) {
+                        $typePenalty += 60.0;
                     }
                 }
             }
