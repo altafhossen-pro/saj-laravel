@@ -444,20 +444,31 @@
                 try {
                     let stream = null;
 
-                    // Flexible constraints without hardcoded landscape resolutions that break portrait mobile cameras
+                    // Request HD stream with fallback to standard resolution
                     try {
                         stream = await navigator.mediaDevices.getUserMedia({
                             audio: false,
                             video: {
-                                facingMode: { ideal: this.cameraFacingMode }
+                                facingMode: { ideal: this.cameraFacingMode },
+                                width: { ideal: 1920, min: 1280 },
+                                height: { ideal: 1080, min: 720 }
                             }
                         });
-                    } catch (err1) {
-                        console.warn('Ideal facingMode constraint failed, falling back to basic video constraint:', err1);
-                        stream = await navigator.mediaDevices.getUserMedia({
-                            audio: false,
-                            video: true
-                        });
+                    } catch (errHd) {
+                        try {
+                            stream = await navigator.mediaDevices.getUserMedia({
+                                audio: false,
+                                video: {
+                                    facingMode: { ideal: this.cameraFacingMode }
+                                }
+                            });
+                        } catch (err1) {
+                            console.warn('Ideal facingMode constraint failed, falling back to basic video constraint:', err1);
+                            stream = await navigator.mediaDevices.getUserMedia({
+                                audio: false,
+                                video: true
+                            });
+                        }
                     }
 
                     this.cameraStream = stream;
@@ -566,7 +577,7 @@
                         const file = new File([blob], 'snapshot_' + Date.now() + '.jpg', { type: 'image/jpeg' });
                         this.processImage(file);
                     }
-                }, 'image/jpeg', 0.85);
+                }, 'image/jpeg', 0.92);
             },
 
             handleFileSelect(event) {
@@ -586,10 +597,10 @@
 
             /**
              * Smart Client-Side Canvas Compression:
-             * Resizes raw 2MB - 25MB phone photos / iPhone HEIC to an optimized ~150KB - 250KB JPEG in 100ms.
-             * Saves massive mobile bandwidth and protects server disk storage!
+             * Resizes raw 2MB - 25MB phone photos / iPhone HEIC to an optimized crisp HD JPEG.
+             * High clarity (1400px, 90% quality) avoids blurriness and makes barcodes easily readable.
              */
-            compressImageFile(file, maxDimension = 1200, quality = 0.85) {
+            compressImageFile(file, maxDimension = 1400, quality = 0.90) {
                 return new Promise((resolve) => {
                     if (!file) return resolve(file);
 

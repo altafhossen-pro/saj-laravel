@@ -323,6 +323,19 @@ class VisualSearchService
             $centerScore = max(0.0, (1.0 - ($centerDist / 32.0)));
         }
 
+        // Cross foreground invariance: user center crop vs catalog image, and vice-versa
+        // Essential when user takes a photo on a desk/keyboard/hand
+        if (!empty($queryFp['center_dhash']) && !empty($index->dhash)) {
+            $crossDist1 = self::computeHammingDistance($queryFp['center_dhash'], $index->dhash);
+            $crossScore1 = max(0.0, (1.0 - ($crossDist1 / 32.0)));
+            $centerScore = max($centerScore, $crossScore1);
+        }
+        if (!empty($queryFp['dhash']) && !empty($index->center_dhash)) {
+            $crossDist2 = self::computeHammingDistance($queryFp['dhash'], $index->center_dhash);
+            $crossScore2 = max(0.0, (1.0 - ($crossDist2 / 32.0)));
+            $centerScore = max($centerScore, $crossScore2);
+        }
+
         // 4. aHash match (overall light/dark structure, 64-bit)
         $aDist = self::computeHammingDistance($queryFp['ahash'], $index->ahash);
         $aScore = max(0.0, (1.0 - ($aDist / 32.0)));
@@ -334,8 +347,9 @@ class VisualSearchService
         }
 
         // Composite visual match score:
-        // Center Focus (30%) + Detail/Edge (25%) + Global Structure (20%) + Color Harmony (25%)
-        $visualComposite = ($centerScore * 0.30) + ($detailScore * 0.25) + ($dScore * 0.20) + ($cScore * 0.25);
+        // Center Foreground Focus (35%) + Detail/Edge (25%) + Global Structure (15%) + Color Harmony (25%)
+        $bestStructure = max($centerScore, $dScore);
+        $visualComposite = ($bestStructure * 0.35) + ($detailScore * 0.25) + ($aScore * 0.15) + ($cScore * 0.25);
 
         // Aspect ratio boost/penalty: if ratios are very close, slight confidence boost
         $queryRatio = $queryFp['aspect_ratio'] ?? 1.0;
@@ -490,7 +504,24 @@ class VisualSearchService
         if (is_array($product->tags)) {
             $baseKeywords = array_merge($baseKeywords, $product->tags);
         }
-        $baseSearchText = strtolower(implode(' ', array_filter($baseKeywords)));
+
+        // Inherit all variant SKUs, barcodes, and attributes into base keywords
+        // Ensures featured and gallery images also match when a physical product variant is scanned
+        if ($product->variants && $product->variants->isNotEmpty()) {
+            foreach ($product->variants as $variant) {
+                if (!empty($variant->sku)) {
+                    $baseKeywords[] = $variant->sku;
+                }
+                if (!empty($variant->barcode)) {
+                    $baseKeywords[] = $variant->barcode;
+                }
+                if (is_array($variant->attributes)) {
+                    $baseKeywords = array_merge($baseKeywords, array_values($variant->attributes));
+                }
+            }
+        }
+
+        $baseSearchText = strtolower(implode(' ', array_unique(array_filter($baseKeywords))));
 
         $indexedPaths = [];
         $indexedCount = 0;

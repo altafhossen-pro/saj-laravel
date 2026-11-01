@@ -221,7 +221,7 @@ class VisualSearchController extends Controller
             $filename = "vis_{$token}.jpg";
             $dest = $dir . DIRECTORY_SEPARATOR . $filename;
 
-            // Resize to max 300x300 thumbnail for ultra fast rendering
+            // Keep crisp HD resolution (max 1200x1200, 92% quality) to avoid blurry thumbnails on search results
             $info = @getimagesize($sourcePath);
             if ($info) {
                 $src = null;
@@ -233,14 +233,14 @@ class VisualSearchController extends Controller
                 if ($src) {
                     $w = imagesx($src);
                     $h = imagesy($src);
-                    $maxDim = 300;
+                    $maxDim = 1200;
                     $scale = min(1.0, $maxDim / max($w, $h));
                     $nw = max(1, (int) round($w * $scale));
                     $nh = max(1, (int) round($h * $scale));
 
                     $thumb = imagecreatetruecolor($nw, $nh);
                     imagecopyresampled($thumb, $src, 0, 0, 0, 0, $nw, $nh, $w, $h);
-                    imagejpeg($thumb, $dest, 85);
+                    imagejpeg($thumb, $dest, 92);
                     imagedestroy($thumb);
                     imagedestroy($src);
 
