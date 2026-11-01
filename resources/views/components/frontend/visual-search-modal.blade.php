@@ -125,20 +125,10 @@
                         </button>
                     </div>
 
-                    <!-- Fallback Notice for Mobile if Stream takes too long -->
-                    <div x-show="showNativeCameraFallback"
-                         class="absolute bottom-3 inset-x-3 z-20 text-center animate-in fade-in">
-                        <button type="button"
-                                @click="useNativeCamera()"
-                                class="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-brand-600 hover:bg-brand-700 text-white text-xs font-semibold shadow-lg backdrop-blur-xs transition cursor-pointer">
-                            <i class="ph-bold ph-camera text-sm"></i>
-                            <span>Switch to Phone Camera App</span>
-                        </button>
-                    </div>
                 </div>
 
                 <!-- Live Camera Controls -->
-                <div class="flex items-center justify-between gap-2 px-2 pt-1 flex-wrap">
+                <div class="flex items-center justify-between gap-2 px-2 pt-1">
                     <button type="button"
                             @click="stopLiveCamera()"
                             class="text-xs font-semibold text-gray-500 hover:text-gray-800 px-3 py-2 rounded-xl hover:bg-gray-100 transition cursor-pointer">
@@ -153,12 +143,7 @@
                         <span>Snap Photo</span>
                     </button>
 
-                    <!-- Option to use native phone camera -->
-                    <button type="button"
-                            @click="useNativeCamera()"
-                            class="text-xs font-semibold text-brand-600 hover:text-brand-800 px-3 py-2 rounded-xl hover:bg-brand-50 transition cursor-pointer">
-                        <i class="ph-bold ph-device-mobile text-sm mr-1"></i> Phone App
-                    </button>
+                    <div class="w-16"></div>
                 </div>
             </div>
 
@@ -178,32 +163,20 @@
                     <h4 class="font-bold text-gray-800 text-sm mb-1">Upload or Take Product Photo</h4>
                     <p class="text-xs text-gray-500 max-w-xs mx-auto">Snap with your camera or upload from files to find matching products</p>
                     
-                    <!-- Action Buttons: Responsive for Mobile vs Desktop -->
-                    <div class="mt-4 flex items-center justify-center gap-2 flex-wrap" @click.stop>
-                        <!-- Mobile Specific: Direct Phone Camera App Button -->
-                        <template x-if="isMobile">
-                            <button type="button"
-                                    @click.stop="useNativeCamera()"
-                                    class="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-brand-600 hover:bg-brand-700 text-white text-xs font-semibold shadow-xs transition active:scale-95 cursor-pointer">
-                                <i class="ph-bold ph-camera text-sm"></i> Phone Camera
-                            </button>
-                        </template>
-
-                        <!-- Live Viewfinder Button (Webcam on Desktop / Live on Mobile) -->
+                    <!-- Clean 2 Buttons (Take Photo & Choose File) -->
+                    <div class="mt-4 flex items-center justify-center gap-2.5 flex-wrap" @click.stop>
                         <button type="button"
                                 @click.stop="openCamera()"
-                                class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-gray-200 hover:border-brand-300 bg-white hover:bg-brand-50/50 text-gray-800 text-xs font-semibold shadow-xs transition active:scale-95 cursor-pointer"
-                                :class="!isMobile ? 'bg-brand-600 hover:bg-brand-700 text-white border-transparent' : ''">
-                            <i class="ph-bold ph-video-camera text-sm" :class="isMobile ? 'text-brand-600' : 'text-white'"></i>
-                            <span x-text="isMobile ? 'Live Scanner' : 'Take Photo / Webcam'"></span>
+                                class="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-brand-600 hover:bg-brand-700 text-white text-xs font-bold shadow-md shadow-brand-600/20 transition active:scale-95 cursor-pointer">
+                            <i class="ph-bold ph-camera text-base"></i>
+                            <span>Take Photo</span>
                         </button>
 
-                        <!-- Standard File / Gallery Button -->
                         <button type="button"
                                 @click.stop="$refs.galleryInput.click()"
-                                class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white hover:bg-gray-50 border border-gray-200 text-xs font-semibold text-gray-700 shadow-xs transition active:scale-95 cursor-pointer">
-                            <i class="ph ph-upload-simple text-sm"></i>
-                            <span x-text="isMobile ? 'Gallery' : 'Choose File'"></span>
+                                class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white hover:bg-gray-50 border border-gray-200 text-xs font-semibold text-gray-700 shadow-xs transition active:scale-95 cursor-pointer">
+                            <i class="ph ph-upload-simple text-base"></i>
+                            <span>Choose File</span>
                         </button>
                     </div>
                     
@@ -357,6 +330,15 @@
 
             init() {
                 this.isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+
+                // Lazily load ZXing universal barcode reader (fast 110KB library, decodes EAN-13, EAN-8, UPC, Code128, QR)
+                if (!window.ZXing && !document.getElementById('zxing-cdn-script')) {
+                    const z = document.createElement('script');
+                    z.id = 'zxing-cdn-script';
+                    z.src = 'https://cdn.jsdelivr.net/npm/@zxing/library@0.21.3/umd/index.min.js';
+                    z.async = true;
+                    document.head.appendChild(z);
+                }
 
                 // Lazily load Tesseract.js in background so OCR is ready on demand without slowing page load
                 if (!window.Tesseract && !document.getElementById('tesseract-cdn-script')) {
@@ -659,10 +641,11 @@
             async extractDetectedText(file) {
                 let detected = '';
 
-                // 1. Native Barcode/SKU detector (instant, 5ms, built into modern browsers)
+                // 1. High-Precision Barcode Detection (EAN-13, EAN-8, UPC-A, Code 128, QR)
+                // Native BarcodeDetector (Chrome Android / Chromium)
                 if ('BarcodeDetector' in window) {
                     try {
-                        const formats = ['code_128', 'ean_13', 'ean_8', 'qr_code', 'upc_a', 'upc_e', 'code_39'];
+                        const formats = ['ean_13', 'ean_8', 'upc_a', 'upc_e', 'code_128', 'code_39', 'qr_code'];
                         const detector = new BarcodeDetector({ formats });
                         const imgBitmap = await createImageBitmap(file);
                         const barcodes = await detector.detect(imgBitmap);
@@ -672,11 +655,29 @@
                     } catch (e) {}
                 }
 
-                // 2. Client-side OCR for packaging text / brand names (capped at 2.5s for snappy UX)
+                // Universal ZXing Reader (works universally on iOS Safari, Android, and Desktop)
+                if (!detected.trim() && window.ZXing && window.ZXing.BrowserMultiFormatReader) {
+                    try {
+                        const codeReader = new window.ZXing.BrowserMultiFormatReader();
+                        const imgUrl = URL.createObjectURL(file);
+                        try {
+                            const result = await codeReader.decodeFromImageUrl(imgUrl);
+                            if (result && result.getText()) {
+                                detected += result.getText() + ' ';
+                            }
+                        } catch (e) {
+                            // No barcode decoded
+                        } finally {
+                            URL.revokeObjectURL(imgUrl);
+                        }
+                    } catch (e) {}
+                }
+
+                // 2. Client-side OCR for packaging text / brand names (e.g. NIVEA, Dove, Vaseline)
                 if (window.Tesseract && typeof window.Tesseract.recognize === 'function') {
                     try {
                         const ocrPromise = window.Tesseract.recognize(file, 'eng');
-                        const timeoutPromise = new Promise(resolve => setTimeout(() => resolve(null), 2500));
+                        const timeoutPromise = new Promise(resolve => setTimeout(() => resolve(null), 3000));
                         const res = await Promise.race([ocrPromise, timeoutPromise]);
                         if (res && res.data && res.data.text) {
                             detected += ' ' + res.data.text;

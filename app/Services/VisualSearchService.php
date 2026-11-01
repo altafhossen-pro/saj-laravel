@@ -379,16 +379,20 @@ class VisualSearchService
 
             // Direct word boundary or substring match
             if (str_contains($target, $tok)) {
-                // If it looks like a SKU (contains numbers and letters), higher weight
-                if (preg_match('/[0-9]/', $tok) && preg_match('/[a-z]/i', $tok)) {
-                    $boost += 25.0; // Strong SKU match
+                // 1. Exact Global Barcode match (EAN-13, EAN-8, UPC-A, 6-14 digits)
+                if (preg_match('/^\d{6,14}$/', $tok)) {
+                    $boost += 85.0; // High confidence barcode match
+                } elseif (preg_match('/[0-9]/', $tok) && preg_match('/[a-z]/i', $tok) && strlen($tok) >= 4) {
+                    // 2. Strong SKU match (contains letters and digits)
+                    $boost += 60.0;
                 } else {
-                    $boost += 12.0; // Brand or keyword match
+                    // 3. Brand or product title keyword match
+                    $boost += 25.0;
                 }
             }
         }
 
-        return min(45.0, $boost);
+        return min(95.0, $boost);
     }
 
     /**
@@ -441,16 +445,25 @@ class VisualSearchService
 
         $topScore = $sortedMatches[0]['score'];
 
-        // Strict Adaptive Quality Gate:
-        // 1. If top match is strong (>= 75%), discard any product whose score is less than max(50.0, topScore - 25.0).
-        //    This eliminates accidental low-similarity false positives completely!
-        // 2. If top match is moderate (45% - 74%), only keep items with >= 45.0%.
-        // 3. If top match is below 45%, treat as no confident match to prevent irrelevant noise.
-        if ($topScore < 45.0) {
+        // If top item doesn't reach at least 20%, no confident match
+        if ($topScore < 20.0) {
             return [];
         }
 
-        $cutoff = ($topScore >= 75.0) ? max(50.0, $topScore - 25.0) : 45.0;
+        // Adaptive Quality Gate:
+        // 1. If top match is an exact Barcode/SKU/Text match (>= 80%):
+        //    Keep the exact match at the top, and also keep other visually matching products (>= 15%)
+        // 2. If top match is a strong visual match (60% - 79%):
+        //    Keep items within 25% of top match to prevent false positives (e.g. Dove shampoo vs Laikou Sakura)
+        // 3. If top match is moderate (20% - 59%):
+        //    Keep items with at least 20% similarity
+        if ($topScore >= 80.0) {
+            $cutoff = 15.0;
+        } elseif ($topScore >= 60.0) {
+            $cutoff = max(25.0, $topScore - 25.0);
+        } else {
+            $cutoff = 20.0;
+        }
 
         $filtered = array_filter($sortedMatches, fn($item) => $item['score'] >= $cutoff);
 

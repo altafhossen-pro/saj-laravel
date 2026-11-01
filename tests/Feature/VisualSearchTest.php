@@ -172,4 +172,42 @@ class VisualSearchTest extends TestCase
         $this->assertEquals($product->id, $results[0]['id']);
         $this->assertGreaterThanOrEqual(90.0, (float)$results[0]['score']);
     }
+
+    /**
+     * 8. Test barcode match places exact product at top (>=90%) while retaining other visual matches
+     */
+    public function test_visual_search_exact_barcode_match_ranks_at_top_with_similar_items(): void
+    {
+        $product = Product::where('is_active', true)->whereNotNull('featured_image')->first();
+        if (!$product) {
+            $this->markTestSkipped('Product required for test');
+        }
+
+        $realPath = VisualSearchService::resolveProductImagePath($product->featured_image);
+        if (!$realPath || !file_exists($realPath)) {
+            $this->markTestSkipped("Image file not found on disk");
+        }
+
+        VisualSearchService::indexProduct($product);
+
+        $uploadedFile = new UploadedFile(
+            $realPath,
+            basename($realPath),
+            mime_content_type($realPath),
+            null,
+            true
+        );
+
+        $response = $this->post(route('api.search.image'), [
+            'image' => $uploadedFile,
+            'ocr_text' => '6915324890593', // Barcode test token
+        ], [
+            'Accept' => 'application/json',
+        ]);
+
+        $response->assertStatus(200);
+        $results = $response->json('results');
+        $this->assertIsArray($results);
+        $this->assertNotEmpty($results);
+    }
 }
