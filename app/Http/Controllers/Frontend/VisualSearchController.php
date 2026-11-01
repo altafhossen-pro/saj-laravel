@@ -20,7 +20,7 @@ class VisualSearchController extends Controller
     public function search(Request $request): JsonResponse
     {
         $validator = Validator::make($request->all(), [
-            'image' => 'nullable|file|mimes:jpeg,png,jpg,webp,gif|max:10240',
+            'image' => 'nullable|file|max:25600',
             'image_base64' => 'nullable|string',
             'limit' => 'nullable|integer|min:1|max:40',
             'min_score' => 'nullable|numeric|min:10|max:90',
@@ -29,7 +29,7 @@ class VisualSearchController extends Controller
         if ($validator->fails()) {
             return response()->json([
                 'success' => false,
-                'message' => 'Please provide a valid image file (JPG, PNG, WebP) under 10MB.',
+                'message' => 'Please provide a valid image file (JPG, PNG, WebP) under 25MB.',
                 'errors' => $validator->errors(),
             ], 422);
         }
@@ -40,6 +40,13 @@ class VisualSearchController extends Controller
         try {
             if ($request->hasFile('image') && $request->file('image')->isValid()) {
                 $tempPath = $request->file('image')->getRealPath();
+                $imgInfo = @getimagesize($tempPath);
+                if (!$imgInfo || !in_array($imgInfo['mime'] ?? '', ['image/jpeg', 'image/pjpeg', 'image/png', 'image/x-png', 'image/webp', 'image/gif'])) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'The uploaded file does not appear to be a recognized image format (JPG, PNG, WebP).',
+                    ], 422);
+                }
             } elseif (!empty($request->input('image_base64'))) {
                 $base64 = $request->input('image_base64');
                 if (preg_match('/^data:image\/(\w+);base64,/', $base64, $type)) {
@@ -148,15 +155,20 @@ class VisualSearchController extends Controller
     public function webUpload(Request $request): RedirectResponse
     {
         $validator = Validator::make($request->all(), [
-            'image' => 'required|file|mimes:jpeg,png,jpg,webp,gif|max:10240',
+            'image' => 'required|file|max:25600',
         ]);
 
         if ($validator->fails()) {
-            return redirect()->back()->withErrors($validator)->with('error', 'Please provide a valid image under 10MB.');
+            return redirect()->back()->withErrors($validator)->with('error', 'Please provide a valid image file under 25MB.');
         }
 
         $file = $request->file('image');
         $tempPath = $file->getRealPath();
+
+        $imgInfo = @getimagesize($tempPath);
+        if (!$imgInfo || !in_array($imgInfo['mime'] ?? '', ['image/jpeg', 'image/pjpeg', 'image/png', 'image/x-png', 'image/webp', 'image/gif'])) {
+            return redirect()->back()->with('error', 'The uploaded file does not appear to be a recognized image format (JPG, PNG, WebP).');
+        }
 
         $extractedText = $request->input('ocr_text', null);
         $clientFilename = pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME);
@@ -193,6 +205,17 @@ class VisualSearchController extends Controller
             $dir = storage_path('app/public/temp_search');
             if (!file_exists($dir)) {
                 @mkdir($dir, 0775, true);
+            }
+
+            // Stale thumbnail cleanup (> 4 hours old) to protect server disk space
+            $oldFiles = @glob($dir . DIRECTORY_SEPARATOR . 'vis_*.jpg');
+            if ($oldFiles && is_array($oldFiles)) {
+                $staleTime = time() - 14400;
+                foreach ($oldFiles as $oldF) {
+                    if (@filemtime($oldF) < $staleTime) {
+                        @unlink($oldF);
+                    }
+                }
             }
 
             $filename = "vis_{$token}.jpg";
