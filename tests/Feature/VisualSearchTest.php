@@ -6,12 +6,18 @@ use App\Models\Product\Product;
 use App\Models\ProductVisualIndex;
 use App\Models\User;
 use App\Services\VisualSearchService;
+use Illuminate\Foundation\Http\Middleware\ValidateCsrfToken;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Artisan;
 use Tests\TestCase;
 
 class VisualSearchTest extends TestCase
 {
+    protected function setUp(): void
+    {
+        parent::setUp();
+        $this->withoutMiddleware([ValidateCsrfToken::class]);
+    }
     /**
      * 1. Test validation error when no image is uploaded
      */
