@@ -45,7 +45,7 @@
     </div>
 
     <!-- Quick Status Cards -->
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
         <!-- AI Engine Status -->
         <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex items-center justify-between">
             <div class="flex items-center gap-3.5">
@@ -69,9 +69,9 @@
                     <i class="ph-bold ph-brain"></i>
                 </div>
                 <div>
-                    <p class="text-xs font-medium text-gray-400 uppercase tracking-wider">AI Model</p>
-                    <h4 class="text-sm font-bold text-gray-800">OpenAI CLIP ViT-B/32</h4>
-                    <p class="text-[11px] text-gray-500">Multimodal 512-dim Vector</p>
+                    <p class="text-xs font-medium text-gray-400 uppercase tracking-wider">Vision Model</p>
+                    <h4 class="text-sm font-bold text-gray-800">Llama 3.2 11B Vision</h4>
+                    <p class="text-[11px] text-gray-500">ResNet + BGE Edge GPU</p>
                 </div>
             </div>
             <span class="px-2 py-0.5 text-[10px] font-bold uppercase rounded-md bg-purple-100 text-purple-700">GPU Edge</span>
@@ -84,15 +84,37 @@
                     <i class="ph-bold ph-database"></i>
                 </div>
                 <div>
-                    <p class="text-xs font-medium text-gray-400 uppercase tracking-wider">AI Vector Coverage</p>
+                    <p class="text-xs font-medium text-gray-400 uppercase tracking-wider">Catalog Embedded</p>
                     <h4 class="text-sm font-bold text-gray-800">
                         <span x-text="stats.aiIndexed"></span> / <span x-text="stats.totalImages"></span> Images
                     </h4>
-                    <p class="text-[11px] text-gray-500" x-text="coveragePercent + '% of catalog embedded'"></p>
+                    <p class="text-[11px] text-gray-500" x-text="coveragePercent + '% embedded'"></p>
                 </div>
             </div>
             <div class="w-10 h-10 rounded-full border-4 border-blue-500 flex items-center justify-center text-[10px] font-bold text-blue-600"
                  x-text="coveragePercent + '%'"></div>
+        </div>
+
+        <!-- Daily AI Quota Usage -->
+        <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex items-center justify-between">
+            <div class="flex items-center gap-3.5">
+                <div class="w-12 h-12 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center text-xl">
+                    <i class="ph-bold ph-gauge"></i>
+                </div>
+                <div>
+                    <p class="text-xs font-medium text-gray-400 uppercase tracking-wider">Today's AI Quota</p>
+                    <h4 class="text-sm font-bold text-gray-800">
+                        {{ number_format($todayRequests) }} / {{ number_format($dailyQuotaLimit) }}
+                    </h4>
+                    <p class="text-[11px] text-gray-500">
+                        <span class="text-emerald-600 font-semibold">{{ number_format($remainingQuota) }}</span> left today
+                    </p>
+                </div>
+            </div>
+            <a href="https://dash.cloudflare.com/{{ $accountId }}/workers-ai" target="_blank" title="View Cloudflare Official Graph" class="px-2 py-1 text-[10px] font-bold uppercase rounded-md bg-amber-100 text-amber-800 hover:bg-amber-200 transition flex items-center gap-1">
+                <span>CF Dash</span>
+                <i class="ph ph-arrow-square-out text-xs"></i>
+            </a>
         </div>
     </div>
 
@@ -288,6 +310,138 @@
                 </ol>
             </div>
         </div>
+    </div>
+
+    <!-- Customer Visual Search Audit & Demand Insights Log -->
+    <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+        <div class="p-6 border-b border-gray-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+                <div class="flex items-center gap-2">
+                    <span class="w-8 h-8 rounded-lg bg-brand-50 text-brand-600 flex items-center justify-center text-lg">
+                        <i class="ph-bold ph-clock-counter-clockwise"></i>
+                    </span>
+                    <h3 class="text-base font-bold text-gray-900">Customer Visual Searches (Live History)</h3>
+                </div>
+                <p class="text-xs text-gray-500 mt-1">Real-time audit log of customer-uploaded photos, detected brands/types, and matched products to forecast product demand</p>
+            </div>
+            <div class="flex items-center gap-2 text-xs text-gray-500 flex-wrap">
+                <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 font-semibold border border-emerald-100">
+                    <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                    <span>Live Tracking Active</span>
+                </span>
+                <span class="px-3 py-1 rounded-full bg-gray-100 text-gray-700 font-medium">
+                    Total: {{ number_format($totalAllTimeSearches) }} searches
+                </span>
+            </div>
+        </div>
+
+        @if($searchLogs->count() > 0)
+        <div class="overflow-x-auto">
+            <table class="w-full text-left text-xs">
+                <thead class="bg-gray-50/75 text-gray-500 uppercase tracking-wider text-[11px] font-semibold border-b border-gray-100">
+                    <tr>
+                        <th class="py-3.5 px-6">Customer Photo</th>
+                        <th class="py-3.5 px-6">AI Detection (Brand / Type)</th>
+                        <th class="py-3.5 px-6">Top Matched Product</th>
+                        <th class="py-3.5 px-6">Confidence</th>
+                        <th class="py-3.5 px-6">Search Time</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-100 text-gray-700">
+                    @foreach($searchLogs as $log)
+                    <tr class="hover:bg-gray-50/50 transition">
+                        <td class="py-4 px-6">
+                            @if($log->thumbnail_url)
+                            <a href="{{ $log->thumbnail_url }}" target="_blank" class="block group relative w-14 h-14 rounded-xl overflow-hidden border border-gray-200 bg-gray-50 shadow-xs">
+                                <img src="{{ $log->thumbnail_url }}" alt="Uploaded photo" class="w-full h-full object-cover group-hover:scale-105 transition">
+                                <div class="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition flex items-center justify-center text-white text-xs">
+                                    <i class="ph-bold ph-magnifying-glass-plus"></i>
+                                </div>
+                            </a>
+                            @else
+                            <div class="w-14 h-14 rounded-xl bg-gray-100 text-gray-400 flex items-center justify-center text-xl">
+                                <i class="ph ph-image"></i>
+                            </div>
+                            @endif
+                        </td>
+                        <td class="py-4 px-6 space-y-1">
+                            <div class="flex items-center gap-1.5 flex-wrap">
+                                @if(!empty($log->detected_brand) && strtolower($log->detected_brand) !== 'none')
+                                <span class="px-2 py-0.5 rounded-md bg-purple-50 text-purple-700 font-bold border border-purple-100 text-[11px]">
+                                    {{ $log->detected_brand }}
+                                </span>
+                                @endif
+                                @if(!empty($log->detected_type) && strtolower($log->detected_type) !== 'none')
+                                <span class="px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 font-semibold border border-blue-100 text-[11px]">
+                                    {{ $log->detected_type }}
+                                </span>
+                                @endif
+                                @if($log->is_rejected)
+                                <span class="px-2 py-0.5 rounded-md bg-red-50 text-red-700 font-bold border border-red-100 text-[11px]">
+                                    <i class="ph-bold ph-prohibit"></i> Filtered (Unrelated)
+                                </span>
+                                @endif
+                            </div>
+                            @if(!empty($log->detected_keywords))
+                            <p class="text-[11px] text-gray-500 max-w-xs truncate" title="{{ $log->detected_keywords }}">
+                                <span class="font-medium text-gray-400">Keywords:</span> {{ $log->detected_keywords }}
+                            </p>
+                            @endif
+                        </td>
+                        <td class="py-4 px-6">
+                            @if($log->topProduct)
+                            <div class="flex items-center gap-3 max-w-sm">
+                                @if($log->topProduct->featured_image)
+                                <img src="{{ asset('storage/' . ltrim($log->topProduct->featured_image, '/')) }}" alt="" class="w-10 h-10 rounded-lg object-cover border border-gray-100 shrink-0">
+                                @endif
+                                <div class="min-w-0">
+                                    <a href="{{ route('product.show', $log->topProduct->slug) }}" target="_blank" class="font-semibold text-gray-900 hover:text-brand-600 truncate block transition" title="{{ $log->topProduct->title }}">
+                                        {{ $log->topProduct->title }}
+                                    </a>
+                                    <span class="text-[11px] text-gray-400">
+                                        {{ $log->topProduct->category?->name ?? 'Uncategorized' }}
+                                    </span>
+                                </div>
+                            </div>
+                            @elseif($log->is_rejected)
+                            <span class="text-xs text-red-600 font-medium">None (Rejected by Vision AI)</span>
+                            @else
+                            <span class="text-xs text-gray-400 italic">No matching catalog items found</span>
+                            @endif
+                        </td>
+                        <td class="py-4 px-6">
+                            @if($log->top_score)
+                            <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold {{ $log->top_score >= 80 ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' : ($log->top_score >= 50 ? 'bg-amber-50 text-amber-700 border border-amber-100' : 'bg-gray-100 text-gray-600') }}">
+                                <i class="ph-bold ph-sparkle text-xs"></i>
+                                <span>{{ round($log->top_score, 0) }}% Match</span>
+                            </span>
+                            @else
+                            <span class="text-xs text-gray-400">-</span>
+                            @endif
+                        </td>
+                        <td class="py-4 px-6 text-gray-500 whitespace-nowrap">
+                            <span class="font-medium text-gray-700 block">{{ $log->created_at->diffForHumans() }}</span>
+                            <span class="text-[11px] text-gray-400">{{ $log->created_at->format('d M, Y h:i A') }}</span>
+                        </td>
+                    </tr>
+                    @endforeach
+                </tbody>
+            </table>
+        </div>
+        <div class="p-4 border-t border-gray-100">
+            {{ $searchLogs->links() }}
+        </div>
+        @else
+        <div class="p-12 text-center text-gray-400 space-y-3">
+            <div class="w-14 h-14 mx-auto rounded-2xl bg-gray-50 flex items-center justify-center text-2xl text-gray-400">
+                <i class="ph ph-camera-slash"></i>
+            </div>
+            <div>
+                <h4 class="font-bold text-gray-700 text-sm">No Customer Visual Searches Yet</h4>
+                <p class="text-xs text-gray-400 mt-1 max-w-sm mx-auto">When shoppers use the camera or photo upload button on your storefront, their uploaded search images and AI detection records will appear here.</p>
+            </div>
+        </div>
+        @endif
     </div>
 </div>
 

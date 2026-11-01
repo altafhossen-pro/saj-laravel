@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Frontend;
 
 use App\Http\Controllers\Controller;
+use App\Models\VisualSearchLog;
 use App\Services\VisualSearchService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -81,11 +82,46 @@ class VisualSearchController extends Controller
                 }
             }
 
+            $startTime = microtime(true);
             $rawResults = VisualSearchService::searchByImage($tempPath, $limit, $minScore, $extractedText);
+            $latencyMs = (int) round((microtime(true) - $startTime) * 1000);
 
             // Persist search token and public thumbnail for full-page results (/search?visual=TOKEN)
             $token = Str::random(16);
             $publicImageUrl = self::storePublicTempThumbnail($tempPath, $token);
+            $logThumbPath = self::storeLogThumbnail($tempPath, $token);
+
+            // Record customer visual search to log for demand forecasting & audit
+            try {
+                $aiData = VisualSearchService::getLastAiAnalysis();
+                $isRejected = ($aiData !== null && empty($aiData['is_relevant']));
+                $topItem = $rawResults[0] ?? null;
+
+                VisualSearchLog::create([
+                    'thumbnail_path' => $logThumbPath,
+                    'ip_address' => $request->ip(),
+                    'user_id' => auth()->id(),
+                    'detected_brand' => $aiData['brand'] ?? null,
+                    'detected_type' => $aiData['type'] ?? null,
+                    'detected_keywords' => $aiData['keywords'] ?? null,
+                    'is_rejected' => $isRejected,
+                    'top_product_id' => $topItem ? $topItem['product']->id : null,
+                    'top_score' => $topItem ? $topItem['score'] : null,
+                    'results_count' => count($rawResults),
+                    'latency_ms' => $latencyMs,
+                ]);
+
+                // Track daily counters in cache for sub-millisecond admin dashboard load
+                $today = now()->toDateString();
+                Cache::increment("ai_quota_requests_{$today}");
+                if ($isRejected) {
+                    Cache::increment("ai_quota_rejected_{$today}");
+                } else {
+                    Cache::increment("ai_quota_matched_{$today}");
+                }
+            } catch (Throwable $logEx) {
+                // Keep customer search resilient even if log fails
+            }
 
             $productScores = [];
             $formatted = [];
@@ -176,10 +212,41 @@ class VisualSearchController extends Controller
             $extractedText = trim(($extractedText ?? '') . ' ' . str_replace(['_', '-'], ' ', $clientFilename));
         }
 
+        $startTime = microtime(true);
         $rawResults = VisualSearchService::searchByImage($tempPath, 30, 45.0, $extractedText);
+        $latencyMs = (int) round((microtime(true) - $startTime) * 1000);
 
         $token = Str::random(16);
         $publicImageUrl = self::storePublicTempThumbnail($tempPath, $token);
+        $logThumbPath = self::storeLogThumbnail($tempPath, $token);
+
+        try {
+            $aiData = VisualSearchService::getLastAiAnalysis();
+            $isRejected = ($aiData !== null && empty($aiData['is_relevant']));
+            $topItem = $rawResults[0] ?? null;
+
+            VisualSearchLog::create([
+                'thumbnail_path' => $logThumbPath,
+                'ip_address' => $request->ip(),
+                'user_id' => auth()->id(),
+                'detected_brand' => $aiData['brand'] ?? null,
+                'detected_type' => $aiData['type'] ?? null,
+                'detected_keywords' => $aiData['keywords'] ?? null,
+                'is_rejected' => $isRejected,
+                'top_product_id' => $topItem ? $topItem['product']->id : null,
+                'top_score' => $topItem ? $topItem['score'] : null,
+                'results_count' => count($rawResults),
+                'latency_ms' => $latencyMs,
+            ]);
+
+            $today = now()->toDateString();
+            Cache::increment("ai_quota_requests_{$today}");
+            if ($isRejected) {
+                Cache::increment("ai_quota_rejected_{$today}");
+            } else {
+                Cache::increment("ai_quota_matched_{$today}");
+            }
+        } catch (Throwable $logEx) {}
 
         $productScores = [];
         foreach ($rawResults as $item) {
@@ -194,6 +261,56 @@ class VisualSearchController extends Controller
         ], now()->addHours(2));
 
         return redirect()->route('shop.search', ['visual' => $token]);
+    }
+
+    /**
+     * Store ultra-lightweight thumbnail (~10KB) for admin visual search audit log.
+     */
+    protected static function storeLogThumbnail(string $sourcePath, string $token): ?string
+    {
+        try {
+            $dir = storage_path('app/public/visual_search_logs');
+            if (!file_exists($dir)) {
+                @mkdir($dir, 0775, true);
+            }
+
+            $filename = 'vsl_' . $token . '.jpg';
+            $dest = $dir . DIRECTORY_SEPARATOR . $filename;
+
+            $info = @getimagesize($sourcePath);
+            if ($info) {
+                $src = null;
+                $mime = $info['mime'] ?? '';
+                if ($mime === 'image/jpeg' || $mime === 'image/pjpeg')
+                    $src = @imagecreatefromjpeg($sourcePath);
+                elseif ($mime === 'image/png')
+                    $src = @imagecreatefrompng($sourcePath);
+                elseif ($mime === 'image/webp')
+                    $src = @imagecreatefromwebp($sourcePath);
+
+                if ($src) {
+                    $w = imagesx($src);
+                    $h = imagesy($src);
+                    $maxDim = 240; // Lightweight 240px square max (~10KB)
+                    $scale = min(1.0, $maxDim / max($w, $h));
+                    $nw = max(1, (int) round($w * $scale));
+                    $nh = max(1, (int) round($h * $scale));
+
+                    $thumb = imagecreatetruecolor($nw, $nh);
+                    imagecopyresampled($thumb, $src, 0, 0, 0, 0, $nw, $nh, $w, $h);
+                    imagejpeg($thumb, $dest, 80);
+                    imagedestroy($thumb);
+                    imagedestroy($src);
+
+                    return 'visual_search_logs/' . $filename;
+                }
+            }
+
+            @copy($sourcePath, $dest);
+            return 'visual_search_logs/' . $filename;
+        } catch (Throwable $e) {
+            return null;
+        }
     }
 
     /**

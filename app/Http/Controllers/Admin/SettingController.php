@@ -449,8 +449,33 @@ class SettingController extends Controller
         $totalImages = \App\Models\ProductVisualIndex::count();
         $aiIndexed = \App\Models\ProductVisualIndex::whereNotNull('ai_embedding')->count();
 
+        // Daily AI Quota & Request Metrics
+        $today = now()->toDateString();
+        $todayRequests = (int) \Illuminate\Support\Facades\Cache::get("ai_quota_requests_{$today}", function () use ($today) {
+            return \App\Models\VisualSearchLog::whereDate('created_at', $today)->count();
+        });
+        $todayMatched = (int) \Illuminate\Support\Facades\Cache::get("ai_quota_matched_{$today}", function () use ($today) {
+            return \App\Models\VisualSearchLog::whereDate('created_at', $today)->where('is_rejected', false)->count();
+        });
+        $todayRejected = (int) \Illuminate\Support\Facades\Cache::get("ai_quota_rejected_{$today}", function () use ($today) {
+            return \App\Models\VisualSearchLog::whereDate('created_at', $today)->where('is_rejected', true)->count();
+        });
+        $totalAllTimeSearches = \App\Models\VisualSearchLog::count();
+
+        // Free tier daily estimated limit: 1,000 requests/day (~10,000 Neurons free)
+        $dailyQuotaLimit = 1000;
+        $remainingQuota = max(0, $dailyQuotaLimit - $todayRequests);
+        $quotaPercentage = min(100, round(($todayRequests / $dailyQuotaLimit) * 100, 1));
+
+        // Customer Visual Search Logs (Paginated 15 per page)
+        $searchLogs = \App\Models\VisualSearchLog::with(['topProduct.brand', 'user'])
+            ->latest('id')
+            ->paginate(15);
+
         return view('admin.settings.visual-search', compact(
-            'enabled', 'accountId', 'apiToken', 'model', 'totalImages', 'aiIndexed'
+            'enabled', 'accountId', 'apiToken', 'model', 'totalImages', 'aiIndexed',
+            'todayRequests', 'todayMatched', 'todayRejected', 'totalAllTimeSearches',
+            'dailyQuotaLimit', 'remainingQuota', 'quotaPercentage', 'searchLogs'
         ));
     }
 
