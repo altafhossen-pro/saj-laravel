@@ -16,6 +16,7 @@ Route::get('/api/search', [\App\Http\Controllers\Frontend\ShopController::class,
 Route::post('/api/search/by-image', [\App\Http\Controllers\Frontend\VisualSearchController::class, 'search'])->name('api.search.image');
 Route::post('/api/search/log', [\App\Http\Controllers\Frontend\ShopController::class, 'logSearchClick'])->name('api.search.log');
 Route::get('/search', [\App\Http\Controllers\Frontend\ShopController::class, 'searchPage'])->name('shop.search');
+Route::post('/search/image', [\App\Http\Controllers\Frontend\VisualSearchController::class, 'webUpload'])->name('search.image.upload');
 
 Route::get('/checkout', [\App\Http\Controllers\Frontend\HomeController::class, 'checkout'])->name('checkout');
 Route::post('/checkout', [\App\Http\Controllers\Frontend\CheckoutController::class, 'process'])->name('checkout.process');

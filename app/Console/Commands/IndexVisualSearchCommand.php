@@ -34,3 +34,4 @@ class IndexVisualSearchCommand extends Command
         return 0;
     }
 }
+

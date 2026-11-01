@@ -68,10 +68,33 @@ class VisualSearchTest extends TestCase
         $firstMatch = $results[0];
         $this->assertEquals($product->id, $firstMatch['id']);
         $this->assertGreaterThanOrEqual(85.0, (float)$firstMatch['score']);
+
+        // Check page_url and token are returned
+        $token = $response->json('token');
+        $pageUrl = $response->json('page_url');
+        $this->assertNotEmpty($token);
+        $this->assertNotEmpty($pageUrl);
+        $this->assertStringContainsString('visual=' . $token, $pageUrl);
+
+        // Access the search page using the visual token
+        $pageResponse = $this->get($pageUrl);
+        $pageResponse->assertStatus(200);
+        $pageResponse->assertSee('Visual Match Results');
     }
 
     /**
-     * 3. Test visual search artisan command runs cleanly
+     * 3. Test text search still works perfectly and does not conflict with visual search
+     */
+    public function test_traditional_text_search_remains_unaffected(): void
+    {
+        $response = $this->get(route('shop.search', ['q' => 'nivea']));
+        $response->assertStatus(200);
+        $response->assertSee('Search Results:');
+        $response->assertSee('nivea');
+    }
+
+    /**
+     * 4. Test visual search artisan command runs cleanly
      */
     public function test_artisan_visual_search_index_command(): void
     {
@@ -81,7 +104,7 @@ class VisualSearchTest extends TestCase
     }
 
     /**
-     * 4. Test admin can trigger reindex from admin dashboard
+     * 5. Test admin can trigger reindex from admin dashboard
      */
     public function test_admin_can_trigger_reindex(): void
     {

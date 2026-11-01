@@ -93,17 +93,24 @@
             <template x-if="previewUrl && !isSearching">
                 <div class="space-y-4">
                     <!-- Query Info Bar -->
-                    <div class="flex items-center justify-between bg-gray-50 p-2.5 rounded-xl border border-gray-100">
-                        <div class="flex items-center gap-2.5">
-                            <img :src="previewUrl" class="w-10 h-10 rounded-lg object-cover border border-gray-200">
-                            <div>
+                    <div class="flex items-center justify-between bg-gray-50 p-2.5 rounded-xl border border-gray-100 gap-2">
+                        <div class="flex items-center gap-2.5 min-w-0">
+                            <img :src="previewUrl" class="w-10 h-10 rounded-lg object-cover border border-gray-200 shrink-0">
+                            <div class="truncate">
                                 <span class="text-xs font-bold text-gray-900 block leading-tight">Searched Image</span>
                                 <span class="text-[11px] text-gray-500" x-text="results.length + ' matching product(s) found'"></span>
                             </div>
                         </div>
-                        <button type="button" @click="resetSearch()" class="text-xs font-semibold text-brand-600 hover:text-brand-800 px-2.5 py-1 rounded-lg hover:bg-brand-50 transition cursor-pointer">
-                            <i class="ph ph-arrow-counter-clockwise mr-1"></i> Try Another Image
-                        </button>
+                        <div class="flex items-center gap-1.5 shrink-0">
+                            <template x-if="pageUrl">
+                                <a :href="pageUrl" class="inline-flex items-center gap-1 text-xs font-bold text-white bg-brand-600 hover:bg-brand-700 px-3 py-1.5 rounded-lg shadow-xs transition">
+                                    <span>Full Page</span> &rarr;
+                                </a>
+                            </template>
+                            <button type="button" @click="resetSearch()" class="text-xs font-semibold text-brand-600 hover:text-brand-800 px-2 py-1 rounded-lg hover:bg-brand-50 transition cursor-pointer">
+                                <i class="ph ph-arrow-counter-clockwise mr-1"></i> Try Another
+                            </button>
+                        </div>
                     </div>
 
                     <!-- No Results Found -->
@@ -176,6 +183,7 @@
             isDragging: false,
             isSearching: false,
             previewUrl: null,
+            pageUrl: null,
             results: [],
 
             openModal() {
@@ -188,6 +196,7 @@
 
             resetSearch() {
                 this.previewUrl = null;
+                this.pageUrl = null;
                 this.results = [];
                 this.isSearching = false;
                 if (this.$refs.imageFileInput) {
@@ -233,20 +242,26 @@
                 })
                 .then(res => res.json())
                 .then(data => {
-                    if (data.success) {
+                    if (data.success && data.page_url) {
+                        this.pageUrl = data.page_url;
                         this.results = data.results || [];
+                        // Redirect directly to the search page with visual results
+                        window.location.href = data.page_url;
+                    } else if (data.success) {
+                        this.results = data.results || [];
+                        this.isSearching = false;
                     } else {
                         alert(data.message || 'Visual search failed.');
+                        this.isSearching = false;
                     }
                 })
                 .catch(err => {
                     console.error('Visual search error:', err);
                     alert('Error searching by image. Please try again.');
-                })
-                .finally(() => {
                     this.isSearching = false;
                 });
             }
         };
     }
 </script>
+

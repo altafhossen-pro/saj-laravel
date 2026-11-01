@@ -2,7 +2,14 @@
 
 @php
     $siteName = \App\Models\Setting::get('site_name', 'SAJ');
-    $searchTitle = !empty($searchQuery) ? "Search: {$searchQuery} | {$siteName}" : "Search Products | {$siteName}";
+    $isVisualSearch = !empty($visualSearchData);
+    if ($isVisualSearch) {
+        $searchTitle = "Visual Search Results | {$siteName}";
+    } elseif (!empty($searchQuery)) {
+        $searchTitle = "Search: {$searchQuery} | {$siteName}";
+    } else {
+        $searchTitle = "Search Products | {$siteName}";
+    }
 @endphp
 
 @section('title', $searchTitle)
@@ -14,6 +21,44 @@
 @section('content')
 <div class="px-4 lg:px-8 py-4 pb-20" x-data="{ filterOpen: false }">
     
+    @if($isVisualSearch)
+    <!-- Visual Search Banner -->
+    <div class="mb-6 p-4 sm:p-5 bg-gradient-to-r from-brand-50 via-white to-brand-50/30 rounded-2xl border border-brand-100/80 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div class="flex items-center gap-3.5">
+            <div class="relative shrink-0">
+                @if(!empty($visualSearchData['image_url']))
+                    <img src="{{ $visualSearchData['image_url'] }}" alt="Visual Search Source" class="w-14 h-14 sm:w-16 sm:h-16 rounded-xl object-cover border-2 border-brand-500 shadow-sm bg-white">
+                @else
+                    <div class="w-14 h-14 sm:w-16 sm:h-16 rounded-xl bg-brand-500 text-white flex items-center justify-center text-2xl shadow-sm">
+                        <i class="ph-bold ph-camera"></i>
+                    </div>
+                @endif
+                <span class="absolute -bottom-1 -right-1 w-5 h-5 bg-brand-600 text-white rounded-full flex items-center justify-center text-[11px] shadow-xs" title="Visual Image Search">
+                    <i class="ph-bold ph-sparkle"></i>
+                </span>
+            </div>
+            <div>
+                <div class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-brand-100/70 text-brand-800 text-[11px] font-bold tracking-wide uppercase mb-1">
+                    <i class="ph-bold ph-camera"></i>
+                    <span>Image Search</span>
+                </div>
+                <h1 class="text-xl sm:text-2xl font-bold text-gray-900 leading-tight">Visual Match Results</h1>
+                <p class="text-xs sm:text-sm text-gray-500 mt-0.5">Products matched by visual similarity & color harmony ({{ $products->total() }} items)</p>
+            </div>
+        </div>
+
+        <div class="flex items-center gap-2 self-start md:self-auto w-full md:w-auto">
+            <button type="button" @click="$dispatch('open-visual-search')" class="cursor-pointer inline-flex items-center justify-center gap-2 px-3.5 py-2 bg-white hover:bg-brand-50 text-brand-700 border border-brand-200 rounded-lg text-xs sm:text-sm font-semibold transition-colors shadow-xs flex-1 md:flex-initial">
+                <i class="ph-bold ph-arrow-counter-clockwise text-base"></i>
+                <span>Change Photo</span>
+            </button>
+            <button @click="filterOpen = true" class="cursor-pointer inline-flex items-center justify-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-lg shadow-xs text-xs sm:text-sm font-medium text-gray-700 hover:border-brand-500 hover:text-brand-600 transition-colors flex-1 md:flex-initial">
+                <i class="ph ph-faders text-base"></i>
+                <span>Filters</span>
+            </button>
+        </div>
+    </div>
+    @else
     <!-- Category Header -->
     <div class="mb-6 flex flex-col sm:flex-row sm:items-end justify-between gap-4">
         <div class="flex items-center gap-4">
@@ -35,6 +80,7 @@
             Filters
         </button>
     </div>
+    @endif
 
     <!-- Product Grid -->
     @if($products->count() > 0)
@@ -52,10 +98,22 @@
     @else
     <div class="bg-white rounded-xl border border-gray-100 p-12 text-center">
         <div class="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-4 text-gray-400">
-            <i class="ph ph-package text-2xl"></i>
+            <i class="ph {{ $isVisualSearch ? 'ph-camera-slash' : 'ph-package' }} text-2xl"></i>
         </div>
-        <h3 class="text-lg font-bold text-gray-900 mb-1">No products found</h3>
-        <p class="text-gray-500">There are currently no products available in this category.</p>
+        <h3 class="text-lg font-bold text-gray-900 mb-1">{{ $isVisualSearch ? 'No visual matches found' : 'No products found' }}</h3>
+        <p class="text-gray-500 max-w-md mx-auto text-sm mb-4">
+            @if($isVisualSearch)
+                We couldn't find matching products in our store inventory that look like this photo. Try taking another shot with good lighting or search using keywords.
+            @else
+                There are currently no products available matching your search criteria.
+            @endif
+        </p>
+        @if($isVisualSearch)
+        <button type="button" @click="$dispatch('open-visual-search')" class="inline-flex items-center gap-2 px-4 py-2 bg-brand-600 hover:bg-brand-700 text-white rounded-lg text-sm font-medium transition cursor-pointer shadow-xs">
+            <i class="ph-bold ph-camera"></i>
+            <span>Upload Another Photo</span>
+        </button>
+        @endif
     </div>
     @endif
     <!-- Filter Slide-over Modal -->
@@ -88,15 +146,25 @@
                             </div>
                         </div>
                         <!-- Filter Content Form -->
-                        <form action="{{ request()->url() }}" method="GET" class="flex h-full flex-col" onsubmit="event.target.querySelectorAll('input').forEach(i => { if(!i.value || (i.type==='radio' && !i.checked) || i.name==='q') { if (i.name!=='q') i.removeAttribute('name'); } })">
-                            <input type="hidden" name="q" value="{{ $searchQuery }}">
+                        <form action="{{ request()->url() }}" method="GET" class="flex h-full flex-col" onsubmit="event.target.querySelectorAll('input').forEach(i => { if(!i.value || (i.type==='radio' && !i.checked) || i.name==='q' || i.name==='visual') { if (i.name!=='q' && i.name!=='visual') i.removeAttribute('name'); } })">
+                            @if(!empty($visualToken))
+                                <input type="hidden" name="visual" value="{{ $visualToken }}">
+                            @else
+                                <input type="hidden" name="q" value="{{ $searchQuery }}">
+                            @endif
                             <div class="relative flex-1 px-4 py-6 sm:px-6 overflow-y-auto">
                                 
                                 <!-- Sort By -->
                                 <div class="mb-8 border-b border-gray-100 pb-6">
                                     <h3 class="text-sm font-semibold text-gray-900 uppercase tracking-wider mb-4">Sort By</h3>
                                     <div class="space-y-3">
-                                        @php $currentSort = request('sort', 'latest'); @endphp
+                                        @php $currentSort = request('sort', $isVisualSearch ? 'similarity' : 'latest'); @endphp
+                                        @if($isVisualSearch)
+                                        <div class="flex items-center">
+                                            <input id="sort-similarity" name="sort" value="similarity" type="radio" {{ $currentSort == 'similarity' ? 'checked' : '' }} class="h-4 w-4 border-gray-300 text-brand-600 focus:ring-brand-600 cursor-pointer">
+                                            <label for="sort-similarity" class="ml-3 text-sm text-gray-700 font-semibold cursor-pointer">Best Visual Match</label>
+                                        </div>
+                                        @endif
                                         <div class="flex items-center">
                                             <input id="sort-latest" name="sort" value="latest" type="radio" {{ $currentSort == 'latest' ? 'checked' : '' }} class="h-4 w-4 border-gray-300 text-brand-600 focus:ring-brand-600 cursor-pointer">
                                             <label for="sort-latest" class="ml-3 text-sm text-gray-600 cursor-pointer">Latest Products</label>
@@ -171,7 +239,7 @@
 
                             <!-- Footer / Apply Button -->
                             <div class="border-t border-gray-200 px-4 py-4 sm:px-6 bg-gray-50 flex gap-3 mt-auto">
-                                <a href="{{ request()->url() }}?q={{ urlencode($searchQuery) }}" class="flex-1 text-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50 cursor-pointer">Clear All</a>
+                                <a href="{{ !empty($visualToken) ? request()->url() . '?visual=' . urlencode($visualToken) : request()->url() . '?q=' . urlencode($searchQuery) }}" class="flex-1 text-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50 cursor-pointer">Clear All</a>
                                 <button type="submit" class="flex-1 rounded-md bg-brand-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-brand-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600 cursor-pointer">Apply Filters</button>
                             </div>
                         </form>

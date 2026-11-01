@@ -135,6 +135,12 @@ class ShopController extends Controller
     public function searchPage(Request $request)
     {
         $searchQuery = trim($request->input('q', ''));
+        $visualToken = trim($request->input('visual', ''));
+        $visualSearchData = null;
+
+        if (!empty($visualToken)) {
+            $visualSearchData = Cache::get('vis_search_' . $visualToken);
+        }
         
         // Log direct search action (Button press / Enter key)
         if (strlen($searchQuery) > 0 && !$this->isBotOrTemplateQuery($searchQuery, $request)) {
@@ -159,21 +165,38 @@ class ShopController extends Controller
             } catch (\Throwable $e) {}
         }
 
-        $query = Product::where('is_active', true)
-            ->where(function($q) use ($searchQuery) {
-                $q->where('title', 'like', '%' . $searchQuery . '%')
-                  ->orWhere('tags', 'like', '%' . $searchQuery . '%')
-                  ->orWhereHas('variants', function($vq) use ($searchQuery) {
-                      $vq->where('sku', 'like', '%' . $searchQuery . '%')
-                         ->orWhere('barcode', 'like', '%' . $searchQuery . '%');
-                  })
-                  ->orWhereHas('category', function($cq) use ($searchQuery) {
-                      $cq->where('name', 'like', '%' . $searchQuery . '%');
-                  })
-                  ->orWhereHas('brand', function($bq) use ($searchQuery) {
-                      $bq->where('name', 'like', '%' . $searchQuery . '%');
-                  });
-            });
+        if ($visualSearchData && isset($visualSearchData['product_scores'])) {
+            $productScores = $visualSearchData['product_scores'];
+            $productIds = array_keys($productScores);
+
+            if (!empty($productIds)) {
+                $query = Product::where('is_active', true)
+                    ->whereIn('id', $productIds);
+
+                // Default sorting keeps the highest visual similarity match first
+                if (!$request->filled('sort') || $request->input('sort') === 'similarity') {
+                    $query->orderByRaw('FIELD(id, ' . implode(',', $productIds) . ')');
+                }
+            } else {
+                $query = Product::where('is_active', true)->whereRaw('1 = 0');
+            }
+        } else {
+            $query = Product::where('is_active', true)
+                ->where(function($q) use ($searchQuery) {
+                    $q->where('title', 'like', '%' . $searchQuery . '%')
+                      ->orWhere('tags', 'like', '%' . $searchQuery . '%')
+                      ->orWhereHas('variants', function($vq) use ($searchQuery) {
+                          $vq->where('sku', 'like', '%' . $searchQuery . '%')
+                             ->orWhere('barcode', 'like', '%' . $searchQuery . '%');
+                      })
+                      ->orWhereHas('category', function($cq) use ($searchQuery) {
+                          $cq->where('name', 'like', '%' . $searchQuery . '%');
+                      })
+                      ->orWhereHas('brand', function($bq) use ($searchQuery) {
+                          $bq->where('name', 'like', '%' . $searchQuery . '%');
+                      });
+                });
+        }
 
         // Apply Filters
         if ($request->filled('min_price')) {
@@ -188,30 +211,38 @@ class ShopController extends Controller
             $query->where('average_rating', '>=', $request->rating);
         }
 
-        // Apply Sorting
+        // Apply Sorting (when explicitly requested by user)
         $sort = $request->input('sort', 'latest');
-        switch ($sort) {
-            case 'price_low_high':
-                $query->orderBy('base_price', 'asc');
-                break;
-            case 'price_high_low':
-                $query->orderBy('base_price', 'desc');
-                break;
-            case 'popular':
-                $query->orderBy('total_sold', 'desc');
-                break;
-            case 'rating':
-                $query->orderBy('average_rating', 'desc');
-                break;
-            default:
-                $query->latest();
-                break;
+        if ($request->filled('sort') && $sort !== 'similarity') {
+            switch ($sort) {
+                case 'price_low_high':
+                    $query->orderBy('base_price', 'asc');
+                    break;
+                case 'price_high_low':
+                    $query->orderBy('base_price', 'desc');
+                    break;
+                case 'popular':
+                    $query->orderBy('total_sold', 'desc');
+                    break;
+                case 'rating':
+                    $query->orderBy('average_rating', 'desc');
+                    break;
+                default:
+                    if (!$visualSearchData) {
+                        $query->latest();
+                    }
+                    break;
+            }
+        } elseif (!$visualSearchData) {
+            $query->latest();
         }
 
         $products = $query->paginate(20)->withQueryString();
             
         return view('frontend.search', [
             'searchQuery' => $searchQuery,
+            'visualSearchData' => $visualSearchData,
+            'visualToken' => $visualToken,
             'products' => $products,
         ]);
     }

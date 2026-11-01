@@ -5,21 +5,24 @@ namespace App\Http\Controllers\Frontend;
 use App\Http\Controllers\Controller;
 use App\Services\VisualSearchService;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Str;
 use Throwable;
 
 class VisualSearchController extends Controller
 {
     /**
-     * Handle reverse image search request from frontend.
+     * Handle reverse image search AJAX request from modal or search bar.
      */
     public function search(Request $request): JsonResponse
     {
         $validator = Validator::make($request->all(), [
             'image' => 'nullable|file|mimes:jpeg,png,jpg,webp,gif|max:10240',
             'image_base64' => 'nullable|string',
-            'limit' => 'nullable|integer|min:1|max:30',
+            'limit' => 'nullable|integer|min:1|max:40',
             'min_score' => 'nullable|numeric|min:10|max:90',
         ]);
 
@@ -60,21 +63,29 @@ class VisualSearchController extends Controller
                 ], 422);
             }
 
-            $limit = (int) $request->input('limit', 12);
-            $minScore = (float) $request->input('min_score', 35.0);
+            $limit = (int) $request->input('limit', 24);
+            $minScore = (float) $request->input('min_score', 30.0);
 
             $rawResults = VisualSearchService::searchByImage($tempPath, $limit, $minScore);
 
+            // Persist search token and public thumbnail for full-page results (/search?visual=TOKEN)
+            $token = Str::random(16);
+            $publicImageUrl = self::storePublicTempThumbnail($tempPath, $token);
+
+            $productScores = [];
             $formatted = [];
+
             foreach ($rawResults as $item) {
                 $p = $item['product'];
+                $score = round($item['score'], 0);
+                $productScores[$p->id] = $score;
+
                 $img = $p->featured_image;
                 $imgUrl = null;
                 if ($img) {
                     $imgUrl = str_starts_with($img, 'http') ? $img : asset('storage/' . ltrim($img, '/'));
                 }
 
-                $score = round($item['score'], 0);
                 $confidenceLabel = $score >= 80 ? 'Exact Match' : ($score >= 60 ? 'High Match' : 'Similar Style');
 
                 $formatted[] = [
@@ -93,9 +104,21 @@ class VisualSearchController extends Controller
                 ];
             }
 
+            // Cache visual search session for 2 hours
+            Cache::put('vis_search_' . $token, [
+                'token' => $token,
+                'image_url' => $publicImageUrl,
+                'product_scores' => $productScores,
+                'created_at' => now()->toDateTimeString(),
+            ], now()->addHours(2));
+
+            $pageUrl = route('shop.search', ['visual' => $token]);
+
             return response()->json([
                 'success' => true,
                 'count' => count($formatted),
+                'token' => $token,
+                'page_url' => $pageUrl,
                 'results' => $formatted,
             ]);
 
@@ -108,6 +131,90 @@ class VisualSearchController extends Controller
             if ($shouldUnlink && $tempPath && file_exists($tempPath)) {
                 @unlink($tempPath);
             }
+        }
+    }
+
+    /**
+     * Handle direct form upload POST /search/image and redirect to /search?visual=TOKEN
+     */
+    public function webUpload(Request $request): RedirectResponse
+    {
+        $validator = Validator::make($request->all(), [
+            'image' => 'required|file|mimes:jpeg,png,jpg,webp,gif|max:10240',
+        ]);
+
+        if ($validator->fails()) {
+            return redirect()->back()->withErrors($validator)->with('error', 'Please provide a valid image under 10MB.');
+        }
+
+        $file = $request->file('image');
+        $tempPath = $file->getRealPath();
+
+        $rawResults = VisualSearchService::searchByImage($tempPath, 30, 30.0);
+
+        $token = Str::random(16);
+        $publicImageUrl = self::storePublicTempThumbnail($tempPath, $token);
+
+        $productScores = [];
+        foreach ($rawResults as $item) {
+            $productScores[$item['product']->id] = round($item['score'], 0);
+        }
+
+        Cache::put('vis_search_' . $token, [
+            'token' => $token,
+            'image_url' => $publicImageUrl,
+            'product_scores' => $productScores,
+            'created_at' => now()->toDateTimeString(),
+        ], now()->addHours(2));
+
+        return redirect()->route('shop.search', ['visual' => $token]);
+    }
+
+    /**
+     * Store a lightweight temporary thumbnail in storage/app/public/temp_search
+     */
+    protected static function storePublicTempThumbnail(string $sourcePath, string $token): string
+    {
+        try {
+            $dir = storage_path('app/public/temp_search');
+            if (!file_exists($dir)) {
+                @mkdir($dir, 0775, true);
+            }
+
+            $filename = "vis_{$token}.jpg";
+            $dest = $dir . DIRECTORY_SEPARATOR . $filename;
+
+            // Resize to max 300x300 thumbnail for ultra fast rendering
+            $info = @getimagesize($sourcePath);
+            if ($info) {
+                $src = null;
+                $mime = $info['mime'] ?? '';
+                if ($mime === 'image/jpeg' || $mime === 'image/pjpeg') $src = @imagecreatefromjpeg($sourcePath);
+                elseif ($mime === 'image/png') $src = @imagecreatefrompng($sourcePath);
+                elseif ($mime === 'image/webp') $src = @imagecreatefromwebp($sourcePath);
+
+                if ($src) {
+                    $w = imagesx($src);
+                    $h = imagesy($src);
+                    $maxDim = 300;
+                    $scale = min(1.0, $maxDim / max($w, $h));
+                    $nw = max(1, (int) round($w * $scale));
+                    $nh = max(1, (int) round($h * $scale));
+
+                    $thumb = imagecreatetruecolor($nw, $nh);
+                    imagecopyresampled($thumb, $src, 0, 0, 0, 0, $nw, $nh, $w, $h);
+                    imagejpeg($thumb, $dest, 85);
+                    imagedestroy($thumb);
+                    imagedestroy($src);
+
+                    return asset('storage/temp_search/' . $filename);
+                }
+            }
+
+            @copy($sourcePath, $dest);
+            return asset('storage/temp_search/' . $filename);
+        } catch (Throwable $e) {
+            return '';
         }
     }
 }
