@@ -15,6 +15,7 @@
     <link rel="icon" type="image/png" href="{{ $siteFavicon }}">
     <link rel="shortcut icon" href="{{ $siteFavicon }}">
     <link rel="apple-touch-icon" href="{{ $siteFavicon }}">
+    <link rel="canonical" href="@yield('canonical', url()->current())">
     @yield('meta')
 
     <!-- Google Fonts: Luxury Fonts (Cinzel, Playfair Display, Cormorant Garamond) & Hind Siliguri / Inter -->

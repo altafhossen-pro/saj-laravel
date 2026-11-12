@@ -1,16 +1,27 @@
 @extends('layouts.app')
 
 @php
+    $defaultSku = $product->variants->first()?->sku ?? ($product->sku ?? null);
+
     $metaTitle = isset($product->seo['meta_title']) && !empty($product->seo['meta_title']) ? $product->seo['meta_title'] : $product->title;
 
     $metaDesc = isset($product->seo['meta_description']) && !empty($product->seo['meta_description']) ? $product->seo['meta_description'] : null;
     if (!$metaDesc) {
-        $metaDesc = trim(strip_tags($product->short_description ?? $product->description));
-        if (empty($metaDesc)) {
-            $metaDesc = "Buy " . $product->title . " at the best price in Bangladesh. Order online and get fast home delivery.";
+        $rawDesc = trim(strip_tags($product->short_description ?? $product->description));
+        $skuPart = $defaultSku ? " (SKU: {$defaultSku})" : "";
+        $pricePart = ($product->base_price ?? 0) > 0 ? " at ৳" . number_format($product->base_price) : "";
+        
+        if (empty($rawDesc)) {
+            $metaDesc = "Buy {$product->title}{$skuPart}{$pricePart} in Bangladesh. 100% original product with fast home delivery from SAJ.";
+        } else {
+            $metaDesc = "Buy {$product->title}{$skuPart}{$pricePart} in Bangladesh. " . \Illuminate\Support\Str::limit($rawDesc, 90) . " 100% authentic product with fast delivery.";
         }
-        $metaDesc = \Illuminate\Support\Str::limit($metaDesc, 160);
+    } else {
+        if ($defaultSku && !str_contains($metaDesc, $defaultSku)) {
+            $metaDesc = rtrim(trim($metaDesc), '.') . " (SKU: {$defaultSku})";
+        }
     }
+    $metaDesc = \Illuminate\Support\Str::limit($metaDesc, 155);
 
     $ogImage = $product->featured_image ? (\Illuminate\Support\Str::startsWith($product->featured_image, ['http://', 'https://']) ? $product->featured_image : Storage::url($product->featured_image)) : \App\Models\Setting::get('site_logo');
 @endphp
@@ -50,7 +61,10 @@
                             @endphp
                             "image": {!! json_encode(count($schemaImages) > 0 ? $schemaImages : [$ogImage]) !!},
                             "description": "{!! addslashes($metaDesc) !!}",
-                            "sku": "{{ $product->variants->first()?->sku ?? $product->id }}",
+                            "sku": "{{ $defaultSku ?? $product->id }}",
+                            @if(!empty($defaultSku))
+                            "gtin13": "{{ $defaultSku }}",
+                            @endif
                             @if($product->product_type === 'variable' && $product->variants && $product->variants->count() > 0)
                                 @php
                                     $minPrice = $product->variants->min('current_price') ?? $product->base_price;
@@ -356,7 +370,7 @@
                                                             isVariable: {{ $product->product_type === 'variable' ? 'true' : 'false' }},
                                                             availableAttributesKeys: {{ json_encode(array_keys($availableAttributes)) }},
                                                             featuredImage: '{{ $initialImageUrl }}',
-                                                            sku: '{{ $product->product_type === 'simple' ? ($product->variants->first()?->sku ?? '') : '' }}',
+                                                            sku: '{{ $defaultSku ?? '' }}',
                                                             productId: {{ $product->id }},
                                                             variantId: {{ $product->product_type === 'simple' ? ($product->variants->first()?->id ?? 'null') : 'null' }},
                                                             title: '{{ addslashes($product->title) }}',
@@ -635,9 +649,9 @@
 
                         <!-- SKU -->
                         <div class="mt-2 text-sm text-gray-500 flex items-center gap-1" x-show="currentSku"
-                            style="display: none;">
+                            style="{{ !empty($defaultSku) ? '' : 'display: none;' }}">
                             <span class="font-medium text-gray-700">SKU:</span>
-                            <span x-text="currentSku"></span>
+                            <span x-text="currentSku">{{ $defaultSku }}</span>
                         </div>
 
                         <!-- Share -->
@@ -950,9 +964,9 @@
                     </div>
                     @empty
                         @if($product->total_reviews > 0)
-                        <p class="text-gray-500 mb-4">Written reviews are temporarily unavailable or not written by users yet.</p>
+                        <p class="text-gray-500 mb-4" data-nosnippet>Written reviews are temporarily unavailable or not written by users yet.</p>
                         @else
-                        <p class="text-gray-500 mb-4">No reviews found.</p>
+                        <p class="text-gray-500 mb-4" data-nosnippet>No reviews found.</p>
                         @endif
                     @endforelse
                 </div>
@@ -974,7 +988,7 @@
                 </div>
             </div>
 
-            <div id="questions-section" class="mt-8">
+            <div id="questions-section" class="mt-8" data-nosnippet>
                 @include('partials.product-questions')
             </div>
         </div>
