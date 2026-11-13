@@ -17,10 +17,10 @@
             </div>
         </template>
 
-        <!-- Offer Badge (Only shown when active category offer exists) -->
-        <template x-if="item.active_discount_percent && item.active_discount_percent > 0">
+        <!-- Offer Badge (Only shown when active product/category offer exists) -->
+        <template x-if="Number(item.active_discount_percent || 0) > 0">
             <div class="absolute top-2 left-2 bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full tracking-wide shadow-sm z-10"
-                x-text="'-' + item.active_discount_percent + '%'">
+                x-text="'-' + Math.round(item.active_discount_percent) + '%'">
             </div>
         </template>
     </div>

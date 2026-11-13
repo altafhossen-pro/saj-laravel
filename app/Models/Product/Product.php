@@ -183,13 +183,7 @@ class Product extends Model
             return (int) round($offer->discount_value);
         }
 
-        // 3. Fallback: if product has original_price higher than current base_price
-        $orig = (float) $this->original_price;
-        $curr = (float) $this->base_price;
-        if ($orig > 0 && $orig > $curr) {
-            return (int) round((($orig - $curr) / $orig) * 100);
-        }
-
+        // Only show discount badge if a specific product offer or category offer is active
         return null;
     }
 

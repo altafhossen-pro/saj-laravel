@@ -61,7 +61,7 @@ class ProductController extends Controller
             return Product::where('is_active', true)
                 ->where('category_id', $product->category_id)
                 ->take(200) // limit to 200 to save memory, enough for randomization
-                ->get(['id', 'title', 'slug', 'featured_image', 'base_price', 'average_rating', 'total_sold', 'total_reviews', 'category_id', 'rating_metrics_mode', 'rating_metrics_start_date', 'rating_metrics_interval_days', 'rating_metrics_count', 'rating_metrics_min', 'rating_metrics_max', 'metrics_mode', 'metrics_start_date', 'metrics_daily_avg']);
+                ->get(['id', 'title', 'slug', 'featured_image', 'base_price', 'average_rating', 'total_sold', 'total_reviews', 'category_id', 'rating_metrics_mode', 'rating_metrics_start_date', 'rating_metrics_interval_days', 'rating_metrics_count', 'rating_metrics_min', 'rating_metrics_max', 'metrics_mode', 'metrics_start_date', 'metrics_daily_avg', 'is_offer_active', 'offer_title', 'offer_discount_type', 'offer_discount_value', 'offer_regular_price', 'offer_start_date', 'offer_end_date']);
         });
 
         // Filter out the current product
@@ -93,7 +93,7 @@ class ProductController extends Controller
                 ->where('category_id', '!=', $product->category_id)
                 ->inRandomOrder()
                 ->take(10 - $similarProducts->count())
-                ->get(['id', 'title', 'slug', 'featured_image', 'base_price', 'average_rating', 'total_sold', 'total_reviews', 'category_id', 'rating_metrics_mode', 'rating_metrics_start_date', 'rating_metrics_interval_days', 'rating_metrics_count', 'rating_metrics_min', 'rating_metrics_max', 'metrics_mode', 'metrics_start_date', 'metrics_daily_avg']);
+                ->get(['id', 'title', 'slug', 'featured_image', 'base_price', 'average_rating', 'total_sold', 'total_reviews', 'category_id', 'rating_metrics_mode', 'rating_metrics_start_date', 'rating_metrics_interval_days', 'rating_metrics_count', 'rating_metrics_min', 'rating_metrics_max', 'metrics_mode', 'metrics_start_date', 'metrics_daily_avg', 'is_offer_active', 'offer_title', 'offer_discount_type', 'offer_discount_value', 'offer_regular_price', 'offer_start_date', 'offer_end_date']);
                 
             $similarProducts = $similarProducts->concat($extraProducts);
         }

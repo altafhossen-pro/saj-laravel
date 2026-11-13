@@ -300,6 +300,8 @@ class ProductController extends Controller
             \App\Services\VisualSearchService::indexProduct($product);
         } catch (\Throwable $e) {}
 
+        $this->clearProductCaches($product);
+
         return redirect()->route('admin.products.index')->with('success', 'Product saved successfully!');
     }
 
@@ -629,13 +631,25 @@ class ProductController extends Controller
             \App\Services\VisualSearchService::indexProduct($product);
         } catch (\Throwable $e) {}
 
+        $this->clearProductCaches($product);
+
         return redirect()->back()->with('success', 'Product updated successfully!');
     }
 
     public function destroy(\App\Models\Product\Product $product)
     {
+        $this->clearProductCaches($product);
         $product->delete();
         return redirect()->back()->with('success', 'Product deleted successfully!');
+    }
+
+    protected function clearProductCaches(?\App\Models\Product\Product $product = null): void
+    {
+        \Illuminate\Support\Facades\Cache::forget('homepage_trending');
+        \Illuminate\Support\Facades\Cache::forget('homepage_sections');
+        if ($product && $product->category_id) {
+            \Illuminate\Support\Facades\Cache::forget('category_pool_' . $product->category_id);
+        }
     }
 
     public function reindexVisual()

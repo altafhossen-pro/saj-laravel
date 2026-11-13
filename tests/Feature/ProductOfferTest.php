@@ -84,6 +84,60 @@ class ProductOfferTest extends TestCase
     }
 
     /**
+     * Test products without active offer do not show discount badge even if old price exists
+     */
+    public function test_products_without_active_offer_do_not_show_discount_badge(): void
+    {
+        // Product has old price 550 and base price 450, but is_offer_active = false
+        $this->testProduct->update([
+            'is_offer_active' => false,
+            'base_price' => 450.00,
+        ]);
+        $variant = $this->testProduct->variants()->first();
+        $variant->update([
+            'current_price' => 450.00,
+            'original_price' => 550.00,
+        ]);
+
+        $this->assertNull($this->testProduct->fresh()->active_discount_percent);
+
+        // Product details page should not contain the badge
+        $response = $this->get('/product/' . $this->testProduct->slug);
+        if ($response->status() === 200) {
+            $response->assertDontSee('-18%');
+        }
+    }
+
+    /**
+     * Test homepage product cards include active_discount_percent in JSON for Alpine
+     */
+    public function test_homepage_product_cards_include_offer_discount_percent(): void
+    {
+        // Set test product as trending with 20% active offer
+        $this->testProduct->update([
+            'is_offer_active' => true,
+            'is_trending' => true,
+            'offer_discount_type' => 'percentage',
+            'offer_discount_value' => 20,
+            'offer_regular_price' => 1000.00,
+            'base_price' => 800.00,
+        ]);
+
+        \Illuminate\Support\Facades\Cache::forget('homepage_trending');
+        \Illuminate\Support\Facades\Cache::forget('homepage_sections');
+
+        $response = $this->get('/');
+        $response->assertStatus(200);
+
+        // Verify active_discount_percent appears for the offered product
+        $content = $response->getContent();
+        $this->assertTrue(
+            str_contains($content, '"active_discount_percent":20') || 
+            str_contains($content, '&quot;active_discount_percent&quot;:20')
+        );
+    }
+
+    /**
      * Test product edit page renders the Offer tab and its manager
      */
     public function test_admin_product_edit_screen_renders_offer_tab(): void

@@ -11,6 +11,19 @@ use Illuminate\Support\Facades\Cache;
 
 class HomeController extends Controller
 {
+    protected function getProductColumns(): array
+    {
+        return [
+            'id', 'title', 'slug', 'featured_image', 'category_id', 'base_price',
+            'average_rating', 'total_sold', 'total_reviews',
+            'metrics_mode', 'metrics_start_date', 'metrics_daily_avg',
+            'rating_metrics_mode', 'rating_metrics_start_date', 'rating_metrics_interval_days',
+            'rating_metrics_count', 'rating_metrics_min', 'rating_metrics_max',
+            'is_offer_active', 'offer_title', 'offer_discount_type', 'offer_discount_value',
+            'offer_regular_price', 'offer_start_date', 'offer_end_date',
+        ];
+    }
+
     public function index()
     {
         $heroSlides = Cache::rememberForever('homepage_hero_slides', function () {
@@ -19,7 +32,9 @@ class HomeController extends Controller
                 ->get(['type', 'content', 'mobile_content', 'link']);
         });
 
-        $homepageCategories = Cache::remember('homepage_sections', 60 * 6, function () {
+        $productColumns = $this->getProductColumns();
+
+        $homepageCategories = Cache::remember('homepage_sections', 60 * 6, function () use ($productColumns) {
             $categories = Category::where('show_on_homepage', true)
                 ->where('is_active', true)
                 ->orderBy('sort_order')
@@ -31,13 +46,13 @@ class HomeController extends Controller
                     ->where('is_active', true)
                     ->latest()
                     ->take($category->homepage_max_products)
-                    ->get(['id', 'title', 'slug', 'featured_image', 'category_id', 'base_price', 'average_rating', 'total_sold', 'total_reviews', 'metrics_mode', 'metrics_start_date', 'metrics_daily_avg', 'rating_metrics_mode', 'rating_metrics_start_date', 'rating_metrics_interval_days', 'rating_metrics_count', 'rating_metrics_min', 'rating_metrics_max']);
+                    ->get($productColumns);
             }
             return $categories;
         });
 
         // Fetch initial 20 products for Just For You
-        $justForYouProducts = (function() {
+        $justForYouProducts = (function() use ($productColumns) {
             $type = Setting::get('just_for_you_type', 'latest');
             $priorityCategoryIds = json_decode(Setting::get('just_for_you_priority_categories', '[]'), true) ?? [];
             $query = Product::where('is_active', true);
@@ -54,7 +69,7 @@ class HomeController extends Controller
                 $query->latest();
             }
             
-            return $query->paginate(20, ['id', 'title', 'slug', 'featured_image', 'category_id', 'base_price', 'average_rating', 'total_sold', 'total_reviews', 'metrics_mode', 'metrics_start_date', 'metrics_daily_avg', 'rating_metrics_mode', 'rating_metrics_start_date', 'rating_metrics_interval_days', 'rating_metrics_count', 'rating_metrics_min', 'rating_metrics_max']);
+            return $query->paginate(20, $productColumns);
         })();
 
         $trendingSettings = [
@@ -68,7 +83,7 @@ class HomeController extends Controller
             'grid_max' => (int) Setting::get('trending_grid_max', 24),
         ];
 
-        $trendingProducts = Cache::remember('homepage_trending', 60 * 6, function () use ($trendingSettings) {
+        $trendingProducts = Cache::remember('homepage_trending', 60 * 6, function () use ($trendingSettings, $productColumns) {
             $query = Product::where('is_active', true)
                 ->where('is_trending', true);
                 
@@ -84,7 +99,7 @@ class HomeController extends Controller
                 $query->take($trendingSettings['grid_max']);
             }
             
-            return $query->get(['id', 'title', 'slug', 'featured_image', 'category_id', 'base_price', 'average_rating', 'total_sold', 'total_reviews', 'metrics_mode', 'metrics_start_date', 'metrics_daily_avg', 'rating_metrics_mode', 'rating_metrics_start_date', 'rating_metrics_interval_days', 'rating_metrics_count', 'rating_metrics_min', 'rating_metrics_max']);
+            return $query->get($productColumns);
         });
 
         return view('welcome', compact('heroSlides', 'homepageCategories', 'justForYouProducts', 'trendingProducts', 'trendingSettings'));
@@ -108,7 +123,7 @@ class HomeController extends Controller
             $query->latest();
         }
         
-        return $query->paginate(20, ['id', 'title', 'slug', 'featured_image', 'category_id', 'base_price', 'average_rating', 'total_sold', 'total_reviews', 'metrics_mode', 'metrics_start_date', 'metrics_daily_avg', 'rating_metrics_mode', 'rating_metrics_start_date', 'rating_metrics_interval_days', 'rating_metrics_count', 'rating_metrics_min', 'rating_metrics_max']);
+        return $query->paginate(20, $this->getProductColumns());
     }
 
     public function checkout()
