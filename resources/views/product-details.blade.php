@@ -374,7 +374,7 @@
                                                             productId: {{ $product->id }},
                                                             variantId: {{ $product->product_type === 'simple' ? ($product->variants->first()?->id ?? 'null') : 'null' }},
                                                             title: '{{ addslashes($product->title) }}',
-                                                            stock: {{ $product->product_type === 'simple' ? ($product->variants->first()?->stock_quantity ?? 0) : 0 }}
+                                                            stock: {{ $product->product_type === 'simple' ? ($product->variants->first()?->stock_quantity ?? 0) : (isset($variantsJson[0]['stock']) ? (int)$variantsJson[0]['stock'] : (int)($product->total_stock ?? 0)) }}
                                                         })">
 
             <!-- Left: Image Gallery -->
@@ -619,33 +619,56 @@
                     <div class="flex flex-col gap-3 mt-1 border-t border-gray-100 pt-4">
                         <div class="flex items-center gap-3">
                             <!-- Quantity -->
-                            <div class="flex items-center border border-gray-200 rounded-lg h-12 bg-white w-28 shrink-0">
-                                <button @click="if(quantity > 1) quantity--"
-                                    :disabled="quantity <= 1 || maxSelectable === 0"
-                                    :class="{'opacity-50 cursor-not-allowed': quantity <= 1 || maxSelectable === 0}"
+                            <div class="flex items-center border border-gray-200 rounded-lg h-12 bg-white w-28 shrink-0"
+                                 :class="{'opacity-50 pointer-events-none bg-gray-50': currentStock <= 0}">
+                                <button type="button" @click="if(quantity > 1) quantity--"
+                                    :disabled="quantity <= 1 || maxSelectable === 0 || currentStock <= 0"
+                                    :class="{'opacity-50 cursor-not-allowed': quantity <= 1 || maxSelectable === 0 || currentStock <= 0}"
                                     class="w-8 h-full flex items-center justify-center text-gray-500 hover:text-brand-600 transition-colors cursor-pointer"><i
                                         class="ph ph-minus"></i></button>
-                                <input type="text" x-model="quantity" value="1"
+                                <input type="text" x-model="quantity"
                                     @input="if(quantity > maxSelectable) quantity = maxSelectable; if(quantity < 1 && maxSelectable > 0) quantity = 1;"
-                                    :disabled="maxSelectable === 0"
-                                    class="flex-1 text-center font-medium text-gray-800 focus:outline-none w-full bg-transparent">
-                                <button @click="if(quantity < maxSelectable) quantity++"
-                                    :disabled="quantity >= maxSelectable || maxSelectable === 0"
-                                    :class="{'opacity-50 cursor-not-allowed': quantity >= maxSelectable || maxSelectable === 0}"
+                                    :disabled="maxSelectable === 0 || currentStock <= 0"
+                                    class="flex-1 text-center font-medium text-gray-800 focus:outline-none w-full bg-transparent disabled:text-gray-400">
+                                <button type="button" @click="if(quantity < maxSelectable) quantity++"
+                                    :disabled="quantity >= maxSelectable || maxSelectable === 0 || currentStock <= 0"
+                                    :class="{'opacity-50 cursor-not-allowed': quantity >= maxSelectable || maxSelectable === 0 || currentStock <= 0}"
                                     class="w-8 h-full flex items-center justify-center text-gray-500 hover:text-brand-600 transition-colors cursor-pointer"><i
                                         class="ph ph-plus"></i></button>
                             </div>
 
-                            <button @click="addToCartAction()"
-                                class="flex-1 bg-brand-600 hover:bg-brand-700 text-white font-semibold h-12 rounded-lg shadow-sm transition-colors flex items-center justify-center gap-2 cursor-pointer">
-                                <i class="ph ph-shopping-cart text-lg"></i> Add to Cart
-                            </button>
+                            <!-- Add to Cart or Out of Stock Button -->
+                            <template x-if="currentStock <= 0">
+                                <button type="button" disabled
+                                    class="flex-1 bg-rose-600 text-white font-bold h-12 rounded-lg flex items-center justify-center gap-2 cursor-not-allowed select-none shadow-xs opacity-90">
+                                    <i class="ph-bold ph-prohibit text-lg"></i>
+                                    <span>Out of Stock</span>
+                                </button>
+                            </template>
+                            <template x-if="currentStock > 0">
+                                <button type="button" @click="addToCartAction()"
+                                    class="flex-1 bg-brand-600 hover:bg-brand-700 text-white font-semibold h-12 rounded-lg shadow-sm transition-colors flex items-center justify-center gap-2 cursor-pointer">
+                                    <i class="ph ph-shopping-cart text-lg"></i>
+                                    <span>Add to Cart</span>
+                                </button>
+                            </template>
                         </div>
 
-                        <button @click="addToCartAction('buy')"
-                            class="w-full bg-gray-900 hover:bg-gray-800 text-white font-semibold h-12 rounded-lg shadow-sm transition-colors flex items-center justify-center gap-2 cursor-pointer">
-                            <i class="ph ph-lightning text-lg"></i> Buy Now
-                        </button>
+                        <!-- Buy Now or Out of Stock Button -->
+                        <template x-if="currentStock <= 0">
+                            <button type="button" disabled
+                                class="w-full bg-rose-600 text-white font-bold h-12 rounded-lg flex items-center justify-center gap-2 cursor-not-allowed select-none shadow-xs opacity-90">
+                                <i class="ph-bold ph-prohibit text-lg"></i>
+                                <span>Out of Stock</span>
+                            </button>
+                        </template>
+                        <template x-if="currentStock > 0">
+                            <button type="button" @click="addToCartAction('buy')"
+                                class="w-full bg-gray-900 hover:bg-gray-800 text-white font-semibold h-12 rounded-lg shadow-sm transition-colors flex items-center justify-center gap-2 cursor-pointer">
+                                <i class="ph ph-lightning text-lg"></i>
+                                <span>Buy Now</span>
+                            </button>
+                        </template>
 
                         <!-- SKU -->
                         <div class="mt-2 text-sm text-gray-500 flex items-center gap-1" x-show="currentSku"
@@ -1121,6 +1144,12 @@
                         init() {
                             setTimeout(() => { this.swiperReady = true; }, 100);
 
+                            if (this.currentStock <= 0) {
+                                this.quantity = 0;
+                            } else {
+                                this.quantity = 1;
+                            }
+
                             if (this.isVariable && config.variants.length > 0) {
                                 const firstVariant = config.variants[0];
                                 this.selectedAttributes = { ...firstVariant.attributes };
@@ -1215,8 +1244,12 @@
                             }
 
                             this.$nextTick(() => {
-                                if (this.quantity > this.maxSelectable) {
+                                if (this.currentStock <= 0) {
+                                    this.quantity = 0;
+                                } else if (this.quantity > this.maxSelectable) {
                                     this.quantity = this.maxSelectable > 0 ? this.maxSelectable : 1;
+                                } else if (this.quantity < 1) {
+                                    this.quantity = 1;
                                 }
                             });
                         },
@@ -1243,7 +1276,12 @@
                                 return;
                             }
 
-                            if (this.maxSelectable <= 0) {
+                            if (this.currentStock <= 0) {
+                                window.dispatchEvent(new CustomEvent('notify', { detail: { message: 'Sorry, this item is currently out of stock.', type: 'error' } }));
+                                return;
+                            }
+
+                            if (this.quantityInCart >= this.currentStock || this.maxSelectable <= 0) {
                                 window.dispatchEvent(new CustomEvent('notify', { detail: { message: 'Oops! You have already added all available items into your cart.', type: 'error' } }));
                                 return;
                             }

@@ -116,6 +116,17 @@ Route::middleware(['auth', 'admin_access'])->prefix('admin/dashboard')->group(fu
         Route::delete('/all-orders/{order_id}', [\App\Http\Controllers\Admin\OrderController::class, 'destroy'])->name('admin.orders.destroy');
     });
 
+    // Orders - Super Admin Trash Management
+    Route::middleware(['role:super_admin'])->group(function () {
+        Route::get('/orders/trash', [\App\Http\Controllers\Admin\OrderController::class, 'trash'])->name('admin.orders.trash');
+        Route::get('/api/orders/trash', [\App\Http\Controllers\Admin\OrderController::class, 'fetchTrashOrders'])->name('admin.orders.trash.fetch');
+        Route::get('/api/orders/trash/captcha', [\App\Http\Controllers\Admin\OrderController::class, 'getTrashCaptcha'])->name('admin.orders.trash.captcha');
+        Route::post('/api/orders/trash/bulk-restore', [\App\Http\Controllers\Admin\OrderController::class, 'bulkRestore'])->name('admin.orders.trash.bulk-restore');
+        Route::delete('/api/orders/trash/bulk-force-delete', [\App\Http\Controllers\Admin\OrderController::class, 'bulkForceDelete'])->name('admin.orders.trash.bulk-force-delete');
+        Route::post('/api/orders/{order_id}/restore', [\App\Http\Controllers\Admin\OrderController::class, 'restore'])->name('admin.orders.restore');
+        Route::delete('/api/orders/{order_id}/force-delete', [\App\Http\Controllers\Admin\OrderController::class, 'forceDelete'])->name('admin.orders.force-delete');
+    });
+
     // Orders - Courier & Steadfast Actions
     Route::middleware('check_permission:manage_courier|manage_orders')->group(function () {
         Route::post('/api/orders/{order_id}/send-to-steadfast', [\App\Http\Controllers\Admin\OrderController::class, 'sendToSteadfast'])->name('admin.orders.send-to-steadfast');

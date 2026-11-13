@@ -115,6 +115,25 @@
                         <x-nav-link href="{{ route('admin.orders.drafts') }}" theme="light" class="!py-2 !text-sm"
                             :active="request()->routeIs('admin.orders.drafts')">Draft Orders</x-nav-link>
                         @endif
+                        @if(auth()->user()->hasRole('super_admin'))
+                        <x-nav-link href="{{ route('admin.orders.trash') }}" theme="light" class="!py-2 !text-sm text-rose-600 hover:text-rose-700 font-medium"
+                            :active="request()->routeIs('admin.orders.trash*')">
+                            <span class="flex items-center justify-between w-full">
+                                <span class="flex items-center gap-1.5">
+                                    <i class="ph ph-trash text-sm"></i>
+                                    <span>Trash</span>
+                                </span>
+                                @php
+                                    $trashedOrdersCount = \App\Models\Order\Order::onlyTrashed()->count();
+                                @endphp
+                                @if($trashedOrdersCount > 0)
+                                <span class="px-1.5 py-0.5 text-[10px] font-bold rounded-full bg-rose-100 text-rose-700">
+                                    {{ $trashedOrdersCount }}
+                                </span>
+                                @endif
+                            </span>
+                        </x-nav-link>
+                        @endif
                     </x-nav-dropdown>
                     @endif
 

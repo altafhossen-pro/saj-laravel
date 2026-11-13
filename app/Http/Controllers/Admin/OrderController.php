@@ -1129,4 +1129,396 @@ class OrderController extends Controller
         return redirect()->route('admin.orders')
             ->with('success', "Order {$orderIdDisplay} has been moved to trash successfully.");
     }
+
+    /**
+     * Show Order Trash page (Super Admin Only).
+     */
+    public function trash(Request $request)
+    {
+        if (!auth()->user()->hasRole('super_admin')) {
+            abort(403, 'Unauthorized: Only Super Admin can access the Order Trash.');
+        }
+
+        $trashedCount = Order::onlyTrashed()->count();
+
+        return view('admin.orders.trash', compact('trashedCount'));
+    }
+
+    /**
+     * Fetch trashed orders list with filters & pagination (Super Admin Only).
+     */
+    public function fetchTrashOrders(Request $request)
+    {
+        if (!auth()->user()->hasRole('super_admin')) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized.'], 403);
+        }
+
+        $query = Order::onlyTrashed()->with(['items', 'user']);
+
+        // Search
+        if ($request->filled('search')) {
+            $search = trim($request->search);
+            $cleanPhone = preg_replace('/[^0-9]/', '', $search);
+
+            $query->where(function($q) use ($search, $cleanPhone) {
+                $q->where('order_id', 'like', "%{$search}%")
+                  ->orWhere('steadfast_consignment_id', 'like', "%{$search}%")
+                  ->orWhere('steadfast_tracking_code', 'like', "%{$search}%")
+                  ->orWhere('shipping_address->name', 'like', "%{$search}%")
+                  ->orWhere('shipping_address->phone', 'like', "%{$search}%")
+                  ->orWhere('guest_info->name', 'like', "%{$search}%")
+                  ->orWhere('guest_info->phone', 'like', "%{$search}%")
+                  ->orWhereHas('user', function($userQ) use ($search, $cleanPhone) {
+                      $userQ->where('name', 'like', "%{$search}%")
+                            ->orWhere('phone', 'like', "%{$search}%");
+                      if (!empty($cleanPhone) && strlen($cleanPhone) >= 4) {
+                          $userQ->orWhere('phone', 'like', "%{$cleanPhone}%");
+                      }
+                  });
+
+                if (!empty($cleanPhone) && strlen($cleanPhone) >= 4) {
+                    $q->orWhere('shipping_address->phone', 'like', "%{$cleanPhone}%")
+                      ->orWhere('guest_info->phone', 'like', "%{$cleanPhone}%")
+                      ->orWhere('steadfast_consignment_id', 'like', "%{$cleanPhone}%");
+                }
+            });
+        }
+
+        // Status filter (original order status before trash)
+        if ($request->filled('status') && $request->status !== 'all') {
+            $query->where('status', $request->status);
+        }
+
+        // Date Filter (based on deleted_at)
+        if ($request->filled('date_from')) {
+            $query->whereDate('deleted_at', '>=', $request->date_from);
+        }
+        if ($request->filled('date_to')) {
+            $query->whereDate('deleted_at', '<=', $request->date_to);
+        }
+
+        // Sorting
+        $sortField = $request->input('sort_field', 'deleted_at');
+        $sortDirection = $request->input('sort_direction', 'desc');
+        $allowedSorts = ['deleted_at', 'created_at', 'total', 'order_id'];
+        if (in_array($sortField, $allowedSorts)) {
+            $query->orderBy($sortField, $sortDirection);
+        } else {
+            $query->orderBy('deleted_at', 'desc');
+        }
+
+        $perPage = max(5, min(200, (int) $request->input('per_page', 10)));
+        $orders = $query->paginate($perPage);
+
+        // Fetch logs for these orders to find who moved them to trash if available
+        $orderIds = $orders->pluck('id')->toArray();
+        $trashLogs = \App\Models\Order\OrderLog::whereIn('order_id', $orderIds)
+            ->where('action', 'like', '%moved to trash%')
+            ->with('user:id,name')
+            ->latest()
+            ->get()
+            ->keyBy('order_id');
+
+        $mappedOrders = $orders->map(function($order) use ($trashLogs) {
+            $shippingAddress = is_array($order->shipping_address) ? $order->shipping_address : json_decode($order->shipping_address ?? '[]', true);
+            $customerName = $shippingAddress['name'] ?? ($order->user->name ?? 'Guest');
+            $customerPhone = $shippingAddress['phone'] ?? ($order->user->phone ?? '');
+            
+            $log = $trashLogs->get($order->id);
+            $deletedBy = $log && $log->user ? $log->user->name : ($log['old_data']['deleted_by'] ?? 'Admin');
+
+            $deletedAtCarbon = $order->deleted_at ? \Carbon\Carbon::parse($order->deleted_at)->setTimezone('Asia/Dhaka') : null;
+
+            return [
+                'id' => $order->id,
+                'order_id' => $order->order_id ?: ('#' . $order->id),
+                'customer_name' => $customerName,
+                'customer_phone' => $customerPhone,
+                'customer_type' => $order->user_id ? 'Registered' : 'Guest',
+                'user_id' => $order->user_id,
+                'created_at' => $order->created_at ? $order->created_at->format('M d, Y h:i A') : '',
+                'deleted_at' => $deletedAtCarbon ? $deletedAtCarbon->format('M d, Y h:i A') : '',
+                'deleted_ago' => $deletedAtCarbon ? $deletedAtCarbon->diffForHumans() : '',
+                'deleted_by' => $deletedBy,
+                'status' => $order->status,
+                'payment_status' => $order->payment_status ?? 'pending',
+                'source' => $order->order_source ?? 'website',
+                'items_count' => $order->items ? $order->items->count() : 0,
+                'total_quantity' => $order->items ? $order->items->sum('quantity') : 0,
+                'total' => number_format((float) $order->total, 2),
+                'raw_total' => (float) $order->total,
+            ];
+        });
+
+        return response()->json([
+            'data' => $mappedOrders,
+            'pagination' => [
+                'current_page' => $orders->currentPage(),
+                'last_page' => $orders->lastPage(),
+                'total' => $orders->total(),
+                'from' => $orders->firstItem(),
+                'to' => $orders->lastItem(),
+            ],
+            'total_trashed' => $orders->total(),
+        ]);
+    }
+
+    /**
+     * Generate Math CAPTCHA for permanent order deletion (Super Admin Only).
+     */
+    public function getTrashCaptcha(Request $request)
+    {
+        if (!auth()->user()->hasRole('super_admin')) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized.'], 403);
+        }
+
+        $n1 = rand(1, 9);
+        $n2 = rand(1, 9);
+        $answer = $n1 + $n2;
+
+        $tokenPayload = [
+            'answer' => $answer,
+            'time' => time(),
+            'user_id' => auth()->id(),
+        ];
+
+        $token = \Illuminate\Support\Facades\Crypt::encryptString(json_encode($tokenPayload));
+
+        return response()->json([
+            'success' => true,
+            'question' => "{$n1} + {$n2} = ?",
+            'token' => $token,
+        ]);
+    }
+
+    /**
+     * Restore a trashed order back to active (Super Admin Only).
+     */
+    public function restore(Request $request, $order_id)
+    {
+        if (!auth()->user()->hasRole('super_admin')) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized.'], 403);
+        }
+
+        $order = Order::onlyTrashed()
+            ->where(function($q) use ($order_id) {
+                $q->where('order_id', $order_id)
+                  ->orWhere('id', $order_id);
+            })
+            ->firstOrFail();
+
+        $orderIdDisplay = $order->order_id ?: ('#' . $order->id);
+
+        $order->restore();
+
+        // Log restore event
+        \App\Models\Order\OrderLog::create([
+            'order_id' => $order->id,
+            'user_id' => auth()->id(),
+            'action' => "Order {$orderIdDisplay} restored from trash",
+            'old_data' => [
+                'deleted_at' => now()->toDateTimeString(),
+            ],
+            'new_data' => [
+                'restored_by' => auth()->user()?->name ?? 'Super Admin',
+                'restored_at' => now()->toDateTimeString(),
+                'status' => $order->status,
+            ],
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => "Order {$orderIdDisplay} has been successfully restored to active orders.",
+        ]);
+    }
+
+    /**
+     * Permanently delete an order with Math CAPTCHA validation (Super Admin Only).
+     */
+    public function forceDelete(Request $request, $order_id)
+    {
+        if (!auth()->user()->hasRole('super_admin')) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized.'], 403);
+        }
+
+        $request->validate([
+            'captcha_answer' => 'required',
+            'captcha_token' => 'required|string',
+        ]);
+
+        // Decrypt and validate CAPTCHA
+        try {
+            $payload = json_decode(\Illuminate\Support\Facades\Crypt::decryptString($request->captcha_token), true);
+        } catch (\Throwable $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Invalid or expired CAPTCHA token. Please solve a new math challenge.',
+            ], 422);
+        }
+
+        if (!$payload || !isset($payload['answer']) || !isset($payload['time'])) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Invalid CAPTCHA challenge.',
+            ], 422);
+        }
+
+        // Check expiry (valid for 5 minutes)
+        if (time() - $payload['time'] > 300) {
+            return response()->json([
+                'success' => false,
+                'message' => 'CAPTCHA expired. Please try with a new challenge.',
+            ], 422);
+        }
+
+        // Validate answer
+        if (intval(trim($request->captcha_answer)) !== intval($payload['answer'])) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Incorrect CAPTCHA answer. Verification failed.',
+            ], 422);
+        }
+
+        $order = Order::onlyTrashed()
+            ->where(function($q) use ($order_id) {
+                $q->where('order_id', $order_id)
+                  ->orWhere('id', $order_id);
+            })
+            ->firstOrFail();
+
+        $orderIdDisplay = $order->order_id ?: ('#' . $order->id);
+
+        // Delete order items
+        \App\Models\Order\OrderItem::where('order_id', $order->id)->delete();
+
+        // Delete order logs
+        \App\Models\Order\OrderLog::where('order_id', $order->id)->delete();
+
+        // Permanently force delete the order record
+        $order->forceDelete();
+
+        return response()->json([
+            'success' => true,
+            'message' => "Order {$orderIdDisplay} has been permanently deleted from database.",
+        ]);
+    }
+
+    /**
+     * Bulk restore multiple trashed orders (Super Admin Only).
+     */
+    public function bulkRestore(Request $request)
+    {
+        if (!auth()->user()->hasRole('super_admin')) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized.'], 403);
+        }
+
+        $request->validate([
+            'order_ids' => 'required|array|min:1',
+            'order_ids.*' => 'required',
+        ]);
+
+        $ids = $request->order_ids;
+
+        $orders = Order::onlyTrashed()
+            ->where(function($q) use ($ids) {
+                $q->whereIn('id', $ids)
+                  ->orWhereIn('order_id', $ids);
+            })
+            ->get();
+
+        $count = $orders->count();
+        if ($count === 0) {
+            return response()->json(['success' => false, 'message' => 'No matching trashed orders found.'], 404);
+        }
+
+        foreach ($orders as $order) {
+            $order->restore();
+
+            \App\Models\Order\OrderLog::create([
+                'order_id' => $order->id,
+                'user_id' => auth()->id(),
+                'action' => "Order #{$order->order_id} bulk restored from trash",
+                'old_data' => ['deleted_at' => now()->toDateTimeString()],
+                'new_data' => [
+                    'restored_by' => auth()->user()?->name ?? 'Super Admin',
+                    'restored_at' => now()->toDateTimeString(),
+                    'bulk' => true,
+                ],
+            ]);
+        }
+
+        return response()->json([
+            'success' => true,
+            'count' => $count,
+            'message' => "Successfully restored {$count} order" . ($count > 1 ? 's' : '') . " back to active orders.",
+        ]);
+    }
+
+    /**
+     * Bulk permanently delete multiple trashed orders with Math CAPTCHA (Super Admin Only).
+     */
+    public function bulkForceDelete(Request $request)
+    {
+        if (!auth()->user()->hasRole('super_admin')) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized.'], 403);
+        }
+
+        $request->validate([
+            'order_ids' => 'required|array|min:1',
+            'order_ids.*' => 'required',
+            'captcha_answer' => 'required',
+            'captcha_token' => 'required|string',
+        ]);
+
+        // Decrypt and validate CAPTCHA
+        try {
+            $payload = json_decode(\Illuminate\Support\Facades\Crypt::decryptString($request->captcha_token), true);
+        } catch (\Throwable $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Invalid or expired CAPTCHA token. Please solve a new math challenge.',
+            ], 422);
+        }
+
+        if (!$payload || !isset($payload['answer']) || !isset($payload['time'])) {
+            return response()->json(['success' => false, 'message' => 'Invalid CAPTCHA challenge.'], 422);
+        }
+
+        if (time() - $payload['time'] > 300) {
+            return response()->json(['success' => false, 'message' => 'CAPTCHA expired. Please try with a new challenge.'], 422);
+        }
+
+        if (intval(trim($request->captcha_answer)) !== intval($payload['answer'])) {
+            return response()->json(['success' => false, 'message' => 'Incorrect CAPTCHA answer. Verification failed.'], 422);
+        }
+
+        $ids = $request->order_ids;
+
+        $orders = Order::onlyTrashed()
+            ->where(function($q) use ($ids) {
+                $q->whereIn('id', $ids)
+                  ->orWhereIn('order_id', $ids);
+            })
+            ->get();
+
+        $count = $orders->count();
+        if ($count === 0) {
+            return response()->json(['success' => false, 'message' => 'No matching trashed orders found.'], 404);
+        }
+
+        $internalIds = $orders->pluck('id')->toArray();
+
+        // Delete items and logs
+        \App\Models\Order\OrderItem::whereIn('order_id', $internalIds)->delete();
+        \App\Models\Order\OrderLog::whereIn('order_id', $internalIds)->delete();
+
+        // Force delete orders
+        Order::onlyTrashed()->whereIn('id', $internalIds)->forceDelete();
+
+        return response()->json([
+            'success' => true,
+            'count' => $count,
+            'message' => "Successfully permanently deleted {$count} order" . ($count > 1 ? 's' : '') . " from database.",
+        ]);
+    }
 }

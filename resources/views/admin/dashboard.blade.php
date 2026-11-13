@@ -1426,7 +1426,17 @@
                     <h1 class="text-2xl font-bold text-gray-900">All Orders</h1>
                     <p class="text-sm text-gray-500 mt-1">Manage and track all customer orders dynamically.</p>
                 </div>
-                <div class="flex gap-2">
+                <div class="flex items-center gap-2">
+                    @if(auth()->user()->hasRole('super_admin'))
+                        @php $allOrdersTrashCount = \App\Models\Order\Order::onlyTrashed()->count(); @endphp
+                        <a href="{{ route('admin.orders.trash') }}" class="px-3.5 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-lg text-sm font-semibold transition inline-flex items-center gap-1.5 shadow-2xs">
+                            <i class="ph ph-trash text-base"></i>
+                            <span>Trash</span>
+                            @if($allOrdersTrashCount > 0)
+                                <span class="px-1.5 py-0.2 rounded-full text-xs font-bold bg-rose-200 text-rose-800">{{ $allOrdersTrashCount }}</span>
+                            @endif
+                        </a>
+                    @endif
                     <button class="px-4 py-2 bg-white border border-gray-200 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50"><i class="ph ph-download-simple mr-1"></i> Export</button>
                 </div>
             </div>
