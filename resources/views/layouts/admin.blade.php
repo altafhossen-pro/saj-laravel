@@ -75,21 +75,32 @@
                     </x-nav-link>
 
                     <!-- Products -->
+                    @if(auth()->user()->hasRole('super_admin') || auth()->user()->can('view_products') || auth()->user()->can('create_products') || auth()->user()->can('manage_products') || auth()->user()->can('manage_brands') || auth()->user()->can('manage_reviews'))
                     <x-nav-dropdown title="Products" icon="package" theme="light"
                         :active="request()->routeIs('admin.products.*') || request()->routeIs('admin.brands.*') || request()->routeIs('admin.questions.*') || request()->routeIs('admin.reviews.*')">
+                        @if(auth()->user()->hasRole('super_admin') || auth()->user()->can('view_products') || auth()->user()->can('manage_products'))
                         <x-nav-link href="{{ route('admin.products.index') }}" theme="light" class="!py-2 !text-sm"
                             :active="request()->routeIs('admin.products.index')">All Products</x-nav-link>
+                        @endif
+                        @if(auth()->user()->hasRole('super_admin') || auth()->user()->can('create_products') || auth()->user()->can('manage_products'))
                         <x-nav-link href="{{ route('admin.products.create') }}" theme="light" class="!py-2 !text-sm"
                             :active="request()->routeIs('admin.products.create')">Create Product</x-nav-link>
+                        @endif
+                        @can('manage_brands')
                         <x-nav-link href="{{ route('admin.brands.index') }}" theme="light" class="!py-2 !text-sm"
                             :active="request()->routeIs('admin.brands.index')">Product Brands</x-nav-link>
+                        @endcan
+                        @can('manage_reviews')
                         <x-nav-link href="{{ route('admin.questions.index') }}" theme="light" class="!py-2 !text-sm"
                             :active="request()->routeIs('admin.questions.index')">Products Q&A</x-nav-link>
                         <x-nav-link href="{{ route('admin.reviews.index') }}" theme="light" class="!py-2 !text-sm"
                             :active="request()->routeIs('admin.reviews.*')">Product Reviews</x-nav-link>
+                        @endcan
                     </x-nav-dropdown>
+                    @endif
 
                     <!-- Orders -->
+                    @if(auth()->user()->can('manage_orders') || auth()->user()->can('create_orders') || auth()->user()->can('manage_courier'))
                     <x-nav-dropdown title="Orders" icon="shopping-cart" theme="light"
                         :active="request()->routeIs('admin.orders.*') || request()->routeIs('admin.orders')">
                         <x-nav-link href="{{ route('admin.orders') }}" theme="light" class="!py-2 !text-sm"
@@ -99,8 +110,10 @@
                         <x-nav-link href="{{ route('admin.orders.drafts') }}" theme="light" class="!py-2 !text-sm"
                             :active="request()->routeIs('admin.orders.drafts')">Draft Orders</x-nav-link>
                     </x-nav-dropdown>
+                    @endif
 
                     <!-- Categories -->
+                    @if(auth()->user()->can('manage_categories'))
                     <x-nav-dropdown title="Categories" icon="list-dashes" theme="light"
                         :active="request()->routeIs('admin.categories.*')">
                         <x-nav-link href="{{ route('admin.categories.index') }}" theme="light" class="!py-2 !text-sm"
@@ -108,8 +121,10 @@
                         <x-nav-link href="{{ route('admin.categories.create') }}" theme="light" class="!py-2 !text-sm"
                             :active="request()->routeIs('admin.categories.create')">Create Category</x-nav-link>
                     </x-nav-dropdown>
+                    @endif
 
                     <!-- Customers -->
+                    @if(auth()->user()->can('manage_customers') || auth()->user()->can('manage_staff'))
                     <x-nav-dropdown title="Customers" icon="users" theme="light"
                         :active="request()->routeIs('admin.customers.*') || request()->routeIs('admin.customers')">
                         <x-nav-link href="{{ route('admin.customers') }}" theme="light" class="!py-2 !text-sm"
@@ -117,8 +132,10 @@
                         <x-nav-link href="{{ route('admin.customers.staff') }}" theme="light" class="!py-2 !text-sm"
                             :active="request()->routeIs('admin.customers.staff')">All Staff</x-nav-link>
                     </x-nav-dropdown>
+                    @endif
 
                     <!-- Offers -->
+                    @if(auth()->user()->can('manage_offers') || auth()->user()->can('manage_coupons'))
                     <x-nav-dropdown title="Offers" icon="tag" theme="light"
                         :active="request()->routeIs('admin.category-offers.*') || request()->routeIs('admin.coupons.*')">
                         <x-nav-link href="{{ route('admin.category-offers.index') }}" theme="light" class="!py-2 !text-sm"
@@ -126,8 +143,10 @@
                         <x-nav-link href="{{ route('admin.coupons.index') }}" theme="light" class="!py-2 !text-sm"
                             :active="request()->routeIs('admin.coupons.*')">Coupons</x-nav-link>
                     </x-nav-dropdown>
+                    @endif
 
                     <!-- Live & Shoppers -->
+                    @if(auth()->user()->can('view_visitors'))
                     <x-nav-dropdown title="Live & Shoppers" icon="footprints" theme="light"
                         :active="request()->routeIs('admin.visitors.*') || request()->routeIs('admin.carts.*') || request()->routeIs('admin.offer-templates.*')">
                         <x-nav-link href="{{ route('admin.visitors.live') }}" theme="light" class="!py-2 !text-sm"
@@ -150,8 +169,10 @@
                             Offer Templates
                         </x-nav-link>
                     </x-nav-dropdown>
+                    @endif
 
                     <!-- Homepage -->
+                    @if(auth()->user()->can('manage_homepage'))
                     <x-nav-dropdown title="Homepage" icon="layout" theme="light"
                         :active="request()->routeIs('admin.homepage.*')">
                         <x-nav-link href="{{ route('admin.homepage.hero.index') }}" theme="light" class="!py-2 !text-sm"
@@ -165,8 +186,10 @@
                             class="!py-2 !text-sm" :active="request()->routeIs('admin.homepage.just-for-you')">Just For
                             You</x-nav-link>
                     </x-nav-dropdown>
+                    @endif
 
                     <!-- Analytics -->
+                    @if(auth()->user()->can('view_analytics'))
                     <x-nav-dropdown title="Analytics" icon="chart-polar" theme="light"
                         :active="request()->routeIs('admin.analytics.*')">
                         <x-nav-link href="{{ route('admin.analytics.search') }}" theme="light" class="!py-2 !text-sm"
@@ -182,14 +205,18 @@
                             Visitor Analytics
                         </x-nav-link>
                     </x-nav-dropdown>
+                    @endif
 
                     <!-- Blacklist -->
+                    @if(auth()->user()->can('manage_settings') || auth()->user()->can('manage_customers'))
                     <x-nav-link href="{{ route('admin.blacklist.index') }}" icon="shield-warning" theme="light"
                         :active="request()->routeIs('admin.blacklist.*')">
                         Blacklist / Ban
                     </x-nav-link>
+                    @endif
 
                     <!-- Contact Messages -->
+                    @if(auth()->user()->can('manage_settings') || auth()->user()->can('manage_customers'))
                     <x-nav-link href="{{ route('admin.contact-messages.index') }}" icon="chat-circle-dots" theme="light"
                         :active="request()->routeIs('admin.contact-messages.*')">
                         <div class="flex items-center justify-between w-full">
@@ -204,12 +231,15 @@
                             @endif
                         </div>
                     </x-nav-link>
+                    @endif
 
                     <!-- Settings -->
+                    @if(auth()->user()->can('manage_settings') || auth()->user()->can('manage_staff'))
                     <x-nav-link href="{{ route('admin.settings.index') }}" icon="gear" theme="light"
                         :active="request()->routeIs('admin.settings.*')">
                         Settings
                     </x-nav-link>
+                    @endif
                 </nav>
             </div>
             <div class="p-4 border-t border-gray-100 shrink-0">

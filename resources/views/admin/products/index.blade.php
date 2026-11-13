@@ -10,6 +10,7 @@
         <p class="text-gray-500 leading-relaxed">Manage your store's inventory, pricing, and visibility. Keep your catalog fresh and updated to drive more sales.</p>
     </div>
     <div class="flex items-center gap-3">
+        @if(auth()->user()->hasRole('super_admin') || auth()->user()->can('edit_products') || auth()->user()->can('manage_products'))
         <form action="{{ route('admin.products.reindex-visual') }}" method="POST">
             @csrf
             <button type="submit" class="px-4 py-2.5 bg-white border border-gray-200 text-gray-700 rounded-xl text-sm font-medium hover:bg-gray-50 transition-colors shadow-sm flex items-center gap-2 cursor-pointer" title="Refresh Visual Search Index">
@@ -17,12 +18,15 @@
                 <span>Sync Visual Index</span>
             </button>
         </form>
+        @endif
         <button class="px-4 py-2.5 bg-white border border-gray-200 text-gray-700 rounded-xl text-sm font-medium hover:bg-gray-50 transition-colors shadow-sm flex items-center gap-2">
             <i class="ph ph-export text-lg"></i> Export
         </button>
+        @if(auth()->user()->hasRole('super_admin') || auth()->user()->can('create_products') || auth()->user()->can('manage_products'))
         <a href="{{ route('admin.products.create') }}" class="px-5 py-2.5 bg-gradient-to-r from-brand-600 to-brand-500 text-white rounded-xl text-sm font-medium hover:from-brand-700 hover:to-brand-600 transition-all duration-300 shadow-sm shadow-brand-500/20 flex items-center gap-2 transform hover:-translate-y-0.5">
             <i class="ph ph-plus-circle text-lg"></i> Add New Product
         </a>
+        @endif
     </div>
 </div>
 

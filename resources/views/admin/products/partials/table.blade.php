@@ -78,6 +78,7 @@
                     </td>
                     <td class="p-4 pr-6 text-right">
                         <div class="flex items-center justify-end gap-1.5">
+                            @if(auth()->user()->hasRole('super_admin') || auth()->user()->can('edit_products') || auth()->user()->can('manage_products'))
                             <form action="{{ route('admin.products.sync-visual', $product->id) }}" method="POST" class="inline" onsubmit="this.querySelector('button').disabled = true;">
                                 @csrf
                                 <button type="submit" class="w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors cursor-pointer" title="Sync Visual Index (Featured, Gallery, Variants & SKU)">
@@ -87,9 +88,12 @@
                             <a href="{{ route('admin.products.edit', $product->id) }}" class="w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 hover:text-brand-600 hover:bg-brand-50 transition-colors" title="Edit">
                                 <i class="ph ph-pencil-simple text-lg"></i>
                             </a>
+                            @endif
+                            @if(auth()->user()->hasRole('super_admin') || auth()->user()->can('delete_products') || auth()->user()->can('manage_products'))
                             <button @click="$dispatch('open-delete-modal', { url: '{{ route('admin.products.destroy', $product->id) }}', title: 'Delete Product', message: 'Are you sure you want to delete {{ addslashes($product->title) }}? This action cannot be undone.' })" class="w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors" title="Delete">
                                 <i class="ph ph-trash text-lg"></i>
                             </button>
+                            @endif
                         </div>
                     </td>
                 </tr>

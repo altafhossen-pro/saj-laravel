@@ -71,4 +71,14 @@ class User extends Authenticatable
     {
         return empty($this->google_id);
     }
+
+    public function hasAdminAccess(): bool
+    {
+        if ($this->hasRole('super_admin')) {
+            return true;
+        }
+
+        return $this->roles()->where('is_customer', false)->exists()
+            || $this->getAllPermissions()->isNotEmpty();
+    }
 }

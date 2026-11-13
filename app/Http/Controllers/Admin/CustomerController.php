@@ -37,9 +37,16 @@ class CustomerController extends Controller
         }
 
         if ($request->has('tab') && $request->tab === 'staff') {
-            $query->has('roles');
+            $query->whereHas('roles', function($q) {
+                $q->where('is_customer', false);
+            });
         } else {
-            $query->doesntHave('roles');
+            $query->where(function($q) {
+                $q->doesntHave('roles')
+                  ->orWhereHas('roles', function($r) {
+                      $r->where('is_customer', true);
+                  });
+            });
         }
 
         if ($request->has('role') && $request->role !== '') {
@@ -88,10 +95,13 @@ class CustomerController extends Controller
 
         $shippingAddress = $latestOrderWithAddress ? $latestOrderWithAddress->shipping_address : null;
 
-        $availableRoles = Role::pluck('name')->toArray();
-        if (empty($availableRoles)) {
-            $availableRoles = ['user', 'super_admin'];
+        $allRoles = Role::with('permissions')->orderBy('is_customer', 'asc')->orderBy('name', 'asc')->get();
+        if ($allRoles->isEmpty()) {
+            Role::firstOrCreate(['name' => 'user', 'guard_name' => 'web', 'is_customer' => true]);
+            Role::firstOrCreate(['name' => 'super_admin', 'guard_name' => 'web', 'is_customer' => false]);
+            $allRoles = Role::with('permissions')->orderBy('is_customer', 'asc')->orderBy('name', 'asc')->get();
         }
+        $availableRoles = $allRoles->pluck('name')->toArray();
 
         $displayRole = $user->roles->first() ? $user->roles->first()->name : ($user->role ?: 'user');
 
@@ -104,6 +114,7 @@ class CustomerController extends Controller
             'pendingOrders',
             'recentOrders',
             'shippingAddress',
+            'allRoles',
             'availableRoles',
             'displayRole'
         ));
@@ -141,15 +152,15 @@ class CustomerController extends Controller
             $user->avatar = '/storage/' . $path;
         }
 
-        // Update Spatie role & column role
+        // Update Spatie role & column role dynamically
         if ($request->filled('role')) {
-            $newRole = $request->role;
-            $user->role = $newRole;
-            if ($newRole === 'user') {
-                $user->syncRoles([]);
+            $newRoleName = $request->role;
+            $user->role = $newRoleName;
+            $targetRole = Role::where('name', $newRoleName)->first();
+            if ($targetRole) {
+                $user->syncRoles([$targetRole]);
             } else {
-                Role::firstOrCreate(['name' => $newRole]);
-                $user->syncRoles([$newRole]);
+                $user->syncRoles([]);
             }
         }
 

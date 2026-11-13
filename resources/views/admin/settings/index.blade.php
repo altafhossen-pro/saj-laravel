@@ -61,13 +61,13 @@
             <p class="text-xs text-gray-500">Payment gateways</p>
         </a>
 
-        <!-- Roles & Permissions -->
-        <a href="#" class="group bg-white p-6 rounded-2xl shadow-sm border border-gray-100 hover:border-brand-300 hover:shadow-md transition-all duration-300 flex flex-col items-center text-center">
-            <div class="w-14 h-14 bg-brand-50 text-brand-600 rounded-xl flex items-center justify-center mb-4 group-hover:bg-brand-600 group-hover:text-white transition-colors duration-300">
+        <!-- Role Based Access Control (RBAC) -->
+        <a href="{{ route('admin.settings.roles.index') }}" class="group bg-white p-6 rounded-2xl shadow-sm border border-gray-100 hover:border-brand-300 hover:shadow-md transition-all duration-300 flex flex-col items-center text-center">
+            <div class="w-14 h-14 bg-indigo-50 text-indigo-600 rounded-xl flex items-center justify-center mb-4 group-hover:bg-indigo-600 group-hover:text-white transition-colors duration-300">
                 <i class="ph ph-shield-check text-2xl"></i>
             </div>
-            <h3 class="text-sm font-bold text-gray-800 mb-1">Roles & Permissions</h3>
-            <p class="text-xs text-gray-500">Admin access control</p>
+            <h3 class="text-sm font-bold text-gray-800 mb-1">Access Control (RBAC)</h3>
+            <p class="text-xs text-gray-500">Roles &amp; permissions</p>
         </a>
 
         <!-- Site Information -->

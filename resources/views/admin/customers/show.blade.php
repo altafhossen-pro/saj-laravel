@@ -8,12 +8,39 @@
     editModal: false,
     passwordModal: false,
     loginModal: false,
+    roleConfirmModal: false,
+    initialRole: '{{ $displayRole }}',
+    selectedRole: '{{ $displayRole }}',
+    allRoles: {{ Js::from($allRoles->map(fn($r) => [
+        'name' => $r->name,
+        'is_customer' => (bool)$r->is_customer,
+        'title' => ucwords(str_replace(['_', '-'], ' ', $r->name)),
+        'permissions_count' => $r->permissions->count()
+    ])) }},
     avatarPreview: null,
     fileChosen(event) {
         const file = event.target.files[0];
         if (file) {
             this.avatarPreview = URL.createObjectURL(file);
         }
+    },
+    getRoleObj(name) {
+        return this.allRoles.find(r => r.name === name) || { name: name, is_customer: true, title: name };
+    },
+    handleFormSubmit(e) {
+        if (this.selectedRole !== this.initialRole) {
+            e.preventDefault();
+            this.roleConfirmModal = true;
+            return false;
+        }
+        return true;
+    },
+    confirmAndSubmit() {
+        this.roleConfirmModal = false;
+        this.$refs.customerEditForm.submit();
+    },
+    cancelRoleChange() {
+        this.roleConfirmModal = false;
     }
 }">
 
@@ -40,13 +67,26 @@
                     </span>
                 @endif
 
-                @if($displayRole === 'super_admin' || $displayRole === 'super admin' || $displayRole === 'admin')
-                    <span class="px-2.5 py-1 rounded-full text-xs font-semibold bg-brand-100 text-brand-700 capitalize">
-                        {{ str_replace('_', ' ', $displayRole) }}
+                @php
+                    $roleModel = $user->roles->first();
+                @endphp
+                @if($roleModel && !$roleModel->is_customer)
+                    @if($roleModel->name === 'super_admin')
+                        <span class="px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-100 text-amber-800 border border-amber-200 capitalize inline-flex items-center gap-1">
+                            <i class="ph-bold ph-crown text-xs"></i> Super Admin
+                        </span>
+                    @else
+                        <span class="px-2.5 py-1 rounded-full text-xs font-semibold bg-indigo-100 text-indigo-800 border border-indigo-200 capitalize inline-flex items-center gap-1">
+                            <i class="ph-bold ph-shield-check text-xs"></i> {{ str_replace(['_', '-'], ' ', $displayRole) }} (Staff)
+                        </span>
+                    @endif
+                @elseif($roleModel && $roleModel->is_customer)
+                    <span class="px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800 border border-emerald-200 capitalize inline-flex items-center gap-1">
+                        <i class="ph-bold ph-shopping-bag text-xs"></i> {{ str_replace(['_', '-'], ' ', $displayRole) }} (Customer)
                     </span>
                 @else
-                    <span class="px-2.5 py-1 rounded-full text-xs font-semibold bg-gray-100 text-gray-700 capitalize">
-                        Customer
+                    <span class="px-2.5 py-1 rounded-full text-xs font-semibold bg-gray-100 text-gray-700 capitalize inline-flex items-center gap-1">
+                        <i class="ph ph-user text-xs"></i> Customer
                     </span>
                 @endif
             </div>
@@ -196,9 +236,19 @@
                             </span>
                         @endif
 
-                        <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-700 capitalize">
-                            {{ str_replace('_', ' ', $displayRole) }}
-                        </span>
+                        @if($roleModel && !$roleModel->is_customer)
+                            <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-50 text-indigo-700 capitalize">
+                                <i class="ph-bold ph-shield-check text-xs"></i> {{ str_replace(['_', '-'], ' ', $displayRole) }}
+                            </span>
+                        @elseif($roleModel && $roleModel->is_customer)
+                            <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 capitalize">
+                                <i class="ph-bold ph-shopping-bag text-xs"></i> {{ str_replace(['_', '-'], ' ', $displayRole) }}
+                            </span>
+                        @else
+                            <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-700 capitalize">
+                                Customer
+                            </span>
+                        @endif
                     </div>
                 </div>
 
@@ -445,7 +495,7 @@
                     </button>
                 </div>
 
-                <form action="{{ route('admin.customers.update', $user->id) }}" method="POST" enctype="multipart/form-data" class="p-6 space-y-4">
+                <form x-ref="customerEditForm" @submit="handleFormSubmit($event)" action="{{ route('admin.customers.update', $user->id) }}" method="POST" enctype="multipart/form-data" class="p-6 space-y-4">
                     @csrf
                     @method('PUT')
 
@@ -470,13 +520,51 @@
                                class="w-full px-3.5 py-2.5 text-sm border border-gray-200 rounded-xl focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none transition-all">
                     </div>
 
-                    <!-- Role -->
+                    <!-- Role (Dynamic from database) -->
                     <div>
-                        <label class="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1.5">Role / Account Type</label>
-                        <select name="role" class="w-full px-3.5 py-2.5 text-sm border border-gray-200 rounded-xl focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none transition-all bg-white">
-                            <option value="user" {{ $displayRole === 'user' ? 'selected' : '' }}>Customer (Regular User)</option>
-                            <option value="super_admin" {{ ($displayRole === 'super_admin' || $displayRole === 'super admin') ? 'selected' : '' }}>Super Admin (Staff)</option>
+                        <div class="flex items-center justify-between mb-1.5">
+                            <label class="block text-xs font-bold text-gray-700 uppercase tracking-wider">Role / Account Type</label>
+                            <span class="text-[11px] font-semibold text-brand-600">Dynamic RBAC</span>
+                        </div>
+                        <select name="role" x-model="selectedRole" class="w-full px-3.5 py-2.5 text-sm border border-gray-200 rounded-xl focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none transition-all bg-white font-medium cursor-pointer">
+                            @if($allRoles->where('is_customer', false)->count() > 0)
+                                <optgroup label="── Staff &amp; Admin Roles (Admin Access) ──">
+                                    @foreach($allRoles->where('is_customer', false) as $r)
+                                        <option value="{{ $r->name }}">
+                                            {{ ucwords(str_replace(['_', '-'], ' ', $r->name)) }} 
+                                            @if($r->name === 'super_admin')
+                                                (Super Admin Root)
+                                            @else
+                                                ({{ $r->permissions->count() }} permissions)
+                                            @endif
+                                        </option>
+                                    @endforeach
+                                </optgroup>
+                            @endif
+
+                            @if($allRoles->where('is_customer', true)->count() > 0)
+                                <optgroup label="── Customer Roles (Front Store Only) ──">
+                                    @foreach($allRoles->where('is_customer', true) as $r)
+                                        <option value="{{ $r->name }}">
+                                            {{ ucwords(str_replace(['_', '-'], ' ', $r->name)) }} (No Admin Access)
+                                        </option>
+                                    @endforeach
+                                </optgroup>
+                            @endif
                         </select>
+                        <div class="mt-2 flex items-center justify-between text-xs">
+                            <span class="text-gray-400">Selected Type:</span>
+                            <template x-if="getRoleObj(selectedRole).is_customer">
+                                <span class="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-semibold text-[11px] inline-flex items-center gap-1">
+                                    <i class="ph-bold ph-shopping-bag"></i> Customer Role
+                                </span>
+                            </template>
+                            <template x-if="!getRoleObj(selectedRole).is_customer">
+                                <span class="px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-800 font-semibold text-[11px] inline-flex items-center gap-1">
+                                    <i class="ph-bold ph-shield-check"></i> Staff Role
+                                </span>
+                            </template>
+                        </div>
                     </div>
 
                     <!-- Avatar Upload -->
@@ -528,6 +616,96 @@
                         </button>
                     </div>
                 </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Custom Role Change Confirmation Modal -->
+    <div x-show="roleConfirmModal" 
+         x-transition:enter="transition ease-out duration-300"
+         x-transition:enter-start="opacity-0"
+         x-transition:enter-end="opacity-100"
+         x-transition:leave="transition ease-in duration-200"
+         x-transition:leave-start="opacity-100"
+         x-transition:leave-end="opacity-0"
+         style="display: none;"
+         class="fixed inset-0 z-[70] flex items-center justify-center p-4 sm:p-6 overflow-y-auto bg-gray-950/80 backdrop-blur-xs"
+         @keydown.escape.window="cancelRoleChange()">
+
+        <div @click.away="cancelRoleChange()" 
+             class="bg-white w-full max-w-md rounded-3xl shadow-2xl border border-gray-100 overflow-hidden my-8 p-6 text-center space-y-5 animate-in fade-in zoom-in-95 duration-200">
+            
+            <!-- Warning / Alert Icon -->
+            <div class="w-14 h-14 rounded-2xl mx-auto flex items-center justify-center text-2xl"
+                 :class="!getRoleObj(selectedRole).is_customer ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700'">
+                <i :class="!getRoleObj(selectedRole).is_customer ? 'ph-bold ph-shield-warning' : 'ph-bold ph-user-minus'"></i>
+            </div>
+
+            <!-- Title & Subtitle -->
+            <div>
+                <h3 class="text-lg font-bold text-gray-900">Confirm Role Change</h3>
+                <p class="text-xs text-gray-500 mt-1">
+                    You are changing the account role for <strong class="text-gray-800">{{ $user->name }}</strong>.
+                </p>
+            </div>
+
+            <!-- Role Change Comparison Box -->
+            <div class="bg-gray-50 border border-gray-200/80 rounded-2xl p-4 flex items-center justify-between gap-2 text-xs">
+                <div class="text-left flex-1 min-w-0">
+                    <span class="text-[10px] uppercase font-bold text-gray-400 block mb-1">Previous Role</span>
+                    <span class="px-2.5 py-1 rounded-full font-bold text-[11px] truncate inline-block max-w-full capitalize"
+                          :class="getRoleObj(initialRole).is_customer ? 'bg-emerald-100 text-emerald-800' : 'bg-gray-200 text-gray-800'"
+                          x-text="getRoleObj(initialRole).title || initialRole">
+                    </span>
+                </div>
+
+                <div class="text-gray-400 text-base shrink-0 px-1">
+                    <i class="ph-bold ph-arrow-right"></i>
+                </div>
+
+                <div class="text-right flex-1 min-w-0">
+                    <span class="text-[10px] uppercase font-bold text-gray-400 block mb-1">New Role</span>
+                    <span class="px-2.5 py-1 rounded-full font-bold text-[11px] truncate inline-block max-w-full capitalize"
+                          :class="!getRoleObj(selectedRole).is_customer ? 'bg-brand-100 text-brand-700 ring-1 ring-brand-300' : 'bg-emerald-100 text-emerald-800 ring-1 ring-emerald-300'"
+                          x-text="getRoleObj(selectedRole).title || selectedRole">
+                    </span>
+                </div>
+            </div>
+
+            <!-- Dynamic Advisory Notice -->
+            <template x-if="!getRoleObj(selectedRole).is_customer">
+                <div class="p-3 bg-amber-50 border border-amber-200 rounded-xl text-left text-xs text-amber-900 flex items-start gap-2.5">
+                    <i class="ph-bold ph-warning text-amber-600 text-base shrink-0 mt-0.5"></i>
+                    <div>
+                        <strong class="block font-bold">Granting Administrative Access</strong>
+                        <span>This user will be authorized as a Staff member and granted access to the admin dashboard with their role's permissions.</span>
+                    </div>
+                </div>
+            </template>
+
+            <template x-if="getRoleObj(selectedRole).is_customer">
+                <div class="p-3 bg-red-50 border border-red-200 rounded-xl text-left text-xs text-red-900 flex items-start gap-2.5">
+                    <i class="ph-bold ph-shield-slash text-red-600 text-base shrink-0 mt-0.5"></i>
+                    <div>
+                        <strong class="block font-bold">Revoking Administrative Privileges</strong>
+                        <span>This user will be converted to a regular customer. They will no longer be able to log in to the admin dashboard.</span>
+                    </div>
+                </div>
+            </template>
+
+            <!-- Actions -->
+            <div class="pt-2 flex items-center justify-center gap-3">
+                <button type="button" 
+                        @click="cancelRoleChange()" 
+                        class="px-4 py-2.5 rounded-xl border border-gray-200 text-xs font-bold text-gray-700 hover:bg-gray-100 transition-colors cursor-pointer w-1/2">
+                    Cancel
+                </button>
+                <button type="button" 
+                        @click="confirmAndSubmit()" 
+                        class="px-5 py-2.5 rounded-xl bg-brand-600 hover:bg-brand-700 text-white text-xs font-bold transition-all shadow-sm shadow-brand-500/25 cursor-pointer flex items-center justify-center gap-1.5 w-1/2">
+                    <i class="ph-bold ph-check"></i>
+                    <span>Confirm &amp; Update</span>
+                </button>
             </div>
         </div>
     </div>
