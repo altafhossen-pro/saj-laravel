@@ -213,6 +213,17 @@
                     </x-nav-dropdown>
                     @endif
 
+                    <!-- Buying Guides -->
+                    @if(auth()->user()->hasRole('super_admin') || auth()->user()->can('manage_guides') || auth()->user()->can('manage_homepage') || auth()->user()->can('manage_settings'))
+                    <x-nav-dropdown title="Buying Guides" icon="book-open-text" theme="light"
+                        :active="request()->routeIs('admin.guides.*')">
+                        <x-nav-link href="{{ route('admin.guides.index') }}" theme="light" class="!py-2 !text-sm"
+                            :active="request()->routeIs('admin.guides.index')">All Guides</x-nav-link>
+                        <x-nav-link href="{{ route('admin.guides.create') }}" theme="light" class="!py-2 !text-sm"
+                            :active="request()->routeIs('admin.guides.create')">Create Guide</x-nav-link>
+                    </x-nav-dropdown>
+                    @endif
+
                     <!-- Analytics -->
                     @if(auth()->user()->can('view_analytics'))
                     <x-nav-dropdown title="Analytics" icon="chart-polar" theme="light"

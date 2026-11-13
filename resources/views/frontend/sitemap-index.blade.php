@@ -8,6 +8,10 @@
         <loc>{{ url('/sitemap-categories.xml') }}</loc>
         <lastmod>{{ now()->toAtomString() }}</lastmod>
     </sitemap>
+    <sitemap>
+        <loc>{{ url('/sitemap-guides.xml') }}</loc>
+        <lastmod>{{ now()->toAtomString() }}</lastmod>
+    </sitemap>
     @foreach($productSitemaps as $productSitemap)
     <sitemap>
         <loc>{{ $productSitemap['loc'] }}</loc>

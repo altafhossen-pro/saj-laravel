@@ -100,6 +100,7 @@
                 <ul class="space-y-3">
                     <li><a href="/" class="text-gray-500 hover:text-brand-600 hover:pl-1 transition-all duration-300 text-sm inline-block">Home</a></li>
                     <li><a href="{{ route('shop.search') }}" class="text-gray-500 hover:text-brand-600 hover:pl-1 transition-all duration-300 text-sm inline-block">Shop All Products</a></li>
+                    <li><a href="{{ route('guides.index') }}" class="text-gray-500 hover:text-brand-600 hover:pl-1 transition-all duration-300 text-sm inline-block">Buying Guides</a></li>
                     <li><a href="{{ route('page.about') }}" class="text-gray-500 hover:text-brand-600 hover:pl-1 transition-all duration-300 text-sm inline-block">About Us</a></li>
                     <li><a href="{{ route('page.contact') }}" class="text-gray-500 hover:text-brand-600 hover:pl-1 transition-all duration-300 text-sm inline-block">Contact Us</a></li>
                 </ul>

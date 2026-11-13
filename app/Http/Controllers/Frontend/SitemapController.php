@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Frontend;
 
 use App\Http\Controllers\Controller;
+use App\Models\BuyingGuide;
 use App\Models\Category;
 use App\Models\Product\Product;
 use Illuminate\Http\Response;
@@ -62,6 +63,12 @@ class SitemapController extends Controller
                     'lastmod' => now()->toAtomString(),
                     'changefreq' => 'daily',
                     'priority' => '0.9',
+                ],
+                [
+                    'loc' => route('guides.index'),
+                    'lastmod' => now()->toAtomString(),
+                    'changefreq' => 'daily',
+                    'priority' => '0.8',
                 ],
                 [
                     'loc' => route('page.about'),
@@ -178,6 +185,52 @@ class SitemapController extends Controller
                             $item['image'] = [
                                 'loc' => $this->resolveImageUrl($product->featured_image),
                                 'title' => $product->title,
+                            ];
+                        }
+
+                        $urls[] = $item;
+                    }
+                });
+
+            return view('frontend.sitemap-section', compact('urls'))->render();
+        });
+
+        return response($xml, 200, [
+            'Content-Type' => 'application/xml; charset=utf-8',
+            'X-Robots-Tag' => 'noindex, follow',
+        ]);
+    }
+
+    /**
+     * Buying Guides Sitemap (/sitemap-guides.xml)
+     */
+    public function guides(): Response
+    {
+        $xml = Cache::remember('sitemap_guides_xml', 3600, function () {
+            $urls = [
+                [
+                    'loc' => route('guides.index'),
+                    'lastmod' => now()->toAtomString(),
+                    'changefreq' => 'daily',
+                    'priority' => '0.8',
+                ],
+            ];
+
+            BuyingGuide::published()
+                ->select(['id', 'slug', 'title', 'featured_image', 'updated_at', 'published_at'])
+                ->chunk(1000, function ($guides) use (&$urls) {
+                    foreach ($guides as $guide) {
+                        $item = [
+                            'loc' => route('guides.show', $guide->slug),
+                            'lastmod' => ($guide->updated_at ?? $guide->published_at ?? now())->toAtomString(),
+                            'changefreq' => 'weekly',
+                            'priority' => '0.8',
+                        ];
+
+                        if (!empty($guide->featured_image)) {
+                            $item['image'] = [
+                                'loc' => $this->resolveImageUrl($guide->featured_image),
+                                'title' => $guide->title,
                             ];
                         }
 

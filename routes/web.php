@@ -41,11 +41,16 @@ Route::post('/contact-us', [\App\Http\Controllers\Frontend\PageController::class
 Route::get('/order-tracking', [\App\Http\Controllers\Frontend\PageController::class, 'tracking'])->name('page.tracking');
 Route::get('/api/order-tracking/{order_id}', [\App\Http\Controllers\Frontend\PageController::class, 'trackOrder'])->name('api.tracking');
 
+// Buying Guides (SEO Optimized Blog / Guides)
+Route::get('/guides', [\App\Http\Controllers\Frontend\BuyingGuideController::class, 'index'])->name('guides.index');
+Route::get('/guides/{slug}', [\App\Http\Controllers\Frontend\BuyingGuideController::class, 'show'])->name('guides.show');
+
 // SEO XML Sitemap (Scalable Sitemap Index & Chunking)
 Route::get('/sitemap.xml', [\App\Http\Controllers\Frontend\SitemapController::class, 'index'])->name('sitemap');
 Route::get('/sitemap', [\App\Http\Controllers\Frontend\SitemapController::class, 'index']);
 Route::get('/sitemap-pages.xml', [\App\Http\Controllers\Frontend\SitemapController::class, 'pages'])->name('sitemap.pages');
 Route::get('/sitemap-categories.xml', [\App\Http\Controllers\Frontend\SitemapController::class, 'categories'])->name('sitemap.categories');
+Route::get('/sitemap-guides.xml', [\App\Http\Controllers\Frontend\SitemapController::class, 'guides'])->name('sitemap.guides');
 Route::get('/sitemap-products-{page}.xml', [\App\Http\Controllers\Frontend\SitemapController::class, 'products'])
     ->where('page', '[0-9]+')
     ->name('sitemap.products');
@@ -394,6 +399,18 @@ Route::middleware(['auth', 'admin_access'])->prefix('admin/dashboard')->group(fu
         Route::resource('homepage/hero', \App\Http\Controllers\Admin\HeroSlideController::class)
             ->names('admin.homepage.hero')
             ->parameters(['hero' => 'heroSlide']);
+    });
+
+    // Buying Guides Management
+    Route::prefix('guides')->name('admin.guides.')->group(function () {
+        Route::get('/search-products', [\App\Http\Controllers\Admin\BuyingGuideController::class, 'searchProducts'])->name('search-products');
+        Route::patch('/{guide}/toggle-publish', [\App\Http\Controllers\Admin\BuyingGuideController::class, 'togglePublish'])->name('toggle-publish');
+        Route::get('/', [\App\Http\Controllers\Admin\BuyingGuideController::class, 'index'])->name('index');
+        Route::get('/create', [\App\Http\Controllers\Admin\BuyingGuideController::class, 'create'])->name('create');
+        Route::post('/', [\App\Http\Controllers\Admin\BuyingGuideController::class, 'store'])->name('store');
+        Route::get('/{guide}/edit', [\App\Http\Controllers\Admin\BuyingGuideController::class, 'edit'])->name('edit');
+        Route::put('/{guide}', [\App\Http\Controllers\Admin\BuyingGuideController::class, 'update'])->name('update');
+        Route::delete('/{guide}', [\App\Http\Controllers\Admin\BuyingGuideController::class, 'destroy'])->name('destroy');
     });
 });
 

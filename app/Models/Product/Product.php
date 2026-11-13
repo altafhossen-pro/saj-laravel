@@ -47,7 +47,7 @@ class Product extends Model
         'offer_variant_prices' => 'array',
     ];
 
-    protected $appends = ['total_sold', 'original_price', 'total_reviews', 'active_discount_percent'];
+    protected $appends = ['total_sold', 'original_price', 'total_reviews', 'active_discount_percent', 'final_price', 'primary_image_url'];
 
     /**
      * Get the active category offer if applicable.
@@ -206,6 +206,37 @@ class Product extends Model
         }
 
         return 0.0;
+    }
+
+    /**
+     * Get the final selling price for the product.
+     */
+    public function getFinalPriceAttribute(): float
+    {
+        $price = (float) ($this->base_price ?? 0);
+        if ($price <= 0) {
+            $firstVariant = $this->relationLoaded('variants')
+                ? $this->variants->first()
+                : $this->variants()->first();
+            $price = (float) ($firstVariant?->current_price ?? 0);
+        }
+        return $price;
+    }
+
+    /**
+     * Get the primary image URL for the product.
+     */
+    public function getPrimaryImageUrlAttribute(): ?string
+    {
+        if (empty($this->featured_image)) {
+            return null;
+        }
+
+        if (\Illuminate\Support\Str::startsWith($this->featured_image, ['http://', 'https://'])) {
+            return $this->featured_image;
+        }
+
+        return \Illuminate\Support\Facades\Storage::url($this->featured_image);
     }
 
     /**
