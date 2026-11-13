@@ -42,7 +42,21 @@
     if (!empty($rawAdminNotes)) {
         $decodedNotes = json_decode($rawAdminNotes, true);
         if (is_array($decodedNotes)) {
-            $parsedAdminNotes = $decodedNotes;
+            foreach ($decodedNotes as $n) {
+                if (is_array($n)) {
+                    $ts = $n['timestamp'] ?? null;
+                    $dObj = null;
+                    if ($ts) {
+                        try {
+                            $dObj = \Carbon\Carbon::parse($ts)->setTimezone('Asia/Dhaka');
+                        } catch (\Throwable $e) {}
+                    }
+                    $n['formatted_date'] = $n['formatted_date'] ?? ($dObj ? $dObj->format('d M Y') : 'Recent');
+                    $n['formatted_time'] = $n['formatted_time'] ?? ($dObj ? $dObj->format('h:i a') : '');
+                    $n['timezone'] = $n['timezone'] ?? 'BDT';
+                    $parsedAdminNotes[] = $n;
+                }
+            }
         } else {
             $parsedAdminNotes = [[
                 'id' => uniqid('note_'),
@@ -326,50 +340,101 @@
                     <textarea id="order_notes" rows="2" x-model="form.order_notes" :disabled="saving" class="{{ $inputClass }}" placeholder="Note left by the customer at checkout"></textarea>
                 </div>
 
-                <!-- Internal Admin Notes List -->
-                <div class="pt-3 border-t border-gray-100">
-                    <div class="flex items-center justify-between mb-2">
-                        <label class="block text-xs font-bold uppercase tracking-wider text-gray-700">
-                            Internal Admin Notes (<span x-text="adminNotes.length"></span>)
-                        </label>
-                        <span class="text-[11px] text-gray-400">Visible only to admins</span>
+                <!-- Internal Admin Notes (Timeline) -->
+                <div class="pt-2 border-t border-gray-100">
+                    <div class="flex items-center justify-between mb-4">
+                        <div>
+                            <div class="flex items-center gap-2">
+                                <h3 class="text-sm font-bold text-gray-900">Admin Notes</h3>
+                                <span class="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-gray-100 text-gray-700" x-text="adminNotes.length + ' Notes'"></span>
+                            </div>
+                            <p class="text-[11px] text-gray-500">Internal notes &amp; updates for this order (visible only to admins)</p>
+                        </div>
                     </div>
 
-                    <!-- Existing Notes List -->
-                    <div class="space-y-2 mb-3 max-h-60 overflow-y-auto">
-                        <template x-for="(note, idx) in adminNotes" :key="note.id || idx">
-                            <div class="p-3 bg-gray-50/80 rounded-xl border border-gray-200/80 flex items-start justify-between gap-3 text-xs">
-                                <div class="flex-1">
-                                    <div class="flex items-center gap-2 mb-1">
-                                        <span class="font-bold text-gray-900" x-text="note.admin_name || 'Admin'"></span>
-                                        <span class="text-[11px] text-gray-400 font-mono" x-text="(note.formatted_date || '') + ' ' + (note.formatted_time || '')"></span>
-                                    </div>
-                                    <p class="text-gray-800 whitespace-pre-wrap leading-relaxed" x-text="note.note"></p>
-                                </div>
-                                <button type="button" @click="removeAdminNote(idx)" class="text-gray-400 hover:text-red-600 transition-colors cursor-pointer p-1" title="Delete note">
-                                    <i class="ph ph-trash text-sm"></i>
-                                </button>
-                            </div>
-                        </template>
-                        <template x-if="adminNotes.length === 0">
-                            <div class="text-center py-4 bg-gray-50/50 rounded-xl border border-dashed border-gray-200 text-xs text-gray-400">
-                                No internal notes added yet.
-                            </div>
-                        </template>
-                    </div>
-
-                    <!-- Add New Note Input -->
-                    <div class="p-3 bg-brand-50/40 rounded-xl border border-brand-100">
-                        <label class="block text-[11px] font-bold text-brand-900 mb-1">Add a new admin note:</label>
-                        <div class="flex gap-2">
-                            <textarea x-model="newNoteText" rows="2" class="{{ $inputClass }} bg-white" placeholder="Type internal note here (e.g. verified phone with customer)..."></textarea>
+                    <!-- Add New Note Form -->
+                    <div class="mb-5 p-4 bg-gray-50/80 rounded-2xl border border-gray-200">
+                        <label for="new_admin_note" class="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">Write / Add Note:</label>
+                        <textarea id="new_admin_note" 
+                                  x-model="newNoteText" 
+                                  rows="2" 
+                                  placeholder="Type internal note here (e.g. verified phone with customer, customer requested delivery after 5pm)..."
+                                  class="w-full text-xs p-3 bg-white border border-gray-300 rounded-xl focus:border-brand-500 focus:ring-1 focus:ring-brand-500/20 text-gray-900 resize-y"></textarea>
+                        <div class="mt-2.5 flex items-center justify-between gap-2">
+                            <span class="text-[11px] text-gray-400">Added notes are saved to this order when you click "Save changes".</span>
                             <button type="button" 
                                     @click="addAdminNote()" 
-                                    :disabled="!newNoteText.trim()"
-                                    class="px-3.5 py-1.5 bg-brand-600 hover:bg-brand-700 text-white rounded-lg text-xs font-bold transition-colors shrink-0 self-end cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed">
-                                Add Note
+                                    :disabled="!newNoteText.trim()" 
+                                    class="px-4 py-1.5 text-xs font-bold text-white bg-brand-600 hover:bg-brand-700 rounded-xl shadow-xs transition-colors inline-flex items-center gap-1.5 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed shrink-0">
+                                <i class="ph-bold ph-plus"></i>
+                                <span>Add Note</span>
                             </button>
                         </div>
+                    </div>
+
+                    <!-- Timeline Container -->
+                    <div class="pt-2">
+                        <!-- Empty State -->
+                        <template x-if="adminNotes.length === 0">
+                            <div class="text-center py-8 px-4 text-gray-400 text-xs bg-gray-50/50 rounded-2xl border border-dashed border-gray-200">
+                                <div class="w-10 h-10 rounded-xl bg-gray-100 text-gray-400 mx-auto flex items-center justify-center text-lg mb-2">
+                                    <i class="ph ph-notepad"></i>
+                                </div>
+                                <h4 class="text-xs font-bold text-gray-700">No admin notes added yet</h4>
+                                <p class="text-[11px] text-gray-400 mt-0.5">Use the box above to add communications or internal instructions.</p>
+                            </div>
+                        </template>
+
+                        <!-- Timeline List (3-Column Layout: Date/Time -> Vertical Line & Node Dot -> Note Card) -->
+                        <template x-if="adminNotes.length > 0">
+                            <div class="space-y-0 relative">
+                                <template x-for="(item, index) in adminNotes" :key="item.id || index">
+                                    <div class="flex items-start group">
+                                        <!-- Left: Date & Time in BDT -->
+                                        <div class="w-28 sm:w-32 text-right shrink-0 pr-4 sm:pr-5 pt-1">
+                                            <div class="font-bold text-gray-900 text-xs sm:text-sm tracking-tight" x-text="item.formatted_date || 'Recent'"></div>
+                                            <div class="text-[11px] sm:text-xs font-semibold text-brand-600 flex items-center justify-end gap-1 mt-0.5">
+                                                <i class="ph ph-clock text-xs"></i>
+                                                <span x-text="item.formatted_time || ''"></span>
+                                            </div>
+                                            <div class="text-[10px] font-bold text-gray-400 tracking-wider uppercase mt-0.5" x-text="item.timezone || 'BDT'"></div>
+                                        </div>
+
+                                        <!-- Center: Line & Node Dot -->
+                                        <div class="relative flex flex-col items-center self-stretch shrink-0">
+                                            <!-- Dot -->
+                                            <div class="relative z-10 w-3.5 h-3.5 rounded-full bg-brand-600 ring-4 ring-brand-100 shrink-0 my-1 transition-transform group-hover:scale-110"></div>
+                                            <!-- Vertical Connecting Line -->
+                                            <div class="w-0.5 bg-brand-200 grow -mt-1" x-show="index < adminNotes.length - 1"></div>
+                                        </div>
+
+                                        <!-- Right: Note Description Card -->
+                                        <div class="flex-1 pl-4 sm:pl-5 pb-5">
+                                            <div class="bg-slate-50/80 group-hover:bg-white border border-slate-200/80 group-hover:border-slate-300 rounded-2xl p-4 shadow-xs transition-all duration-200">
+                                                <div class="flex items-center justify-between pb-2 mb-2 border-b border-slate-200/60">
+                                                    <div class="flex items-center gap-1.5 text-xs font-bold text-gray-800">
+                                                        <div class="w-5 h-5 rounded-full bg-brand-100 text-brand-700 flex items-center justify-center text-[10px]">
+                                                            <i class="ph-bold ph-user"></i>
+                                                        </div>
+                                                        <span x-text="item.admin_name || 'System/Admin'"></span>
+                                                    </div>
+                                                    <div class="flex items-center gap-2">
+                                                        <span class="text-[10px] uppercase font-semibold tracking-wider px-1.5 py-0.5 rounded bg-gray-100 text-gray-600">Admin Note</span>
+                                                        <button type="button" 
+                                                                @click="removeAdminNote(index)" 
+                                                                class="text-gray-400 hover:text-red-600 hover:bg-red-50 p-1 rounded-md transition-colors cursor-pointer" 
+                                                                title="Delete note">
+                                                            <i class="ph ph-trash text-sm"></i>
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                                <p class="text-xs sm:text-sm text-gray-800 whitespace-pre-wrap leading-relaxed font-normal" x-text="item.note"></p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </template>
+                            </div>
+                        </template>
                     </div>
                 </div>
             </div>
