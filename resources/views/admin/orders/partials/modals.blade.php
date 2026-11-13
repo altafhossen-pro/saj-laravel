@@ -309,14 +309,17 @@
                                 <span class="text-xs font-bold text-gray-700 uppercase tracking-widest pl-1 border-l border-gray-400">BD</span>
                             </div>
                             <p class="text-[11px] font-bold text-gray-700 tracking-wide mt-0.5">JEWELRY & COSMETICS</p>
-                            <p class="text-[10px] text-gray-700 mt-0.5">Hotline: <span class="font-bold text-black font-mono">{{ \App\Models\Setting::get('site_phone') ?: '01700-000000' }}</span></p>
-                            <p class="text-[9px] text-gray-500">{{ config('app.url', 'saj.com.bd') }}</p>
+                            <p class="text-[10px] text-gray-700 mt-0.5">Hotline: <span class="font-bold text-black font-mono">{{ \App\Models\Setting::get('site_phone') ?: '+8801840209060' }}</span></p>
+                            <p class="text-[9px] text-gray-500 font-medium">https://saj.bd</p>
                         </div>
                         <div class="text-right">
                             <div class="inline-block bg-black text-white px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider mb-1">
                                 STEADFAST COURIER
                             </div>
-                            <div class="text-[10px] text-gray-600 font-medium">Consignment ID:</div>
+                            <div class="text-[10px] text-gray-700 font-bold">
+                                Merchant ID: <span class="font-mono font-black text-black text-xs">{{ \App\Models\Setting::get('steadfast_merchant_id') ?: '1006943' }}</span>
+                            </div>
+                            <div class="text-[10px] text-gray-600 font-medium mt-0.5">Consignment ID:</div>
                             <div class="font-mono font-black text-base text-black tracking-wider" x-text="'#' + (steadfastCid || '{{ $order->steadfast_consignment_id ?: 'PENDING' }}')"></div>
                             <template x-if="steadfastTracking || '{{ $order->steadfast_tracking_code }}'">
                                 <div class="text-[10px] font-mono font-semibold text-gray-700">
@@ -401,8 +404,8 @@
                         <div class="text-base font-black text-black leading-tight">
                             {{ $shippingInfo['name'] ?? optional($order->user)->name ?? 'Customer' }}
                         </div>
-                        <div class="text-lg font-black text-black font-mono tracking-wide my-1 flex items-center gap-1.5">
-                            <span class="text-base">☎</span> {{ $shippingInfo['phone'] ?? optional($order->user)->phone ?? 'N/A' }}
+                        <div class="text-sm font-black text-black font-mono tracking-wide my-1">
+                            Phone: <span class="text-base font-bold">{{ $shippingInfo['phone'] ?? optional($order->user)->phone ?? 'N/A' }}</span>
                         </div>
                         <div class="text-xs font-semibold text-gray-900 leading-snug mt-1">
                             {{ $shippingInfo['address'] ?? '' }}
@@ -420,8 +423,13 @@
                         @endif
                     </div>
 
-                    <div class="pt-2 border-t border-gray-200 text-center text-[10px] font-bold text-gray-800 tracking-wider">
-                        ✨ THANK YOU FOR SHOPPING WITH SAJ BD
+                    <div class="pt-2 border-t-2 border-black text-center">
+                        <div class="text-[10px] font-black text-black tracking-wider uppercase">
+                            THANK YOU FOR SHOPPING WITH SAJ BD
+                        </div>
+                        <div class="text-[9px] text-gray-600 mt-0.5">
+                            Customer Support: {{ \App\Models\Setting::get('site_phone') ?: '+8801840209060' }} | https://saj.bd
+                        </div>
                     </div>
 
                 </div>

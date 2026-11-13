@@ -302,7 +302,7 @@ class SettingController extends Controller
             'content' => 'nullable|string',
         ]);
 
-        $content = $request->input('content', '');
+        $content = (string) ($request->input('content') ?? '');
         $saved = SteadfastLogger::saveContent($content);
 
         if (!$saved) {

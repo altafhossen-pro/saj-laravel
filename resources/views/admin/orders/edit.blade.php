@@ -37,9 +37,30 @@
         ];
     })->values();
 
+    $rawAdminNotes = $order->admin_notes;
+    $parsedAdminNotes = [];
+    if (!empty($rawAdminNotes)) {
+        $decodedNotes = json_decode($rawAdminNotes, true);
+        if (is_array($decodedNotes)) {
+            $parsedAdminNotes = $decodedNotes;
+        } else {
+            $parsedAdminNotes = [[
+                'id' => uniqid('note_'),
+                'note' => (string) $rawAdminNotes,
+                'admin_name' => 'Admin',
+                'formatted_date' => $order->updated_at ? $order->updated_at->setTimezone('Asia/Dhaka')->format('d M Y') : now()->setTimezone('Asia/Dhaka')->format('d M Y'),
+                'formatted_time' => $order->updated_at ? $order->updated_at->setTimezone('Asia/Dhaka')->format('h:i a') : now()->setTimezone('Asia/Dhaka')->format('h:i a'),
+                'timezone' => 'BDT'
+            ]];
+        }
+    }
+
     $config = [
         'orderId' => $order->order_id,
         'items' => $itemsPayload,
+        'adminNotes' => $parsedAdminNotes,
+        'adminUserName' => auth()->user() ? auth()->user()->name : 'Admin',
+        'adminUserId' => auth()->id(),
         'form' => [
             'status' => $order->status,
             'payment_status' => $order->payment_status ?? 'pending',
@@ -56,7 +77,6 @@
             'coupon_discount' => (float) $order->coupon_discount,
             'shipping_cost' => (float) $order->shipping_cost,
             'order_notes' => $order->order_notes,
-            'admin_notes' => $order->admin_notes,
             'is_gift' => (bool) $order->is_gift,
             'gift_message' => $order->gift_message,
             'steadfast_consignment_id' => $order->steadfast_consignment_id,
@@ -294,15 +314,63 @@
             </div>
 
             <!-- Notes -->
-            <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 space-y-4">
-                <h2 class="text-lg font-bold text-gray-900">Notes</h2>
-                <div>
-                    <label class="{{ $labelClass }}" for="order_notes">Customer note</label>
-                    <textarea id="order_notes" rows="3" x-model="form.order_notes" :disabled="saving" class="{{ $inputClass }}" placeholder="Note left by the customer at checkout"></textarea>
+            <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 space-y-5">
+                <div class="flex items-center justify-between">
+                    <h2 class="text-lg font-bold text-gray-900">Notes</h2>
+                    <span class="text-xs text-gray-400">Order communications</span>
                 </div>
+
+                <!-- Customer checkout note -->
                 <div>
-                    <label class="{{ $labelClass }}" for="admin_notes">Admin note</label>
-                    <textarea id="admin_notes" rows="3" x-model="form.admin_notes" :disabled="saving" class="{{ $inputClass }}" placeholder="Only visible to admins"></textarea>
+                    <label class="{{ $labelClass }}" for="order_notes">Customer checkout note</label>
+                    <textarea id="order_notes" rows="2" x-model="form.order_notes" :disabled="saving" class="{{ $inputClass }}" placeholder="Note left by the customer at checkout"></textarea>
+                </div>
+
+                <!-- Internal Admin Notes List -->
+                <div class="pt-3 border-t border-gray-100">
+                    <div class="flex items-center justify-between mb-2">
+                        <label class="block text-xs font-bold uppercase tracking-wider text-gray-700">
+                            Internal Admin Notes (<span x-text="adminNotes.length"></span>)
+                        </label>
+                        <span class="text-[11px] text-gray-400">Visible only to admins</span>
+                    </div>
+
+                    <!-- Existing Notes List -->
+                    <div class="space-y-2 mb-3 max-h-60 overflow-y-auto">
+                        <template x-for="(note, idx) in adminNotes" :key="note.id || idx">
+                            <div class="p-3 bg-gray-50/80 rounded-xl border border-gray-200/80 flex items-start justify-between gap-3 text-xs">
+                                <div class="flex-1">
+                                    <div class="flex items-center gap-2 mb-1">
+                                        <span class="font-bold text-gray-900" x-text="note.admin_name || 'Admin'"></span>
+                                        <span class="text-[11px] text-gray-400 font-mono" x-text="(note.formatted_date || '') + ' ' + (note.formatted_time || '')"></span>
+                                    </div>
+                                    <p class="text-gray-800 whitespace-pre-wrap leading-relaxed" x-text="note.note"></p>
+                                </div>
+                                <button type="button" @click="removeAdminNote(idx)" class="text-gray-400 hover:text-red-600 transition-colors cursor-pointer p-1" title="Delete note">
+                                    <i class="ph ph-trash text-sm"></i>
+                                </button>
+                            </div>
+                        </template>
+                        <template x-if="adminNotes.length === 0">
+                            <div class="text-center py-4 bg-gray-50/50 rounded-xl border border-dashed border-gray-200 text-xs text-gray-400">
+                                No internal notes added yet.
+                            </div>
+                        </template>
+                    </div>
+
+                    <!-- Add New Note Input -->
+                    <div class="p-3 bg-brand-50/40 rounded-xl border border-brand-100">
+                        <label class="block text-[11px] font-bold text-brand-900 mb-1">Add a new admin note:</label>
+                        <div class="flex gap-2">
+                            <textarea x-model="newNoteText" rows="2" class="{{ $inputClass }} bg-white" placeholder="Type internal note here (e.g. verified phone with customer)..."></textarea>
+                            <button type="button" 
+                                    @click="addAdminNote()" 
+                                    :disabled="!newNoteText.trim()"
+                                    class="px-3.5 py-1.5 bg-brand-600 hover:bg-brand-700 text-white rounded-lg text-xs font-bold transition-colors shrink-0 self-end cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed">
+                                Add Note
+                            </button>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -473,6 +541,10 @@
             items: config.items,
             originalItems: JSON.parse(JSON.stringify(config.items)),
             form: config.form,
+            adminNotes: config.adminNotes || [],
+            adminUserName: config.adminUserName || 'Admin',
+            adminUserId: config.adminUserId || null,
+            newNoteText: '',
             saving: false,
             errors: {},
             toast: { show: false, message: '', type: 'success' },
@@ -685,13 +757,44 @@
                 this.toastTimer = setTimeout(() => this.toast.show = false, 3000);
             },
 
+            addAdminNote() {
+                const text = (this.newNoteText || '').trim();
+                if (!text) return;
+
+                const now = new Date();
+                const formattedDate = now.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+                const formattedTime = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }).toLowerCase();
+
+                this.adminNotes.unshift({
+                    id: 'note_' + Math.random().toString(36).substring(2, 11),
+                    note: text,
+                    admin_name: this.adminUserName,
+                    admin_id: this.adminUserId,
+                    timestamp: now.toISOString(),
+                    formatted_date: formattedDate,
+                    formatted_time: formattedTime,
+                    timezone: 'BDT'
+                });
+
+                this.newNoteText = '';
+            },
+
+            removeAdminNote(idx) {
+                this.adminNotes.splice(idx, 1);
+            },
+
             async save() {
                 if (this.saving) return;
                 this.saving = true;
                 this.errors = {};
 
+                if (this.newNoteText && this.newNoteText.trim()) {
+                    this.addAdminNote();
+                }
+
                 const payload = {
                     ...this.form,
+                    admin_notes: JSON.stringify(this.adminNotes),
                     is_gift: !!this.form.is_gift,
                     discount: this.num(this.form.discount),
                     coupon_discount: this.num(this.form.coupon_discount),

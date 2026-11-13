@@ -848,6 +848,11 @@ class OrderController extends Controller
 
             $existingShipping = is_array($order->shipping_address) ? $order->shipping_address : [];
 
+            $adminNotesData = $data['admin_notes'] ?? null;
+            if (is_array($adminNotesData)) {
+                $adminNotesData = json_encode($adminNotesData, JSON_UNESCAPED_UNICODE);
+            }
+
             $order->fill([
                 'status' => $data['status'],
                 'payment_status' => $data['payment_status'],
@@ -865,7 +870,7 @@ class OrderController extends Controller
                 'shipping_cost' => $shippingCost,
                 'total' => $total,
                 'order_notes' => $data['order_notes'] ?? null,
-                'admin_notes' => $data['admin_notes'] ?? null,
+                'admin_notes' => $adminNotesData,
                 'is_gift' => (bool) ($data['is_gift'] ?? false),
                 'gift_message' => $data['gift_message'] ?? null,
                 'steadfast_consignment_id' => $data['steadfast_consignment_id'] ?? null,
@@ -876,17 +881,44 @@ class OrderController extends Controller
             $order->save();
         });
 
-        // Capture after state and log
+        // Capture after state and log only if there are actual field changes
         $newOrderData = $order->fresh()->toArray();
         $newOrderData['items'] = $order->fresh()->items->toArray();
-        
-        \App\Models\Order\OrderLog::create([
-            'order_id' => $order->id,
-            'user_id' => auth()->id(),
-            'action' => 'order_updated',
-            'old_data' => $oldOrderData,
-            'new_data' => $newOrderData,
-        ]);
+
+        $hasChanges = false;
+        $fieldsToCheck = ['status', 'payment_status', 'shipping_cost', 'discount', 'coupon_discount', 'total', 'order_notes', 'admin_notes', 'is_gift', 'gift_message'];
+        foreach ($fieldsToCheck as $field) {
+            if (($oldOrderData[$field] ?? null) != ($newOrderData[$field] ?? null)) {
+                $hasChanges = true;
+                break;
+            }
+        }
+
+        if (!$hasChanges) {
+            $oldShip = is_array($oldOrderData['shipping_address'] ?? null) ? $oldOrderData['shipping_address'] : json_decode($oldOrderData['shipping_address'] ?? '[]', true);
+            $newShip = is_array($newOrderData['shipping_address'] ?? null) ? $newOrderData['shipping_address'] : json_decode($newOrderData['shipping_address'] ?? '[]', true);
+            if ($oldShip != $newShip) {
+                $hasChanges = true;
+            }
+        }
+
+        if (!$hasChanges) {
+            $oldItems = collect($oldOrderData['items'] ?? [])->map(fn($i) => ['id' => $i['id'] ?? null, 'qty' => $i['quantity'] ?? null, 'price' => $i['price'] ?? null])->values();
+            $newItems = collect($newOrderData['items'] ?? [])->map(fn($i) => ['id' => $i['id'] ?? null, 'qty' => $i['quantity'] ?? null, 'price' => $i['price'] ?? null])->values();
+            if ($oldItems->toJson() !== $newItems->toJson()) {
+                $hasChanges = true;
+            }
+        }
+
+        if ($hasChanges) {
+            \App\Models\Order\OrderLog::create([
+                'order_id' => $order->id,
+                'user_id' => auth()->id(),
+                'action' => 'order_updated',
+                'old_data' => $oldOrderData,
+                'new_data' => $newOrderData,
+            ]);
+        }
 
         return response()->json([
             'message' => 'Order updated successfully',
@@ -939,16 +971,6 @@ class OrderController extends Controller
 
         $order->admin_notes = json_encode($notesList, JSON_UNESCAPED_UNICODE);
         $order->save();
-
-        try {
-            \App\Models\Order\OrderLog::create([
-                'order_id' => $order->id,
-                'user_id' => $user ? $user->id : null,
-                'action' => 'Admin note added: "' . \Illuminate\Support\Str::limit($newEntry['note'], 40) . '"',
-                'old_data' => null,
-                'new_data' => ['admin_note' => $newEntry['note']],
-            ]);
-        } catch (\Throwable $e) {}
 
         return response()->json([
             'success' => true,

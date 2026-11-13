@@ -102,8 +102,9 @@ class SteadfastLogger
     /**
      * Save updated content to the log file.
      */
-    public static function saveContent(string $content): bool
+    public static function saveContent(?string $content = ''): bool
     {
+        $content = (string) ($content ?? '');
         $path = self::getLogPath();
         $res = @file_put_contents($path, $content, LOCK_EX);
         return $res !== false;

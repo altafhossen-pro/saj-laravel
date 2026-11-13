@@ -224,23 +224,50 @@
 
                     <!-- Webhook Auth Token -->
                     <div>
-                        <label class="block text-xs font-bold uppercase tracking-wider text-gray-700 mb-1.5">
-                            Webhook Auth Token (Bearer Token / Secret)
-                        </label>
+                        <div class="flex items-center justify-between mb-1.5">
+                            <label class="block text-xs font-bold uppercase tracking-wider text-gray-700">
+                                Webhook Auth Token (Bearer Token / Secret)
+                            </label>
+                            <span class="text-[11px] text-gray-500 font-medium">Keep strictly secret</span>
+                        </div>
                         <div class="relative rounded-xl shadow-sm">
                             <div class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-gray-400">
                                 <i class="ph ph-shield-check text-lg"></i>
                             </div>
-                            <input type="text" 
+                            <input :type="showWebhookToken ? 'text' : 'password'" 
+                                   id="webhookTokenInput"
                                    name="steadfast_webhook_token" 
                                    x-model="webhookToken" 
-                                   class="w-full pl-10 pr-24 py-2.5 text-sm rounded-xl border border-gray-200 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 font-mono transition-colors" 
+                                   class="w-full pl-10 pr-36 py-2.5 text-sm rounded-xl border border-gray-200 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 font-mono transition-colors" 
                                    placeholder="Enter or generate secret token">
-                            <button type="button" 
-                                    @click="openGenerateTokenModal()" 
-                                    class="absolute inset-y-1 right-1 px-3 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-semibold rounded-lg transition-colors flex items-center gap-1 cursor-pointer">
-                                <i class="ph ph-sparkle"></i> Generate
-                            </button>
+                            
+                            <div class="absolute inset-y-1 right-1 flex items-center gap-1">
+                                <!-- Show / Hide Toggle -->
+                                <button type="button" 
+                                        @click="showWebhookToken = !showWebhookToken" 
+                                        :title="showWebhookToken ? 'Hide token' : 'Show token'"
+                                        class="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors cursor-pointer">
+                                    <i class="ph text-base" :class="showWebhookToken ? 'ph-eye-slash' : 'ph-eye'"></i>
+                                </button>
+
+                                <!-- Copy Token Button -->
+                                <button type="button" 
+                                        @click="copyWebhookToken()" 
+                                        :disabled="!webhookToken"
+                                        :title="copiedWebhookToken ? 'Copied!' : 'Copy token'"
+                                        class="w-8 h-8 flex items-center justify-center rounded-lg transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                                        :class="copiedWebhookToken ? 'text-green-600 bg-green-50' : 'text-gray-400 hover:text-gray-700 hover:bg-gray-100'">
+                                    <i class="ph text-base" :class="copiedWebhookToken ? 'ph-bold ph-check text-green-600' : 'ph ph-copy'"></i>
+                                </button>
+
+                                <!-- Generate Button -->
+                                <button type="button" 
+                                        @click="openGenerateTokenModal()" 
+                                        class="px-2.5 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-semibold rounded-lg transition-colors flex items-center gap-1 cursor-pointer">
+                                    <i class="ph ph-sparkle text-xs"></i>
+                                    <span>Generate</span>
+                                </button>
+                            </div>
                         </div>
                         <p class="text-[11px] text-gray-500 mt-1">Copy and paste this token into the Steadfast portal webhook settings as the Auth Bearer token.</p>
                     </div>
@@ -713,6 +740,8 @@ function steadfastSettings() {
         webhookToken: @json($webhookToken),
         baseUrl: @json($baseUrl),
         showSecret: false,
+        showWebhookToken: false,
+        copiedWebhookToken: false,
         saving: false,
         copiedCallback: false,
         wrapLines: true,
@@ -789,6 +818,30 @@ function steadfastSettings() {
                     setTimeout(() => { this.copiedCallback = false; }, 2000);
                 });
             }
+        },
+
+        copyWebhookToken() {
+            if (!this.webhookToken) {
+                this.triggerToast('No token to copy', 'error');
+                return;
+            }
+            navigator.clipboard.writeText(this.webhookToken).then(() => {
+                this.copiedWebhookToken = true;
+                this.triggerToast('Webhook token copied to clipboard!');
+                setTimeout(() => { this.copiedWebhookToken = false; }, 2000);
+            }).catch(() => {
+                const input = document.getElementById('webhookTokenInput');
+                if (input) {
+                    const prevType = input.type;
+                    input.type = 'text';
+                    input.select();
+                    document.execCommand('copy');
+                    input.type = prevType;
+                    this.copiedWebhookToken = true;
+                    this.triggerToast('Webhook token copied to clipboard!');
+                    setTimeout(() => { this.copiedWebhookToken = false; }, 2000);
+                }
+            });
         },
 
         openGenerateTokenModal() {
@@ -1022,7 +1075,7 @@ function steadfastSettings() {
                         'Accept': 'application/json'
                     },
                     body: JSON.stringify({
-                        content: this.logContent
+                        content: this.logContent || ''
                     })
                 });
 
