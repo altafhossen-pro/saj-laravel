@@ -13,8 +13,6 @@ class ProductOfferTest extends TestCase
 {
     protected ?Product $testProduct = null;
     protected ?User $adminUser = null;
-    protected int $originalStock = 0;
-    protected float $originalBasePrice = 1000.00;
 
     protected function setUp(): void
     {
@@ -23,61 +21,32 @@ class ProductOfferTest extends TestCase
         $this->adminUser = User::role('super_admin')->first() 
             ?? User::first();
 
-        // Find or create test product
-        $this->testProduct = Product::find(4);
-        if (!$this->testProduct) {
-            $category = Category::first() ?? Category::create(['name' => 'General', 'slug' => 'general']);
-            $this->testProduct = Product::create([
-                'title' => 'Test Offer Bracelet',
-                'slug' => 'test-offer-bracelet-' . uniqid(),
-                'category_id' => $category->id,
-                'base_price' => 1000.00,
-                'total_stock' => 50,
-                'is_active' => true,
-                'product_type' => 'simple',
-            ]);
-            ProductVariant::create([
-                'product_id' => $this->testProduct->id,
-                'sku' => 'TEST-OFFER-001',
-                'current_price' => 1000.00,
-                'original_price' => null,
-                'stock_quantity' => 50,
-            ]);
-        }
-
-        $this->originalStock = (int) $this->testProduct->total_stock;
-        $this->originalBasePrice = (float) $this->testProduct->base_price;
+        // Always create a dedicated, isolated test product so real products are never touched
+        $category = Category::first() ?? Category::create(['name' => 'General', 'slug' => 'general']);
+        $this->testProduct = Product::create([
+            'title' => 'Test Isolated Offer Product ' . uniqid(),
+            'slug' => 'test-isolated-offer-product-' . uniqid(),
+            'category_id' => $category->id,
+            'base_price' => 1000.00,
+            'total_stock' => 50,
+            'is_active' => true,
+            'product_type' => 'simple',
+        ]);
+        ProductVariant::create([
+            'product_id' => $this->testProduct->id,
+            'sku' => 'TEST-ISOLATED-' . uniqid(),
+            'current_price' => 1000.00,
+            'original_price' => null,
+            'stock_quantity' => 50,
+        ]);
     }
 
     protected function tearDown(): void
     {
-        // Reset product 4 offer state cleanly
-        if ($this->testProduct) {
-            $this->testProduct->refresh();
-            $regular = (float) ($this->testProduct->offer_regular_price ?? $this->originalBasePrice);
-            if ($regular <= 0) $regular = 1000.00;
-
-            $this->testProduct->update([
-                'is_offer_active' => false,
-                'offer_title' => null,
-                'offer_discount_type' => 'percentage',
-                'offer_discount_value' => null,
-                'offer_regular_price' => null,
-                'offer_start_date' => null,
-                'offer_end_date' => null,
-                'base_price' => $regular,
-                'total_stock' => $this->originalStock,
-            ]);
-
-            $variant = $this->testProduct->variants()->first();
-            if ($variant) {
-                $variant->update([
-                    'current_price' => $regular,
-                    'original_price' => null,
-                    'sale_price' => null,
-                    'stock_quantity' => $this->originalStock,
-                ]);
-            }
+        // Permanently delete test product and variants so database is kept completely clean
+        if ($this->testProduct && $this->testProduct->exists) {
+            $this->testProduct->variants()->delete();
+            $this->testProduct->delete();
         }
 
         parent::tearDown();
@@ -106,6 +75,34 @@ class ProductOfferTest extends TestCase
         if ($response->status() === 200) {
             $response->assertDontSee('-18%');
         }
+    }
+
+    /**
+     * Test old price is preserved and never becomes 0 when offer is active in edit page
+     */
+    public function test_old_price_is_preserved_and_not_zero_in_edit_page(): void
+    {
+        // 1. Activate offer on product with regular 1000, old price 1200, offer 20%
+        $this->testProduct->update([
+            'is_offer_active' => true,
+            'offer_discount_type' => 'percentage',
+            'offer_discount_value' => 20,
+            'offer_regular_price' => 1000.00,
+            'base_price' => 800.00,
+        ]);
+        $variant = $this->testProduct->variants()->first();
+        $variant->update([
+            'current_price' => 800.00,
+            'original_price' => 1200.00,
+            'sale_price' => 800.00,
+        ]);
+
+        // Request edit page
+        $response = $this->actingAs($this->adminUser)->get(route('admin.products.edit', $this->testProduct->id));
+        $response->assertStatus(200);
+
+        // Assert old_price input value is 1200, NOT 0 or empty!
+        $response->assertSee('value="1200"', false);
     }
 
     /**

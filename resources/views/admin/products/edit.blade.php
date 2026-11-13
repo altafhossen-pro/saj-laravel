@@ -463,9 +463,10 @@
                         $displayRegPrice = ($product->is_offer_active && (float) ($product->offer_regular_price ?? 0) > 0)
                             ? (float) $product->offer_regular_price
                             : (float) $product->base_price;
-                        $displayOldPrice = $product->is_offer_active
-                            ? ''
-                            : ($product->variants->first()?->original_price ?? '');
+                        $firstVariant = $product->variants->first();
+                        $displayOldPrice = ($firstVariant && (float) ($firstVariant->original_price ?? 0) > 0)
+                            ? (float) $firstVariant->original_price
+                            : (($product->is_offer_active && (float) ($product->offer_regular_price ?? 0) > 0) ? (float) $product->offer_regular_price : '');
                     @endphp
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div class="flex flex-col">
@@ -1081,7 +1082,9 @@ function productVariantData() {
         const regularPrice = (isOfferActive && v.original_price && parseFloat(v.original_price) > 0)
             ? v.original_price
             : (v.current_price || '');
-        const oldPrice = isOfferActive ? '' : (v.original_price || '');
+        const oldPrice = (v.original_price && parseFloat(v.original_price) > 0)
+            ? v.original_price
+            : (v.old_price || '');
 
         return {
             id: v.id,

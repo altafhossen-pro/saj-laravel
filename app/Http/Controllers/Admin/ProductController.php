@@ -247,7 +247,7 @@ class ProductController extends Controller
                         }
 
                         $vCurrentPrice = $vSellingPrice;
-                        $vOriginalPrice = $rawPrice;
+                        $vOriginalPrice = $rawOldPrice > 0 ? $rawOldPrice : $rawPrice;
                         $vSalePrice = $vSellingPrice;
                     } else {
                         $vCurrentPrice = $rawPrice;
@@ -384,7 +384,7 @@ class ProductController extends Controller
                 }
 
                 $productBasePrice = $sellingPrice;
-                $variantOriginalPrice = $baseRegularPrice; // previous price preserved as crossed-out original price
+                $variantOriginalPrice = $oldPrice > 0 ? $oldPrice : $baseRegularPrice; // previous price preserved as crossed-out original price
                 $variantCurrentPrice = $sellingPrice;
                 $variantSalePrice = $sellingPrice;
                 $offerRegularPriceToSave = $baseRegularPrice;
@@ -508,7 +508,7 @@ class ProductController extends Controller
                         }
 
                         $vCurrentPrice = $vSellingPrice;
-                        $vOriginalPrice = $rawPrice;
+                        $vOriginalPrice = $rawOldPrice > 0 ? $rawOldPrice : $rawPrice;
                         $vSalePrice = $vSellingPrice;
                     } else {
                         $vCurrentPrice = $rawPrice;
