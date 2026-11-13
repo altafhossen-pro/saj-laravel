@@ -1,4 +1,5 @@
-<div x-data="{ open: false }" @open-cart-drawer.window="open = true">
+<div x-data="{ open: false }"
+     @open-cart-drawer.window="open = true; if(window.Alpine && window.Alpine.store('cart')) { window.Alpine.store('cart').validateStockAndPrice(); }">
     <!-- Backdrop -->
     <div x-show="open" style="display: none;" class="fixed inset-0 z-[90] bg-black/50 backdrop-blur-sm" @click="open = false" x-transition.opacity></div>
 
@@ -26,7 +27,22 @@
          </div>
 
          <!-- Body / Items -->
-         <div class="flex-1 overflow-y-auto p-4 flex flex-col gap-4">
+         <div class="flex-1 overflow-y-auto p-4 flex flex-col gap-3">
+            <!-- Real-time Transparency Price & Stock Change Notice Alert with Dismiss Button -->
+            <template x-for="(alert, aIdx) in $store.cart.priceAlerts" :key="aIdx">
+                <div class="p-3 bg-amber-50 border border-amber-200/90 rounded-xl text-amber-900 text-xs flex items-start justify-between gap-2 shadow-xs transition-all animate-fadeIn">
+                    <div class="flex items-start gap-2">
+                        <i class="ph-bold ph-info text-amber-600 text-base shrink-0 mt-0.5"></i>
+                        <span class="leading-relaxed font-medium" x-text="alert.message"></span>
+                    </div>
+                    <button type="button" @click="$store.cart.dismissAlert(aIdx)"
+                            class="text-amber-500 hover:text-amber-800 p-1 rounded-md hover:bg-amber-100/70 transition shrink-0 cursor-pointer"
+                            title="Dismiss Notice">
+                        <i class="ph-bold ph-x text-sm"></i>
+                    </button>
+                </div>
+            </template>
+
             <template x-if="$store.cart.items.length === 0">
                 <div class="flex flex-col items-center justify-center h-full text-gray-500 gap-3">
                     <div class="w-20 h-20 bg-gray-50 rounded-full flex items-center justify-center text-gray-300">
@@ -36,16 +52,30 @@
                 </div>
             </template>
             <template x-for="(item, index) in $store.cart.items" :key="index">
-                <div class="flex gap-4 p-3 bg-white rounded-xl border border-gray-100 relative shadow-sm hover:border-brand-100 transition-colors">
+                <div class="flex gap-4 p-3 bg-white rounded-xl border relative shadow-sm transition-colors"
+                     :class="item.is_out_of_stock ? 'border-rose-300 bg-rose-50/30' : 'border-gray-100 hover:border-brand-100'">
                     <!-- Image -->
-                    <div class="w-16 h-16 rounded-lg overflow-hidden shrink-0 bg-gray-50 border border-gray-100">
+                    <div class="w-16 h-16 rounded-lg overflow-hidden shrink-0 bg-gray-50 border border-gray-100 relative">
                         <img :src="item.image" :alt="item.title" class="w-full h-full object-cover">
+                        <template x-if="item.is_out_of_stock">
+                            <span class="absolute inset-0 bg-black/60 text-white text-[9px] font-bold flex items-center justify-center text-center p-0.5 uppercase tracking-wider">
+                                স্টক আউট
+                            </span>
+                        </template>
                     </div>
                     <!-- Details -->
                     <div class="flex-1 flex flex-col justify-center min-w-0 pr-6">
-                        <h4 class="text-sm font-bold text-gray-900 truncate" x-text="item.title"></h4>
+                        <div class="flex items-center gap-1.5 flex-wrap">
+                            <h4 class="text-sm font-bold text-gray-900 truncate" x-text="item.title"></h4>
+                            <template x-if="item.is_out_of_stock">
+                                <span class="px-1.5 py-0.2 rounded text-[10px] font-bold bg-rose-100 text-rose-700 uppercase">স্টক আউট</span>
+                            </template>
+                        </div>
                         <div class="text-[11px] text-gray-500 mt-0.5 truncate" x-text="item.variant_label || 'Single Piece'"></div>
-                        <div class="text-[11px] text-gray-500 mb-1">Item Price: <span x-text="item.price"></span> ৳</div>
+                        <div class="text-[11px] text-gray-500 mb-1 flex items-center gap-1">
+                            <span>Item Price:</span>
+                            <span class="font-bold text-gray-800" x-text="item.price + ' ৳'"></span>
+                        </div>
                         
                         <div class="flex items-center justify-between mt-auto">
                             <span class="text-sm font-bold text-brand-600" x-text="(item.price * item.quantity) + '৳'"></span>
@@ -60,7 +90,7 @@
                     </div>
                     
                     <!-- Delete -->
-                    <button @click="$store.cart.remove(index)" class="absolute top-2 right-2 text-red-400 hover:text-red-600 hover:bg-red-50 p-1.5 rounded-md transition-colors cursor-pointer">
+                    <button @click="$store.cart.remove(index)" class="absolute top-2 right-2 text-red-400 hover:text-red-600 hover:bg-red-50 p-1.5 rounded-md transition-colors cursor-pointer" title="Remove item">
                         <i class="ph ph-trash text-sm font-bold"></i>
                     </button>
                 </div>
@@ -102,8 +132,13 @@
                 <span class="text-xs font-bold uppercase tracking-wide">You got Free Delivery!</span>
             </div>
             
-            <button class="w-full h-12 bg-brand-600 hover:bg-brand-700 text-white rounded-xl font-bold flex items-center justify-between px-5 transition-colors cursor-pointer shadow-md shadow-brand-500/20" @click="if($store.cart.items.length > 0) window.location.href='/checkout'">
-                <span class="flex items-center gap-2">Proceed To Checkout <i class="ph-bold ph-arrow-right"></i></span>
+            <button class="w-full h-12 bg-brand-600 hover:bg-brand-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white rounded-xl font-bold flex items-center justify-between px-5 transition-colors cursor-pointer shadow-md shadow-brand-500/20"
+                    :disabled="$store.cart.items.some(i => i.is_out_of_stock)"
+                    @click="if($store.cart.items.length > 0 && !$store.cart.items.some(i => i.is_out_of_stock)) window.location.href='/checkout'">
+                <span class="flex items-center gap-2">
+                    <span x-text="$store.cart.items.some(i => i.is_out_of_stock) ? 'আউট অফ স্টক পণ্য বাদ দিন' : 'Proceed To Checkout'"></span>
+                    <i class="ph-bold ph-arrow-right"></i>
+                </span>
                 <span class="bg-white/20 px-2 py-0.5 rounded text-sm" x-text="$store.cart.totalAmount + ' ৳'"></span>
             </button>
          </div>

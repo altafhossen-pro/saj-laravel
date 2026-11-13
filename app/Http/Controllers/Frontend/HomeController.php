@@ -31,7 +31,7 @@ class HomeController extends Controller
                     ->where('is_active', true)
                     ->latest()
                     ->take($category->homepage_max_products)
-                    ->get(['id', 'title', 'slug', 'featured_image', 'base_price', 'average_rating', 'total_sold', 'total_reviews', 'metrics_mode', 'metrics_start_date', 'metrics_daily_avg', 'rating_metrics_mode', 'rating_metrics_start_date', 'rating_metrics_interval_days', 'rating_metrics_count', 'rating_metrics_min', 'rating_metrics_max']);
+                    ->get(['id', 'title', 'slug', 'featured_image', 'category_id', 'base_price', 'average_rating', 'total_sold', 'total_reviews', 'metrics_mode', 'metrics_start_date', 'metrics_daily_avg', 'rating_metrics_mode', 'rating_metrics_start_date', 'rating_metrics_interval_days', 'rating_metrics_count', 'rating_metrics_min', 'rating_metrics_max']);
             }
             return $categories;
         });
@@ -54,7 +54,7 @@ class HomeController extends Controller
                 $query->latest();
             }
             
-            return $query->paginate(20, ['id', 'title', 'slug', 'featured_image', 'base_price', 'average_rating', 'total_sold', 'total_reviews', 'metrics_mode', 'metrics_start_date', 'metrics_daily_avg', 'rating_metrics_mode', 'rating_metrics_start_date', 'rating_metrics_interval_days', 'rating_metrics_count', 'rating_metrics_min', 'rating_metrics_max']);
+            return $query->paginate(20, ['id', 'title', 'slug', 'featured_image', 'category_id', 'base_price', 'average_rating', 'total_sold', 'total_reviews', 'metrics_mode', 'metrics_start_date', 'metrics_daily_avg', 'rating_metrics_mode', 'rating_metrics_start_date', 'rating_metrics_interval_days', 'rating_metrics_count', 'rating_metrics_min', 'rating_metrics_max']);
         })();
 
         $trendingSettings = [
@@ -84,7 +84,7 @@ class HomeController extends Controller
                 $query->take($trendingSettings['grid_max']);
             }
             
-            return $query->get(['id', 'title', 'slug', 'featured_image', 'base_price', 'average_rating', 'total_sold', 'total_reviews', 'metrics_mode', 'metrics_start_date', 'metrics_daily_avg', 'rating_metrics_mode', 'rating_metrics_start_date', 'rating_metrics_interval_days', 'rating_metrics_count', 'rating_metrics_min', 'rating_metrics_max']);
+            return $query->get(['id', 'title', 'slug', 'featured_image', 'category_id', 'base_price', 'average_rating', 'total_sold', 'total_reviews', 'metrics_mode', 'metrics_start_date', 'metrics_daily_avg', 'rating_metrics_mode', 'rating_metrics_start_date', 'rating_metrics_interval_days', 'rating_metrics_count', 'rating_metrics_min', 'rating_metrics_max']);
         });
 
         return view('welcome', compact('heroSlides', 'homepageCategories', 'justForYouProducts', 'trendingProducts', 'trendingSettings'));
@@ -108,7 +108,7 @@ class HomeController extends Controller
             $query->latest();
         }
         
-        return $query->paginate(20, ['id', 'title', 'slug', 'featured_image', 'base_price', 'average_rating', 'total_sold', 'total_reviews', 'metrics_mode', 'metrics_start_date', 'metrics_daily_avg', 'rating_metrics_mode', 'rating_metrics_start_date', 'rating_metrics_interval_days', 'rating_metrics_count', 'rating_metrics_min', 'rating_metrics_max']);
+        return $query->paginate(20, ['id', 'title', 'slug', 'featured_image', 'category_id', 'base_price', 'average_rating', 'total_sold', 'total_reviews', 'metrics_mode', 'metrics_start_date', 'metrics_daily_avg', 'rating_metrics_mode', 'rating_metrics_start_date', 'rating_metrics_interval_days', 'rating_metrics_count', 'rating_metrics_min', 'rating_metrics_max']);
     }
 
     public function checkout()

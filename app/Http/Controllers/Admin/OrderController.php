@@ -79,6 +79,7 @@ class OrderController extends Controller
         ];
 
         $order = Order::create([
+            'user_id' => $request->user_id ?: null,
             'total' => $request->total ?? 0,
             'subtotal' => $request->subtotal ?? 0,
             'shipping_cost' => $request->delivery_charge ?? 0,
@@ -89,6 +90,8 @@ class OrderController extends Controller
             'shipping_address' => $shipping,
             'order_notes' => $request->notes,
             'order_source' => $request->source ?? 'Manual',
+            'ip_address' => $request->ip(),
+            'guest_info' => $request->visitor_token ? ['visitor_token' => $request->visitor_token] : null,
         ]);
 
         foreach ($request->items as $item) {

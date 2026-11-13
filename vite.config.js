@@ -11,7 +11,10 @@ export default defineConfig({
         tailwindcss(),
     ],
     server: {
-        host: '192.168.0.212', // Set to local network IP
+        host: '0.0.0.0',
+        hmr: {
+            host: 'localhost',
+        },
         cors: { origin: '*' },
         watch: {
             ignored: ['**/storage/framework/views/**'],

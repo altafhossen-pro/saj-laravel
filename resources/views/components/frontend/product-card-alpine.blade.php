@@ -17,10 +17,10 @@
             </div>
         </template>
 
-        <!-- Sale Badge -->
-        <template x-if="item.original_price && item.base_price < item.original_price">
-            <div class="absolute top-2 left-2 bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full tracking-wide uppercase shadow-sm z-10"
-                x-text="'Save ' + Math.round(((item.original_price - item.base_price) / item.original_price) * 100) + '%'">
+        <!-- Offer Badge (Only shown when active category offer exists) -->
+        <template x-if="item.active_discount_percent && item.active_discount_percent > 0">
+            <div class="absolute top-2 left-2 bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full tracking-wide shadow-sm z-10"
+                x-text="'-' + item.active_discount_percent + '%'">
             </div>
         </template>
     </div>
@@ -41,10 +41,10 @@
 
         <div class="mt-auto flex items-end justify-between gap-2">
             <div class="flex items-baseline gap-2 flex-wrap">
-                <span class="text-lg font-bold text-brand-600 leading-none" x-text="'৳' + item.base_price"></span>
+                <span class="text-lg font-bold text-brand-600 leading-none" x-text="'৳' + Math.round(item.base_price)"></span>
                 <template x-if="item.original_price && item.base_price < item.original_price">
                     <span class="text-xs text-gray-400 line-through leading-none"
-                        x-text="'৳' + item.original_price"></span>
+                        x-text="'৳' + Math.round(item.original_price)"></span>
                 </template>
             </div>
         </div>

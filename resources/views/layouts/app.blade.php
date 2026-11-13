@@ -655,6 +655,16 @@
                     }
                     this.save();
 
+                    // Track journey event for live monitor
+                    if (typeof window.recordJourneyEvent === 'function') {
+                        const pTitle = product.name || product.title || 'Product';
+                        const vName = product.variant_name ? ' (' + product.variant_name + ')' : '';
+                        window.recordJourneyEvent('cart_add', 'Added: ' + pTitle + vName, {
+                            qty: product.quantity,
+                            price: product.price
+                        });
+                    }
+
                     // Global Meta Pixel AddToCart Event
                     if (typeof window.trackFbEvent === 'function') {
                         window.trackFbEvent('AddToCart', {
@@ -671,6 +681,12 @@
                 },
 
                 remove(index) {
+                    const removedItem = this.items[index];
+                    if (removedItem && typeof window.recordJourneyEvent === 'function') {
+                        const pTitle = removedItem.name || removedItem.title || 'Product';
+                        const vName = removedItem.variant_name ? ' (' + removedItem.variant_name + ')' : '';
+                        window.recordJourneyEvent('cart_remove', 'Removed: ' + pTitle + vName);
+                    }
                     this.items.splice(index, 1);
                     this.save();
                 },
@@ -691,6 +707,76 @@
 
                 get totalItems() {
                     return this.items.reduce((sum, item) => sum + item.quantity, 0);
+                },
+
+                // Real-time backend validation: syncs latest price, flags out-of-stock & adjust quantities
+                priceAlerts: [],
+                isValidating: false,
+
+                dismissAlert(index) {
+                    this.priceAlerts.splice(index, 1);
+                },
+
+                validateStockAndPrice() {
+                    if (this.isValidating || this.items.length === 0) return;
+                    this.isValidating = true;
+
+                    const payload = JSON.stringify({ items: this.items });
+                    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '{{ csrf_token() }}';
+
+                    fetch('{{ route('api.cart.validate') }}', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRF-TOKEN': csrfToken,
+                            'Accept': 'application/json'
+                        },
+                        body: payload
+                    })
+                    .then(res => res.json())
+                    .then(data => {
+                        if (data && data.success && Array.isArray(data.items)) {
+                            let hasUpdates = false;
+
+                            // Update cart items with current prices & stock statuses
+                            data.items.forEach(validated => {
+                                const localItem = this.items.find(i => 
+                                    i.product_id === validated.product_id && 
+                                    (i.variant_id || null) === (validated.variant_id || null)
+                                );
+                                if (localItem) {
+                                    if (localItem.price !== validated.price) {
+                                        localItem.price = validated.price;
+                                        hasUpdates = true;
+                                    }
+                                    if (localItem.quantity !== validated.quantity) {
+                                        localItem.quantity = validated.quantity;
+                                        hasUpdates = true;
+                                    }
+                                    localItem.is_out_of_stock = validated.is_out_of_stock || false;
+                                    localItem.max_stock = validated.max_stock || 999;
+                                }
+                            });
+
+                            if (hasUpdates) {
+                                this.save();
+                            }
+
+                            // Capture price change & stock notices (without duplicates)
+                            if (Array.isArray(data.changes) && data.changes.length > 0) {
+                                data.changes.forEach(ch => {
+                                    const exists = this.priceAlerts.some(a => a.message === ch.message);
+                                    if (!exists) {
+                                        this.priceAlerts.push(ch);
+                                    }
+                                });
+                            }
+                        }
+                    })
+                    .catch(() => {})
+                    .finally(() => {
+                        this.isValidating = false;
+                    });
                 }
             });
 
@@ -788,9 +874,22 @@
                 var nowSec = Math.floor(Date.now() / 1000);
                 var formattedTime = (new Date()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true });
 
+                // Synchronize page title instantly when document.title updates
+                document.addEventListener('DOMContentLoaded', function () {
+                    if (document.title && document.title !== currentTitle) {
+                        currentTitle = document.title;
+                        var ls = visitorHistory.length > 0 ? visitorHistory[visitorHistory.length - 1] : null;
+                        if (ls && ls.type === 'page') {
+                            ls.title = currentTitle;
+                            try { localStorage.setItem(HISTORY_KEY, JSON.stringify(visitorHistory)); } catch (e) { }
+                        }
+                    }
+                });
+
                 var lastStep = visitorHistory.length > 0 ? visitorHistory[visitorHistory.length - 1] : null;
-                if (!lastStep || lastStep.url !== currentUrl) {
+                if (!lastStep || (lastStep.type === 'page' && lastStep.url !== currentUrl) || lastStep.type !== 'page') {
                     visitorHistory.push({
+                        type: 'page',
                         url: currentUrl,
                         title: currentTitle,
                         time: formattedTime,
@@ -805,6 +904,34 @@
                     lastStep.title = currentTitle;
                     try { localStorage.setItem(HISTORY_KEY, JSON.stringify(visitorHistory)); } catch (e) { }
                 }
+
+                // Global helper to record custom journey events (e.g., cart add, cart remove, checkout action)
+                window.recordJourneyEvent = function (eventType, title, extra) {
+                    try {
+                        var nowS = Math.floor(Date.now() / 1000);
+                        var fTime = (new Date()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true });
+                        var eventObj = {
+                            type: eventType,
+                            title: title,
+                            url: window.location.pathname + window.location.search,
+                            time: fTime,
+                            timestamp: nowS
+                        };
+                        if (extra && typeof extra === 'object') {
+                            Object.assign(eventObj, extra);
+                        }
+                        visitorHistory.push(eventObj);
+                        if (visitorHistory.length > 25) {
+                            visitorHistory = visitorHistory.slice(-25);
+                        }
+                        localStorage.setItem(HISTORY_KEY, JSON.stringify(visitorHistory));
+
+                        // Instantly pulse heartbeat with updated history
+                        if (typeof window.triggerVisitorPulse === 'function') {
+                            window.triggerVisitorPulse('journey_event');
+                        }
+                    } catch (e) { }
+                };
 
                 // First visit of the day check
                 var isNewDaily = !localStorage.getItem(TODAY_KEY);
@@ -919,6 +1046,27 @@
                     var isVisible = (document.visibilityState === 'visible');
                     var isEngaged = (Date.now() - lastUserActionTime) < 30000 && isVisible;
                     var endpoint = '/visitor-heartbeat.php';
+
+                    // Get realtime cart summary from Alpine store or localStorage
+                    var cartTotalItems = 0;
+                    var cartTotalAmount = 0;
+                    try {
+                        if (window.Alpine && window.Alpine.store('cart')) {
+                            var alpineCart = window.Alpine.store('cart');
+                            cartTotalItems = alpineCart.totalItems || 0;
+                            cartTotalAmount = alpineCart.totalAmount || 0;
+                        } else {
+                            var storedCart = JSON.parse(localStorage.getItem('cart') || '[]');
+                            if (Array.isArray(storedCart)) {
+                                storedCart.forEach(function (ci) {
+                                    var q = parseInt(ci.quantity) || 1;
+                                    cartTotalItems += q;
+                                    cartTotalAmount += ((parseFloat(ci.price) || 0) * q);
+                                });
+                            }
+                        }
+                    } catch (e) { }
+
                     var payload = JSON.stringify({
                         vid: vid,
                         act: action || 'ping',
@@ -931,6 +1079,8 @@
                         scroll_percent: maxScrollPercent,
                         profile: getProfile(),
                         history: visitorHistory,
+                        cart_total_items: cartTotalItems,
+                        cart_total_amount: cartTotalAmount,
                         is_new: isNewDaily ? 1 : 0
                     });
 
@@ -987,20 +1137,32 @@
                 // Immediate initial pulse on page load
                 sendPulse('enter');
 
+                // Additional quick follow-up pulse after full DOM ready to guarantee latest title & active state
+                document.addEventListener('DOMContentLoaded', function () {
+                    setTimeout(function () {
+                        sendPulse('dom_ready');
+                    }, 500);
+                });
+
                 // Adaptive heartbeat timer:
-                // Active Tab: Every 4 seconds (Super-fast tracking & instant offer delivery)
-                // Inactive / Background Tab: Every 18 seconds (Keeps user alive on Live Monitor, saves 90% CPU)
+                // Active Tab: Every 2 seconds (Real-time fast tracking & instant offer delivery)
+                // Inactive / Background Tab: Every 15 seconds (Keeps user alive on Live Monitor, saves CPU)
                 var heartbeatTimer = null;
                 function scheduleNextPulse() {
                     if (heartbeatTimer) clearTimeout(heartbeatTimer);
                     var isVisible = (document.visibilityState === 'visible');
-                    var intervalMs = isVisible ? 4000 : 18000;
+                    var intervalMs = isVisible ? 2000 : 15000;
 
                     heartbeatTimer = setTimeout(function () {
                         sendPulse('ping');
                         scheduleNextPulse();
                     }, intervalMs);
                 }
+
+                // Global instant pulse trigger for fast event updates (e.g. Add to Cart, checkout typing)
+                window.triggerVisitorPulse = function (action) {
+                    sendPulse(action || 'instant');
+                };
 
                 // Start loop
                 scheduleNextPulse();

@@ -37,6 +37,93 @@ class VisitorFootprintController extends Controller
     }
 
     /**
+     * Get real-time cart items, customer info and revision history for a shopper
+     */
+    public function getShopperCart(Request $request, string $visitorToken): JsonResponse
+    {
+        $cart = CartSession::where('visitor_token', $visitorToken)
+            ->latest('id')
+            ->first();
+
+        // Also check RAM / Cache live session for any extra profile data
+        $liveProfile = [];
+        foreach (['/dev/shm/ariomart_visitors', storage_path('framework/cache/visitors')] as $dir) {
+            $activeFile = $dir . '/live_sessions.json';
+            if (file_exists($activeFile)) {
+                $sessions = json_decode(@file_get_contents($activeFile), true);
+                if (is_array($sessions) && isset($sessions[$visitorToken])) {
+                    $liveProfile = $sessions[$visitorToken];
+                    break;
+                }
+            }
+        }
+
+        $items = $cart && is_array($cart->items) ? $cart->items : [];
+        $totalItems = $cart ? $cart->total_items : count($items);
+        $totalAmount = $cart ? (float) $cart->total_amount : 0.0;
+
+        // Enrich cart items with product SKU & stock details for seamless POS/Order population
+        $productIds = array_filter(array_column($items, 'product_id'));
+        $variantIds = array_filter(array_column($items, 'variant_id'));
+
+        $productsById = !empty($productIds)
+            ? \App\Models\Product\Product::whereIn('id', $productIds)->get()->keyBy('id')
+            : collect();
+
+        $variantsById = !empty($variantIds)
+            ? \App\Models\Product\ProductVariant::whereIn('id', $variantIds)->get()->keyBy('id')
+            : collect();
+
+        foreach ($items as &$item) {
+            $pId = (int)($item['product_id'] ?? 0);
+            $vId = !empty($item['variant_id']) ? (int)$item['variant_id'] : null;
+
+            $product = $productsById->get($pId);
+            $variant = $vId ? $variantsById->get($vId) : null;
+
+            $item['sku'] = $variant?->sku ?: ($product?->sku ?: '');
+            $item['max_stock'] = $variant ? (int)$variant->stock_quantity : ($product ? (int)$product->stock_quantity : 999);
+            if (empty($item['image']) && $product) {
+                $item['image'] = $product->featured_image;
+            }
+        }
+        unset($item);
+
+        $customerName = $cart?->customer_name ?: ($liveProfile['name'] ?? null);
+        $customerPhone = $cart?->customer_phone ?: ($liveProfile['phone'] ?? null);
+        $customerAddress = $cart?->customer_address ?: ($liveProfile['address'] ?? null);
+        $history = $cart && is_array($cart->info_history) ? $cart->info_history : [];
+
+        // If no cart history yet but we have live info, create a default version 1
+        if (empty($history) && ($customerName || $customerPhone || $customerAddress)) {
+            $history = [
+                [
+                    'version' => 1,
+                    'name' => $customerName,
+                    'phone' => $customerPhone,
+                    'address' => $customerAddress,
+                    'time' => $cart?->updated_at?->format('h:i:s A (d M)') ?: date('h:i:s A (d M)'),
+                ]
+            ];
+        }
+
+        return response()->json([
+            'success' => true,
+            'visitor_token' => $visitorToken,
+            'user_id' => $cart?->user_id ?: ($liveProfile['user_id'] ?? null),
+            'has_cart' => !empty($items),
+            'items' => $items,
+            'total_items' => $totalItems,
+            'total_amount' => $totalAmount,
+            'customer_name' => $customerName,
+            'customer_phone' => $customerPhone,
+            'customer_address' => $customerAddress,
+            'info_history' => $history,
+            'last_active' => $cart?->last_activity_at?->diffForHumans() ?: 'Just now',
+        ]);
+    }
+
+    /**
      * Display date-wise visitor history and session footprints
      */
     public function index(Request $request)

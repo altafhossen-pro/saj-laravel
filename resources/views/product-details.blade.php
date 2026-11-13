@@ -313,8 +313,8 @@
 
                 $variantsJson[] = [
                     'id' => $variant->id,
-                    'price' => $variant->current_price,
-                    'old_price' => $variant->original_price,
+                    'price' => (int) round($variant->current_price),
+                    'old_price' => $variant->original_price !== null ? (int) round($variant->original_price) : null,
                     'stock' => $variant->stock_quantity,
                     'sku' => $variant->sku,
                     'attributes' => $attrs,
@@ -364,8 +364,8 @@
         <!-- Product Details Wrapper -->
         <div class="flex flex-col lg:flex-row gap-8 bg-white p-4 lg:p-6 rounded-2xl shadow-sm border border-gray-100"
             x-data="productDetails({ 
-                                                            basePrice: {{ $product->base_price ?? 0 }}, 
-                                                            oldPrice: {{ $product->original_price ?? 0 }},
+                                                            basePrice: {{ (int) round($product->base_price ?? 0) }}, 
+                                                            oldPrice: {{ (int) round($product->original_price ?? 0) }},
                                                             variants: {{ json_encode($variantsJson) }},
                                                             isVariable: {{ $product->product_type === 'variable' ? 'true' : 'false' }},
                                                             availableAttributesKeys: {{ json_encode(array_keys($availableAttributes)) }},
@@ -418,12 +418,12 @@
                         :style="isZoomed ? 'transform: scale(2.4); transform-origin: ' + zoomX + '% ' + zoomY + '%;' : 'transform: scale(1); transform-origin: center center;'"
                         alt="{{ $product->title }}">
 
-                    <!-- Discount Badge -->
-                    <div x-show="currentOldPrice && Number(currentOldPrice) > Number(currentPrice)"
-                        style="{{ ($product->original_price ?? 0) > ($product->base_price ?? 0) ? '' : 'display:none;' }}"
-                        class="absolute top-4 left-4 bg-red-500 text-white text-xs font-bold px-3 py-1 rounded-full tracking-wide uppercase shadow-sm z-30 pointer-events-none">
-                        Save <span x-text="Math.round(((Number(currentOldPrice) - Number(currentPrice)) / Number(currentOldPrice)) * 100) + '%'">{{ ($product->original_price ?? 0) > ($product->base_price ?? 0) ? round((($product->original_price - $product->base_price) / $product->original_price) * 100) . '%' : '' }}</span>
-                    </div>
+                    <!-- Discount Badge (Only shown when active category offer exists) -->
+                    @if($product->active_discount_percent && $product->active_discount_percent > 0)
+                        <div class="absolute top-4 left-4 bg-red-500 text-white text-xs font-bold px-2.5 py-1 rounded-full tracking-wide shadow-sm z-30 pointer-events-none">
+                            -{{ $product->active_discount_percent }}%
+                        </div>
+                    @endif
 
                     <!-- Expand / Fullscreen Button -->
                     <button type="button" 
@@ -555,11 +555,11 @@
                 <div
                     class="mb-3 md:mb-4 md:bg-gray-50 md:p-4 md:rounded-xl md:border md:border-gray-100 flex items-center gap-4 w-full md:max-w-sm">
                     <span class="text-3xl font-bold text-brand-600">৳<span
-                            x-text="currentPrice">{{ $product->base_price ?? 0 }}</span></span>
+                            x-text="currentPrice">{{ (int) round($product->base_price ?? 0) }}</span></span>
                     <span x-show="currentOldPrice && Number(currentOldPrice) > Number(currentPrice)"
                         class="text-lg text-gray-400 line-through"
                         style="{{ ($product->original_price ?? 0) > ($product->base_price ?? 0) ? '' : 'display:none' }}">
-                        ৳<span x-text="currentOldPrice">{{ $product->original_price ?? 0 }}</span>
+                        ৳<span x-text="currentOldPrice">{{ (int) round($product->original_price ?? 0) }}</span>
                     </span>
                 </div>
 
@@ -1204,8 +1204,8 @@
                             });
 
                             if (match) {
-                                this.currentPrice = match.price;
-                                this.currentOldPrice = match.old_price;
+                                this.currentPrice = Math.round(match.price);
+                                this.currentOldPrice = match.old_price ? Math.round(match.old_price) : null;
                                 this.currentSku = match.sku;
                                 this.currentStock = match.stock;
                                 this.currentVariantId = match.id;

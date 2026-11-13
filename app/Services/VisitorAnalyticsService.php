@@ -88,6 +88,7 @@ class VisitorAnalyticsService
                         'name' => $item['name'] ?? null,
                         'phone' => $item['phone'] ?? null,
                         'email' => $item['email'] ?? null,
+                        'address' => $item['address'] ?? null,
                         'is_logged_in' => !empty($item['is_logged_in']),
                         'last_seen_as' => $item['last_seen_as'] ?? ($item['name'] ?? null),
                         'url' => $item['url'] ?? '/',
@@ -97,6 +98,9 @@ class VisitorAnalyticsService
                         'is_engaged' => !empty($item['is_engaged']),
                         'is_visible' => isset($item['is_visible']) ? (bool)$item['is_visible'] : true,
                         'scroll_percent' => (int)($item['scroll_percent'] ?? 0),
+                        'cart_items' => (int)($item['cart_total_items'] ?? ($item['cart_items'] ?? 0)),
+                        'cart_total' => (float)($item['cart_total_amount'] ?? ($item['cart_total'] ?? 0)),
+                        'info_history' => isset($item['info_history']) && is_array($item['info_history']) ? $item['info_history'] : [],
                         'seconds_ago' => max(0, $diff),
                         'duration' => isset($item['first_seen']) ? max(0, $now - (int)$item['first_seen']) : 0,
                         'history' => isset($item['history']) && is_array($item['history']) ? $item['history'] : [
@@ -144,15 +148,19 @@ class VisitorAnalyticsService
                 $key = 'uid_' . $v['user_id'];
             } elseif (!empty($v['phone'])) {
                 $key = 'phone_' . preg_replace('/[^0-9]/', '', $v['phone']);
-            } elseif (!empty($v['name']) && $v['is_logged_in']) {
+            } elseif (!empty($v['name']) && !empty($v['is_logged_in'])) {
                 $key = 'name_' . strtolower(trim($v['name']));
             }
 
             if ($key) {
                 if (isset($seen[$key])) {
+                    $prevIdx = $seen[$key];
+                    if (empty($deduped[$prevIdx]['title']) && !empty($v['title'])) {
+                        $deduped[$prevIdx]['title'] = $v['title'];
+                    }
                     continue;
                 }
-                $seen[$key] = true;
+                $seen[$key] = count($deduped);
             }
             $deduped[] = $v;
         }

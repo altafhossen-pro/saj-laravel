@@ -41,7 +41,77 @@ class Product extends Model
         'metrics_start_date' => 'date',
     ];
 
-    protected $appends = ['total_sold', 'original_price', 'total_reviews'];
+    protected $appends = ['total_sold', 'original_price', 'total_reviews', 'active_discount_percent'];
+
+    /**
+     * Get the active category offer if applicable.
+     */
+    public function getActiveOfferAttribute(): ?\App\Models\CategoryOffer
+    {
+        if ($this->exclude_from_category_discount) {
+            return null;
+        }
+
+        $activeOffers = \Illuminate\Support\Facades\Cache::remember('active_category_offers_list', 60, function () {
+            return \App\Models\CategoryOffer::where('is_active', true)->get();
+        });
+
+        if ($activeOffers->isEmpty()) {
+            return null;
+        }
+
+        // 1. Direct category match
+        if ($this->category_id) {
+            $direct = $activeOffers->firstWhere('category_id', $this->category_id);
+            if ($direct) {
+                return $direct;
+            }
+        }
+
+        // 2. Store-wide offer (category_id is null)
+        $storewide = $activeOffers->first(fn($o) => is_null($o->category_id));
+        if ($storewide) {
+            return $storewide;
+        }
+
+        // 3. Parent category offer if include_subcategories is true
+        if ($this->category_id) {
+            $cat = $this->relationLoaded('category') ? $this->category : $this->category()->first();
+            if ($cat && $cat->parent_id) {
+                $parentOffer = $activeOffers->firstWhere('category_id', $cat->parent_id);
+                if ($parentOffer && $parentOffer->include_subcategories) {
+                    return $parentOffer;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Get active discount percentage for badge display (-18%).
+     * Returns null if no active offer exists.
+     */
+    public function getActiveDiscountPercentAttribute(): ?int
+    {
+        $offer = $this->active_offer;
+        if (!$offer || !$offer->is_active) {
+            return null;
+        }
+
+        if ($offer->discount_type === 'percentage') {
+            return (int) round($offer->discount_value);
+        }
+
+        // For fixed discount, calculate percentage based on original price
+        $orig = (float) $this->original_price;
+        $curr = (float) $this->base_price;
+        if ($orig > 0 && $orig > $curr) {
+            return (int) round((($orig - $curr) / $orig) * 100);
+        }
+
+        return (int) round($offer->discount_value);
+    }
 
     /**
      * Get the original (compare/old) price for the product.

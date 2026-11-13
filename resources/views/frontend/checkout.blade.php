@@ -93,9 +93,17 @@
                             <div>
                                 <label class="block text-xs font-bold text-gray-700 mb-1.5">Mobile Number / মোবাইল নম্বরঃ
                                     <span class="text-red-500">*</span></label>
-                                <input type="tel" x-model="form.phone" @input="syncContactInfo()"
-                                    placeholder="Enter your mobile number here"
+                                <input type="tel" x-model="form.phone"
+                                    @input="handlePhoneInput($event)"
+                                    @keydown="if(!/[\d\+\b\t\r\n]/.test($event.key) && !$event.ctrlKey && !$event.metaKey && $event.key.length === 1) $event.preventDefault()"
+                                    maxlength="11"
+                                    placeholder="017xxxxxxxx"
                                     class="w-full bg-white border border-gray-200 rounded-md px-4 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-brand-500 focus:border-brand-500 transition-colors text-gray-800 placeholder-gray-400">
+                                <p x-show="form.phone && form.phone.length > 0 && !isPhoneValid(form.phone)"
+                                    class="text-[11px] text-amber-600 mt-1 flex items-center gap-1 font-medium">
+                                    <i class="ph ph-warning-circle"></i>
+                                    <span>মোবাইল নম্বর অবশ্যই 01 দিয়ে শুরু এবং মোট ১১ ডিজিট হতে হবে</span>
+                                </p>
                             </div>
                             <div class="sm:col-span-2">
                                 <label class="block text-xs font-bold text-gray-700 mb-1.5">Delivery Address / ডেলিভারি
@@ -201,18 +209,44 @@
             <!-- Right Column: Order Summary -->
             <div class="checkout-right">
                 <div class="bg-white rounded-lg border border-gray-200 shadow-sm p-6">
-                    <h3 class="text-sm font-bold text-gray-900 mb-5 pb-4 border-b border-gray-100 uppercase tracking-wide">
+                    <h3 class="text-sm font-bold text-gray-900 mb-4 pb-3 border-b border-gray-100 uppercase tracking-wide">
                         Order Summary</h3>
+
+                    <!-- Price & Stock Change Notice Alerts with Dismiss Button -->
+                    <template x-for="(alert, aIdx) in $store.cart.priceAlerts" :key="aIdx">
+                        <div class="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-xl text-amber-900 text-xs flex items-start justify-between gap-2 shadow-xs animate-fadeIn">
+                            <div class="flex items-start gap-2">
+                                <i class="ph-bold ph-info text-amber-600 text-base shrink-0 mt-0.5"></i>
+                                <span class="leading-relaxed font-medium" x-text="alert.message"></span>
+                            </div>
+                            <button type="button" @click="$store.cart.dismissAlert(aIdx)"
+                                    class="text-amber-500 hover:text-amber-800 p-1 rounded-md hover:bg-amber-100/70 transition shrink-0 cursor-pointer"
+                                    title="Dismiss Notice">
+                                <i class="ph-bold ph-x text-sm"></i>
+                            </button>
+                        </div>
+                    </template>
 
                     <div class="space-y-4 max-h-[400px] overflow-y-auto custom-scrollbar pr-2 mb-6">
                         <template x-for="(item, index) in $store.cart.items" :key="index">
                             <div
-                                class="flex gap-4 items-start pb-4 border-b border-gray-50 last:border-0 last:pb-0 relative group">
-                                <div class="w-16 h-16 rounded border border-gray-100 bg-gray-50 overflow-hidden shrink-0">
+                                class="flex gap-4 items-start pb-4 border-b border-gray-50 last:border-0 last:pb-0 relative group p-2 rounded-lg transition"
+                                :class="item.is_out_of_stock ? 'bg-rose-50/50 border border-rose-200' : ''">
+                                <div class="w-16 h-16 rounded border border-gray-100 bg-gray-50 overflow-hidden shrink-0 relative">
                                     <img :src="item.image" :alt="item.title" class="w-full h-full object-cover">
+                                    <template x-if="item.is_out_of_stock">
+                                        <span class="absolute inset-0 bg-black/60 text-white text-[9px] font-bold flex items-center justify-center text-center p-0.5 uppercase tracking-wider">
+                                            স্টক আউট
+                                        </span>
+                                    </template>
                                 </div>
                                 <div class="flex-1 min-w-0">
-                                    <h4 class="text-sm font-semibold text-gray-900 truncate" x-text="item.title"></h4>
+                                    <div class="flex items-center gap-1.5 flex-wrap">
+                                        <h4 class="text-sm font-semibold text-gray-900 truncate" x-text="item.title"></h4>
+                                        <template x-if="item.is_out_of_stock">
+                                            <span class="px-1.5 py-0.2 rounded text-[10px] font-bold bg-rose-100 text-rose-700 uppercase">স্টক আউট</span>
+                                        </template>
+                                    </div>
                                     <div class="text-[11px] text-gray-500 mt-0.5 truncate"
                                         x-text="item.variant_label ? 'Variant: ' + item.variant_label : 'Single Piece'">
                                     </div>
@@ -224,14 +258,15 @@
                                             <button type="button"
                                                 @click="$store.cart.updateQuantity(index, item.quantity - 1)"
                                                 class="w-7 h-7 flex items-center justify-center text-gray-500 hover:text-brand-600 hover:bg-brand-50 transition-colors rounded-l-md disabled:opacity-30 disabled:cursor-not-allowed"
-                                                :disabled="item.quantity <= 1">
+                                                :disabled="item.quantity <= 1 || item.is_out_of_stock">
                                                 <i class="ph-bold ph-minus text-[10px]"></i>
                                             </button>
                                             <span class="w-8 text-center text-xs font-bold text-gray-700"
                                                 x-text="item.quantity"></span>
                                             <button type="button"
                                                 @click="$store.cart.updateQuantity(index, item.quantity + 1)"
-                                                class="w-7 h-7 flex items-center justify-center text-gray-500 hover:text-brand-600 hover:bg-brand-50 transition-colors rounded-r-md">
+                                                class="w-7 h-7 flex items-center justify-center text-gray-500 hover:text-brand-600 hover:bg-brand-50 transition-colors rounded-r-md disabled:opacity-30 disabled:cursor-not-allowed"
+                                                :disabled="item.is_out_of_stock">
                                                 <i class="ph-bold ph-plus text-[10px]"></i>
                                             </button>
                                         </div>
@@ -353,6 +388,34 @@
             </div>
         </div>
 
+        <!-- Order Alert Modal (Stock out or Price Mismatch) -->
+        <div x-show="alertModalOpen" style="display: none;"
+            class="fixed inset-0 z-[110] flex items-center justify-center p-4">
+            <div x-show="alertModalOpen" x-transition:enter="ease-out duration-300" x-transition:enter-start="opacity-0"
+                x-transition:enter-end="opacity-100" x-transition:leave="ease-in duration-200"
+                x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0"
+                class="fixed inset-0 bg-black/60 backdrop-blur-sm" @click="alertModalOpen = false"></div>
+            <div x-show="alertModalOpen" x-transition:enter="ease-out duration-300"
+                x-transition:enter-start="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
+                x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100" x-transition:leave="ease-in duration-200"
+                x-transition:leave-start="opacity-100 translate-y-0 sm:scale-100"
+                x-transition:leave-end="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
+                class="relative bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden z-10 border border-gray-100">
+                <div class="p-6 text-center">
+                    <div
+                        class="w-16 h-16 bg-amber-50 text-amber-500 rounded-full flex items-center justify-center mx-auto mb-4 border-4 border-white shadow-sm">
+                        <i class="ph-bold ph-warning text-3xl"></i>
+                    </div>
+                    <h3 class="text-lg font-bold text-gray-900 mb-2">অর্ডার প্রক্রিয়াকরণে সমস্যা</h3>
+                    <p class="text-sm text-gray-600 mb-6 leading-relaxed whitespace-pre-line" x-text="alertModalMessage"></p>
+                    <div class="flex items-center gap-3">
+                        <button type="button" @click="alertModalOpen = false"
+                            class="w-full px-5 py-3 bg-brand-600 hover:bg-brand-700 text-white rounded-xl text-sm font-bold transition-all shadow-md">ঠিক আছে, বুঝতে পেরেছি</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- Remove Confirmation Modal -->
         <div x-show="removeModalOpen" style="display: none;"
             class="fixed inset-0 z-[100] flex items-center justify-center p-4">
@@ -403,6 +466,42 @@
                     coupon_code: ''
                 },
 
+                handlePhoneInput(e) {
+                    let val = e.target.value || '';
+
+                    // 1. If user typed or pasted with +88 or 88, clean it
+                    val = val.replace(/[^\d+]/g, '');
+                    if (val.startsWith('+880')) {
+                        val = '0' + val.slice(4);
+                    } else if (val.startsWith('+88')) {
+                        val = val.slice(3);
+                        if (!val.startsWith('0')) val = '0' + val;
+                    } else if (val.startsWith('880')) {
+                        val = '0' + val.slice(3);
+                    } else if (val.startsWith('+')) {
+                        val = val.replace(/^\+/, '');
+                    }
+
+                    // Keep only numbers
+                    val = val.replace(/\D/g, '');
+                    if (val.startsWith('880')) {
+                        val = '0' + val.slice(3);
+                    }
+
+                    // Max 11 digits
+                    val = val.slice(0, 11);
+
+                    this.form.phone = val;
+                    e.target.value = val;
+
+                    this.syncContactInfo();
+                },
+
+                isPhoneValid(phone) {
+                    if (!phone) return false;
+                    return /^01[3-9]\d{8}$/.test(phone);
+                },
+
                 syncContactTimer: null,
                 syncContactInfo() {
                     if (this.syncContactTimer) clearTimeout(this.syncContactTimer);
@@ -411,12 +510,15 @@
                             const vid = localStorage.getItem('fb_vid') || '';
                             if (!vid || (!this.form.name && !this.form.phone && !this.form.address)) return;
 
+                            // Only store phone if it is valid 11 digits starting with 01
+                            const validPhone = this.isPhoneValid(this.form.phone) ? this.form.phone : '';
+
                             // Persist shopper profile locally for live monitor recognition & auto-fill
                             try {
                                 var p = JSON.parse(localStorage.getItem('fb_v_profile') || '{}') || {};
-                                if (this.form.name) p.name = this.form.name;
-                                if (this.form.phone) p.phone = this.form.phone;
-                                if (this.form.address) p.address = this.form.address;
+                                p.name = this.form.name || '';
+                                p.phone = validPhone || this.form.phone || '';
+                                p.address = this.form.address || '';
                                 if (this.form.name) p.last_seen_as = this.form.name;
                                 localStorage.setItem('fb_v_profile', JSON.stringify(p));
                             } catch (e) { }
@@ -431,24 +533,25 @@
                                 body: JSON.stringify({
                                     visitor_token: vid,
                                     name: this.form.name,
-                                    phone: this.form.phone,
+                                    phone: validPhone || this.form.phone,
                                     address: this.form.address
                                 })
+                            }).then(() => {
+                                if (window.triggerVisitorPulse) {
+                                    window.triggerVisitorPulse('checkout_info');
+                                }
                             }).catch(() => { });
                         } catch (e) { }
-                    }, 800);
+                    }, 600);
                 },
 
                 init() {
-                    // Auto-fill from remembered customer profile if fields are empty
-                    try {
-                        const savedProfile = JSON.parse(localStorage.getItem('fb_v_profile') || '{}') || {};
-                        if (!this.form.name && savedProfile.name) this.form.name = savedProfile.name;
-                        if (!this.form.phone && savedProfile.phone) this.form.phone = savedProfile.phone;
-                        if (!this.form.address && savedProfile.address) this.form.address = savedProfile.address;
-                    } catch (e) { }
-
+                    // Trigger real-time stock & price check as soon as checkout loads
                     this.$nextTick(() => {
+                        if (typeof Alpine !== 'undefined' && Alpine.store('cart')) {
+                            Alpine.store('cart').validateStockAndPrice();
+                        }
+
                         if (typeof window.trackFbEvent === 'function') {
                             const cart = typeof Alpine !== 'undefined' ? Alpine.store('cart') : null;
                             if (cart && cart.items && cart.items.length > 0) {
@@ -467,6 +570,8 @@
                 isSubmitting: false,
                 removeModalOpen: false,
                 itemToRemove: null,
+                alertModalOpen: false,
+                alertModalMessage: '',
 
                 couponInput: '',
                 appliedCoupon: null,
@@ -600,7 +705,11 @@
                         return;
                     }
                     if (!this.form.name || !this.form.phone || !this.form.address) {
-                        window.dispatchEvent(new CustomEvent('notify', { detail: { message: 'Please fill in all required fields.', type: 'error' } }));
+                        window.dispatchEvent(new CustomEvent('notify', { detail: { message: 'দয়া করে সব প্রয়োজনীয় তথ্য পূরণ করুন।', type: 'error' } }));
+                        return;
+                    }
+                    if (!this.isPhoneValid(this.form.phone)) {
+                        window.dispatchEvent(new CustomEvent('notify', { detail: { message: 'অনুগ্রহ করে ১১ ডিজিটের সঠিক মোবাইল নম্বর দিন (যেমন: 017xxxxxxxx)।', type: 'error' } }));
                         return;
                     }
 
@@ -646,10 +755,17 @@
                                 window.location.href = '/checkout/success/' + data.order_id;
                             }, 1000);
                         } else {
-                            throw new Error(data.message || 'Something went wrong while placing order.');
+                            // If price mismatch or out of stock, trigger real-time stock & price sync
+                            if (typeof Alpine !== 'undefined' && Alpine.store('cart')) {
+                                Alpine.store('cart').validateStockAndPrice();
+                            }
+                            this.alertModalMessage = data.message || 'অর্ডার সম্পন্ন করা সম্ভব হয়নি। অনুগ্রহ করে আপনার কার্ট চেক করুন।';
+                            this.alertModalOpen = true;
+                            return;
                         }
                     } catch (error) {
-                        window.dispatchEvent(new CustomEvent('notify', { detail: { message: error.message || 'Server error occurred.', type: 'error' } }));
+                        this.alertModalMessage = error.message || 'Server error occurred.';
+                        this.alertModalOpen = true;
                     } finally {
                         this.isSubmitting = false;
                     }

@@ -399,9 +399,9 @@
                     form: {
                         is_draft: false,
                         source: 'Facebook',
-                        customer_contact: '',
-                        customer_name: '',
-                        shipping_address: '',
+                        customer_contact: '{{ request('phone', '') }}',
+                        customer_name: '{{ addslashes(request('name', '')) }}',
+                        shipping_address: '{{ addslashes(request('address', '')) }}',
                         notes: '',
                         delivery_charge: 80,
                         discount: 0

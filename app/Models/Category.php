@@ -58,6 +58,11 @@ class Category extends Model
         return $this->hasMany(\App\Models\Product\Product::class);
     }
 
+    public function offer()
+    {
+        return $this->hasOne(\App\Models\CategoryOffer::class, 'category_id');
+    }
+
     public function getAllDescendantIds()
     {
         return \Illuminate\Support\Facades\Cache::rememberForever('category_descendants_' . $this->id, function () {

@@ -17,10 +17,10 @@
             </div>
         @endif
         
-        <!-- Sale Badge -->
-        @if($item->original_price && $item->base_price < $item->original_price)
-            <div class="absolute top-2 left-2 bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full tracking-wide uppercase shadow-sm z-10">
-                Save {{ round((($item->original_price - $item->base_price) / $item->original_price) * 100) }}%
+        <!-- Offer Badge (Only shown when active category offer exists) -->
+        @if($item->active_discount_percent && $item->active_discount_percent > 0)
+            <div class="absolute top-2 left-2 bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full tracking-wide shadow-sm z-10">
+                -{{ $item->active_discount_percent }}%
             </div>
         @endif
     </div>
@@ -42,9 +42,9 @@
             
         <div class="mt-auto flex items-end justify-between gap-2">
             <div class="flex items-baseline gap-2 flex-wrap">
-                <span class="text-lg font-bold text-brand-600 leading-none">৳{{ $item->base_price }}</span>
+                <span class="text-lg font-bold text-brand-600 leading-none">৳{{ (int) round($item->base_price) }}</span>
                 @if($item->original_price && $item->base_price < $item->original_price)
-                    <span class="text-xs text-gray-400 line-through leading-none">৳{{ $item->original_price }}</span>
+                    <span class="text-xs text-gray-400 line-through leading-none">৳{{ (int) round($item->original_price) }}</span>
                 @endif
             </div>
         </div>

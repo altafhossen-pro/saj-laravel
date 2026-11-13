@@ -22,7 +22,9 @@ Route::get('/checkout', [\App\Http\Controllers\Frontend\HomeController::class, '
 Route::post('/checkout', [\App\Http\Controllers\Frontend\CheckoutController::class, 'process'])->name('checkout.process');
 Route::post('/checkout/apply-coupon', [\App\Http\Controllers\Frontend\CheckoutController::class, 'applyCoupon'])->name('checkout.apply-coupon');
 Route::get('/checkout/success/{order_id}', [\App\Http\Controllers\Frontend\CheckoutController::class, 'success'])->name('checkout.success');
+// Cart Synchronization & Real-time Stock/Price Validation
 Route::post('/api/cart/sync', [\App\Http\Controllers\Frontend\CartSyncController::class, 'sync'])->name('api.cart.sync');
+Route::post('/api/cart/validate', [\App\Http\Controllers\Frontend\CartSyncController::class, 'validateCart'])->name('api.cart.validate');
 Route::post('/api/cart/update-info', [\App\Http\Controllers\Frontend\CartSyncController::class, 'updateCustomerInfo'])->name('api.cart.update-info');
 
 // Static Pages
@@ -147,6 +149,12 @@ Route::middleware(['auth', 'role:super_admin'])->prefix('admin/dashboard')->grou
     Route::post('/homepage/category-sections/reorder', [\App\Http\Controllers\Admin\HomepageSettingsController::class, 'reorderCategorySections'])->name('admin.homepage.category-sections.reorder');
     Route::get('/api/products/search', [\App\Http\Controllers\Admin\HomepageSettingsController::class, 'searchProducts'])->name('admin.api.products.search');
 
+    // Category Offers & Discount Matrix
+    Route::get('/category-offers', [\App\Http\Controllers\Admin\CategoryOfferController::class, 'index'])->name('admin.category-offers.index');
+    Route::post('/category-offers/{category}/save', [\App\Http\Controllers\Admin\CategoryOfferController::class, 'saveRow'])->name('admin.category-offers.save');
+    Route::post('/category-offers/{category}/toggle', [\App\Http\Controllers\Admin\CategoryOfferController::class, 'toggle'])->name('admin.category-offers.toggle');
+    Route::post('/category-offers/bulk-apply', [\App\Http\Controllers\Admin\CategoryOfferController::class, 'bulkApply'])->name('admin.category-offers.bulk-apply');
+
     // Coupons
     Route::get('/coupons/api/products', [\App\Http\Controllers\Admin\CouponController::class, 'getProducts'])->name('admin.coupons.api.products');
     Route::get('/coupons', [\App\Http\Controllers\Admin\CouponController::class, 'index'])->name('admin.coupons.index');
@@ -162,6 +170,7 @@ Route::middleware(['auth', 'role:super_admin'])->prefix('admin/dashboard')->grou
 
     // Visitor Footprint & Live Monitor Logs
     Route::get('/live-monitor', [\App\Http\Controllers\Admin\VisitorFootprintController::class, 'live'])->name('admin.visitors.live');
+    Route::get('/live-monitor/cart/{visitorToken}', [\App\Http\Controllers\Admin\VisitorFootprintController::class, 'getShopperCart'])->name('admin.visitors.shopper-cart');
     Route::get('/visitor-footprint', [\App\Http\Controllers\Admin\VisitorFootprintController::class, 'index'])->name('admin.visitors.footprint');
     Route::get('/visitor-footprint/{session}/journey', [\App\Http\Controllers\Admin\VisitorFootprintController::class, 'journey'])->name('admin.visitors.journey');
     Route::post('/visitor/send-offer', [\App\Http\Controllers\Admin\VisitorFootprintController::class, 'sendOffer'])->name('admin.visitors.send-offer');

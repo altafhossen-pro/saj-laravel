@@ -127,46 +127,54 @@ class CheckoutController extends Controller
         try {
             $totalSubtotal = 0;
             $orderItemsData = [];
+            $stockReductions = [];
 
-            // 2. Validate Items, Stock, and Prices
+            // 2. Validate Items, Stock with Pessimistic Lock, and Prices
             foreach ($data['items'] as $index => $item) {
-                $product = Product::find($item['product_id']);
+                // Lock product row for atomic race-condition safety
+                $product = Product::lockForUpdate()->find($item['product_id']);
 
                 if (!$product) {
-                    throw new Exception("Product not found.");
+                    throw new Exception("দুঃখিত! পণ্যটি খুঁজে পাওয়া যায়নি।");
                 }
 
-                // Check active status
-                if (!$product->is_active) {
-                    throw new Exception("Product '{$product->title}' is not available.");
+                // Check active status & force out of stock
+                if (!$product->is_active || $product->is_force_out_of_stock) {
+                    throw new Exception("দুঃখিত! '{$product->title}' পণ্যটি বর্তমানে আর উপলব্ধ নেই।");
                 }
 
                 $variant = null;
                 if (!empty($item['variant_id'])) {
-                    $variant = \App\Models\Product\ProductVariant::find($item['variant_id']);
+                    $variant = \App\Models\Product\ProductVariant::lockForUpdate()->find($item['variant_id']);
                 } elseif (!empty($item['variant_sku'])) {
-                    $variant = \App\Models\Product\ProductVariant::where('product_id', $product->id)
+                    $variant = \App\Models\Product\ProductVariant::lockForUpdate()
+                                ->where('product_id', $product->id)
                                 ->where('sku', $item['variant_sku'])->first();
                 }
 
                 if ($variant) {
-                    $actualPrice = $variant->sale_price > 0 ? $variant->sale_price : $variant->current_price;
-                    $stock = $variant->stock_quantity;
+                    $actualPrice = (float) ($variant->sale_price > 0 ? $variant->sale_price : $variant->current_price);
+                    $stock = (int) $variant->stock_quantity;
                 } else {
-                    $actualPrice = $product->base_price;
-                    $stock = $product->total_stock;
+                    $actualPrice = (float) $product->base_price;
+                    $stock = (int) $product->total_stock;
                 }
                 
-                if ($stock < $item['quantity']) {
-                    throw new Exception("Product '{$product->title}' does not have enough stock.");
+                // Real-time stock validation (Race condition catch)
+                if ($stock <= 0) {
+                    throw new Exception("দুঃখিত! আপনি অর্ডার সম্পন্ন করার মুহূর্তেই অন্য একজন গ্রাহক '{$product->title}'-এর শেষ স্টকটি অর্ডার করে ফেলেছেন। পণ্যটি এইমাত্র স্টক আউট হয়েছে।");
                 }
 
-                // Price tamper check
+                if ($stock < $item['quantity']) {
+                    throw new Exception("দুঃখিত! '{$product->title}'-এর আর মাত্র {$stock}টি অবশিষ্ট আছে। অনুগ্রহ করে পরিমাণ কমিয়ে আবার চেষ্টা করুন।");
+                }
+
+                // Price validation
                 $frontendPrice = (float) str_replace(',', '', $item['price']);
                 $backendPrice = (float) $actualPrice;
                 
-                if (abs($frontendPrice - $backendPrice) > 0.1) {
-                    throw new Exception("Price mismatch for '{$product->title}'. Expected {$backendPrice} but got {$frontendPrice}. Please refresh your cart.");
+                if (abs($frontendPrice - $backendPrice) > 0.05) {
+                    throw new Exception("মূল্য পরিবর্তন হয়েছে: '{$product->title}'-এর পূর্বের মূল্য ছিল ৳{$frontendPrice}, বর্তমান মূল্য ৳{$backendPrice}। আপনার কার্ট স্বয়ংক্রিয়ভাবে আপডেট করা হয়েছে, অনুগ্রহ করে আবার কনফার্ম করুন।");
                 }
 
                 $itemSubtotal = $actualPrice * $item['quantity'];
@@ -184,6 +192,12 @@ class CheckoutController extends Controller
                         'label' => $item['variant_label'] ?? null,
                         'attributes' => $variant ? $variant->attributes : null,
                     ]
+                ];
+
+                $stockReductions[] = [
+                    'product' => $product,
+                    'variant' => $variant,
+                    'quantity' => $item['quantity']
                 ];
             }
 
@@ -281,6 +295,18 @@ class CheckoutController extends Controller
                 $order->items()->save($orderItem);
             }
 
+            foreach ($stockReductions as $sr) {
+                $p = $sr['product'];
+                $v = $sr['variant'];
+                $q = $sr['quantity'];
+
+                if ($v) {
+                    $v->decrement('stock_quantity', $q);
+                }
+                $p->decrement('total_stock', $q);
+                $p->increment('total_sold', $q);
+            }
+
             DB::commit();
 
             // Send Order Confirmation Email if user is logged in and template is enabled
@@ -374,10 +400,10 @@ class CheckoutController extends Controller
 
         } catch (Exception $e) {
             DB::rollBack();
-            \Illuminate\Support\Facades\Log::error("Checkout DB Error: " . $e->getMessage(), ['trace' => $e->getTraceAsString()]);
+            \Illuminate\Support\Facades\Log::warning("Checkout Notice / Error: " . $e->getMessage());
             return response()->json([
                 'success' => false,
-                'message' => 'Order failed: ' . $e->getMessage()
+                'message' => $e->getMessage()
             ], 400);
         }
     }

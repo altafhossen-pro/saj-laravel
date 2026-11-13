@@ -66,6 +66,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['stats'])) {
                             'is_engaged' => !empty($item['is_engaged']),
                             'is_visible' => isset($item['is_visible']) ? (bool)$item['is_visible'] : true,
                             'scroll_percent' => (int)($item['scroll_percent'] ?? 0),
+                            'cart_items' => (int)($item['cart_total_items'] ?? ($item['cart_items'] ?? 0)),
+                            'cart_total' => (float)($item['cart_total_amount'] ?? ($item['cart_total'] ?? 0)),
+                            'info_history' => isset($item['info_history']) && is_array($item['info_history']) ? $item['info_history'] : [],
                             'seconds_ago' => max(0, $diff),
                             'duration' => isset($item['first_seen']) ? max(0, $now - (int)$item['first_seen']) : 0,
                             'history' => isset($item['history']) && is_array($item['history']) ? $item['history'] : [
@@ -115,15 +118,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['stats'])) {
             $key = 'uid_' . $v['user_id'];
         } elseif (!empty($v['phone'])) {
             $key = 'phone_' . preg_replace('/[^0-9]/', '', $v['phone']);
-        } elseif (!empty($v['name']) && $v['is_logged_in']) {
+        } elseif (!empty($v['name']) && !empty($v['is_logged_in'])) {
             $key = 'name_' . strtolower(trim($v['name']));
         }
 
         if ($key) {
             if (isset($seenIdentities[$key])) {
+                // If the newer active session didn't have title but the older one did, preserve title
+                $prevIndex = $seenIdentities[$key];
+                if (empty($dedupedVisitors[$prevIndex]['title']) && !empty($v['title'])) {
+                    $dedupedVisitors[$prevIndex]['title'] = $v['title'];
+                }
                 continue; // Already has their most recent session
             }
-            $seenIdentities[$key] = true;
+            $seenIdentities[$key] = count($dedupedVisitors);
         }
         $dedupedVisitors[] = $v;
     }
@@ -297,12 +305,15 @@ if ($fp) {
             $cleanClientHistory = [];
             if (!empty($clientHistory)) {
                 foreach ($clientHistory as $h) {
-                    if (is_array($h) && !empty($h['url'])) {
+                    if (is_array($h) && (!empty($h['url']) || !empty($h['title']))) {
                         $cleanClientHistory[] = [
-                            'url' => substr(strip_tags((string)$h['url']), 0, 255),
-                            'title' => substr(strip_tags((string)($h['title'] ?? 'Storefront')), 0, 120),
-                            'time' => substr(strip_tags((string)($h['time'] ?? '')), 0, 20),
+                            'type' => !empty($h['type']) ? substr(strip_tags((string)$h['type']), 0, 30) : 'page',
+                            'url' => substr(strip_tags((string)($h['url'] ?? '/')), 0, 255),
+                            'title' => substr(strip_tags((string)($h['title'] ?? 'Storefront')), 0, 150),
+                            'time' => substr(strip_tags((string)($h['time'] ?? '')), 0, 25),
                             'timestamp' => (int)($h['timestamp'] ?? $now),
+                            'qty' => isset($h['qty']) ? (int)$h['qty'] : null,
+                            'price' => isset($h['price']) ? (float)$h['price'] : null,
                         ];
                     }
                 }
@@ -313,8 +324,9 @@ if ($fp) {
             $currentTitle = $title ?: ($existing['title'] ?? 'Storefront');
 
             $lastHistoryItem = !empty($history) ? end($history) : null;
-            if (!$lastHistoryItem || ($lastHistoryItem['url'] ?? '') !== $currentUrl) {
+            if (!$lastHistoryItem || (($lastHistoryItem['type'] ?? 'page') === 'page' && ($lastHistoryItem['url'] ?? '') !== $currentUrl)) {
                 $history[] = [
+                    'type' => 'page',
                     'url' => $currentUrl,
                     'title' => $currentTitle,
                     'time' => date('h:i:s A'),
@@ -324,7 +336,7 @@ if ($fp) {
                 if (count($history) > 25) {
                     $history = array_slice($history, -25);
                 }
-            } elseif ($lastHistoryItem && (empty($lastHistoryItem['title']) || $lastHistoryItem['title'] === 'Storefront') && !empty($currentTitle)) {
+            } elseif ($lastHistoryItem && ($lastHistoryItem['type'] ?? 'page') === 'page' && (empty($lastHistoryItem['title']) || $lastHistoryItem['title'] === 'Storefront') && !empty($currentTitle)) {
                 $history[count($history) - 1]['title'] = $currentTitle;
             }
 
@@ -341,6 +353,9 @@ if ($fp) {
                     }
                 }
             }
+
+            $cartTotalItems = isset($payload['cart_total_items']) ? (int)$payload['cart_total_items'] : ($existing['cart_total_items'] ?? 0);
+            $cartTotalAmount = isset($payload['cart_total_amount']) ? (float)$payload['cart_total_amount'] : ($existing['cart_total_amount'] ?? 0);
 
             $activeSessions[$visitorId] = [
                 'last_seen' => $now,
@@ -361,6 +376,9 @@ if ($fp) {
                 'is_engaged' => $isEngaged,
                 'is_visible' => $isVisible,
                 'scroll_percent' => $scrollPercent,
+                'cart_total_items' => $cartTotalItems,
+                'cart_total_amount' => $cartTotalAmount,
+                'info_history' => $existing['info_history'] ?? [],
                 'history' => $history,
             ];
             if (!isset($existing['last_seen'])) {

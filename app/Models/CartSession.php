@@ -17,6 +17,7 @@ class CartSession extends Model
         'customer_name',
         'customer_phone',
         'customer_address',
+        'info_history',
         'items',
         'total_items',
         'total_amount',
@@ -29,6 +30,7 @@ class CartSession extends Model
 
     protected $casts = [
         'items' => 'array',
+        'info_history' => 'array',
         'total_items' => 'integer',
         'total_amount' => 'decimal:2',
         'last_activity_at' => 'datetime',

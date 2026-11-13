@@ -71,6 +71,23 @@
                         :active="request()->routeIs('admin.dashboard')">
                         Overview
                     </x-nav-link>
+
+                    <!-- Products -->
+                    <x-nav-dropdown title="Products" icon="package" theme="light"
+                        :active="request()->routeIs('admin.products.*') || request()->routeIs('admin.brands.*') || request()->routeIs('admin.questions.*') || request()->routeIs('admin.reviews.*')">
+                        <x-nav-link href="{{ route('admin.products.index') }}" theme="light" class="!py-2 !text-sm"
+                            :active="request()->routeIs('admin.products.index')">All Products</x-nav-link>
+                        <x-nav-link href="{{ route('admin.products.create') }}" theme="light" class="!py-2 !text-sm"
+                            :active="request()->routeIs('admin.products.create')">Create Product</x-nav-link>
+                        <x-nav-link href="{{ route('admin.brands.index') }}" theme="light" class="!py-2 !text-sm"
+                            :active="request()->routeIs('admin.brands.index')">Product Brands</x-nav-link>
+                        <x-nav-link href="{{ route('admin.questions.index') }}" theme="light" class="!py-2 !text-sm"
+                            :active="request()->routeIs('admin.questions.index')">Products Q&A</x-nav-link>
+                        <x-nav-link href="{{ route('admin.reviews.index') }}" theme="light" class="!py-2 !text-sm"
+                            :active="request()->routeIs('admin.reviews.*')">Product Reviews</x-nav-link>
+                    </x-nav-dropdown>
+
+                    <!-- Orders -->
                     <x-nav-dropdown title="Orders" icon="shopping-cart" theme="light"
                         :active="request()->routeIs('admin.orders.*') || request()->routeIs('admin.orders')">
                         <x-nav-link href="{{ route('admin.orders') }}" theme="light" class="!py-2 !text-sm"
@@ -81,11 +98,34 @@
                             :active="request()->routeIs('admin.orders.drafts')">Draft Orders</x-nav-link>
                     </x-nav-dropdown>
 
-                    <x-nav-link href="{{ route('admin.coupons.index') }}" icon="ticket" theme="light"
-                        :active="request()->routeIs('admin.coupons.*')">
-                        Coupons
-                    </x-nav-link>
+                    <!-- Categories -->
+                    <x-nav-dropdown title="Categories" icon="list-dashes" theme="light"
+                        :active="request()->routeIs('admin.categories.*')">
+                        <x-nav-link href="{{ route('admin.categories.index') }}" theme="light" class="!py-2 !text-sm"
+                            :active="request()->routeIs('admin.categories.index')">All Categories</x-nav-link>
+                        <x-nav-link href="{{ route('admin.categories.create') }}" theme="light" class="!py-2 !text-sm"
+                            :active="request()->routeIs('admin.categories.create')">Create Category</x-nav-link>
+                    </x-nav-dropdown>
 
+                    <!-- Customers -->
+                    <x-nav-dropdown title="Customers" icon="users" theme="light"
+                        :active="request()->routeIs('admin.customers.*') || request()->routeIs('admin.customers')">
+                        <x-nav-link href="{{ route('admin.customers') }}" theme="light" class="!py-2 !text-sm"
+                            :active="request()->routeIs('admin.customers')">All Customers</x-nav-link>
+                        <x-nav-link href="{{ route('admin.customers.staff') }}" theme="light" class="!py-2 !text-sm"
+                            :active="request()->routeIs('admin.customers.staff')">All Staff</x-nav-link>
+                    </x-nav-dropdown>
+
+                    <!-- Offers -->
+                    <x-nav-dropdown title="Offers" icon="tag" theme="light"
+                        :active="request()->routeIs('admin.category-offers.*') || request()->routeIs('admin.coupons.*')">
+                        <x-nav-link href="{{ route('admin.category-offers.index') }}" theme="light" class="!py-2 !text-sm"
+                            :active="request()->routeIs('admin.category-offers.*')">Category Offers</x-nav-link>
+                        <x-nav-link href="{{ route('admin.coupons.index') }}" theme="light" class="!py-2 !text-sm"
+                            :active="request()->routeIs('admin.coupons.*')">Coupons</x-nav-link>
+                    </x-nav-dropdown>
+
+                    <!-- Live & Shoppers -->
                     <x-nav-dropdown title="Live & Shoppers" icon="footprints" theme="light"
                         :active="request()->routeIs('admin.visitors.*') || request()->routeIs('admin.carts.*') || request()->routeIs('admin.offer-templates.*')">
                         <x-nav-link href="{{ route('admin.visitors.live') }}" theme="light" class="!py-2 !text-sm"
@@ -109,28 +149,7 @@
                         </x-nav-link>
                     </x-nav-dropdown>
 
-                    <x-nav-dropdown title="Categories" icon="list-dashes" theme="light"
-                        :active="request()->routeIs('admin.categories.*')">
-                        <x-nav-link href="{{ route('admin.categories.index') }}" theme="light" class="!py-2 !text-sm"
-                            :active="request()->routeIs('admin.categories.index')">All Categories</x-nav-link>
-                        <x-nav-link href="{{ route('admin.categories.create') }}" theme="light" class="!py-2 !text-sm"
-                            :active="request()->routeIs('admin.categories.create')">Create Category</x-nav-link>
-                    </x-nav-dropdown>
-
-                    <x-nav-dropdown title="Products" icon="package" theme="light"
-                        :active="request()->routeIs('admin.products.*') || request()->routeIs('admin.brands.*') || request()->routeIs('admin.questions.*') || request()->routeIs('admin.reviews.*')">
-                        <x-nav-link href="{{ route('admin.products.index') }}" theme="light" class="!py-2 !text-sm"
-                            :active="request()->routeIs('admin.products.index')">All Products</x-nav-link>
-                        <x-nav-link href="{{ route('admin.products.create') }}" theme="light" class="!py-2 !text-sm"
-                            :active="request()->routeIs('admin.products.create')">Create Product</x-nav-link>
-                        <x-nav-link href="{{ route('admin.brands.index') }}" theme="light" class="!py-2 !text-sm"
-                            :active="request()->routeIs('admin.brands.index')">Product Brands</x-nav-link>
-                        <x-nav-link href="{{ route('admin.questions.index') }}" theme="light" class="!py-2 !text-sm"
-                            :active="request()->routeIs('admin.questions.index')">Products Q&A</x-nav-link>
-                        <x-nav-link href="{{ route('admin.reviews.index') }}" theme="light" class="!py-2 !text-sm"
-                            :active="request()->routeIs('admin.reviews.*')">Product Reviews</x-nav-link>
-                    </x-nav-dropdown>
-
+                    <!-- Homepage -->
                     <x-nav-dropdown title="Homepage" icon="layout" theme="light"
                         :active="request()->routeIs('admin.homepage.*')">
                         <x-nav-link href="{{ route('admin.homepage.hero.index') }}" theme="light" class="!py-2 !text-sm"
@@ -144,14 +163,8 @@
                             class="!py-2 !text-sm" :active="request()->routeIs('admin.homepage.just-for-you')">Just For
                             You</x-nav-link>
                     </x-nav-dropdown>
-                    <x-nav-dropdown title="Customers" icon="users" theme="light"
-                        :active="request()->routeIs('admin.customers.*') || request()->routeIs('admin.customers')">
-                        <x-nav-link href="{{ route('admin.customers') }}" theme="light" class="!py-2 !text-sm"
-                            :active="request()->routeIs('admin.customers')">All Customers</x-nav-link>
-                        <x-nav-link href="{{ route('admin.customers.staff') }}" theme="light" class="!py-2 !text-sm"
-                            :active="request()->routeIs('admin.customers.staff')">All Staff</x-nav-link>
-                    </x-nav-dropdown>
 
+                    <!-- Analytics -->
                     <x-nav-dropdown title="Analytics" icon="chart-polar" theme="light"
                         :active="request()->routeIs('admin.analytics.*')">
                         <x-nav-link href="{{ route('admin.analytics.search') }}" theme="light" class="!py-2 !text-sm"
@@ -168,11 +181,13 @@
                         </x-nav-link>
                     </x-nav-dropdown>
 
+                    <!-- Blacklist -->
                     <x-nav-link href="{{ route('admin.blacklist.index') }}" icon="shield-warning" theme="light"
                         :active="request()->routeIs('admin.blacklist.*')">
                         Blacklist / Ban
                     </x-nav-link>
 
+                    <!-- Contact Messages -->
                     <x-nav-link href="{{ route('admin.contact-messages.index') }}" icon="chat-circle-dots" theme="light"
                         :active="request()->routeIs('admin.contact-messages.*')">
                         <div class="flex items-center justify-between w-full">
@@ -188,6 +203,7 @@
                         </div>
                     </x-nav-link>
 
+                    <!-- Settings -->
                     <x-nav-link href="{{ route('admin.settings.index') }}" icon="gear" theme="light"
                         :active="request()->routeIs('admin.settings.*')">
                         Settings
@@ -371,22 +387,6 @@
 
     <!-- Realtime Tracker & Poller for Admin -->
     <script>
-        (function () {
-            try {
-                var vid = localStorage.getItem('fb_vid');
-                if (!vid) {
-                    vid = 'v_' + Math.random().toString(36).substring(2, 12) + Date.now().toString(36);
-                    localStorage.setItem('fb_vid', vid);
-                }
-                function pulse(act) {
-                    var p = JSON.stringify({ vid: vid, act: act || 'ping', is_new: 0 });
-                    if (navigator.sendBeacon) navigator.sendBeacon('/visitor-heartbeat.php', p);
-                }
-                pulse('enter');
-                setInterval(function () { pulse('ping'); }, 15000);
-            } catch (e) { }
-        })();
-
         function liveVisitorPoller() {
             return {
                 liveCount: 0,
