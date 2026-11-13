@@ -15,6 +15,19 @@ class VisitorActivityService
      */
     public static function record(array $data, ?Request $request = null): ?VisitorSession
     {
+        // Never log super admins or staff members
+        if (auth()->check()) {
+            $user = auth()->user();
+            if ((method_exists($user, 'hasAdminAccess') && $user->hasAdminAccess()) || in_array($user->role ?? '', ['super_admin', 'admin', 'manager', 'staff'])) {
+                return null;
+            }
+        }
+
+        $profile = $data['profile'] ?? [];
+        if (!empty($profile['is_staff']) || in_array(strtolower($profile['role'] ?? ''), ['super_admin', 'admin', 'manager', 'staff'])) {
+            return null;
+        }
+
         $token = trim((string)($data['vid'] ?? ''));
         if (empty($token) || strlen($token) < 6) {
             return null;

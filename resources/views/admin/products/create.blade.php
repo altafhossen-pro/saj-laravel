@@ -38,6 +38,11 @@
             <button type="button" @click="activeTab = 'variant'" :class="activeTab === 'variant' ? 'border-brand-600 text-brand-600 font-bold' : 'border-transparent text-gray-500 hover:text-gray-800 hover:border-gray-300'" class="whitespace-nowrap py-4 border-b-2 transition-all flex items-center gap-2 text-sm font-medium -mb-px cursor-pointer">
                 <i class="ph ph-swatches text-lg" :class="activeTab === 'variant' ? 'text-brand-600' : 'text-gray-400'"></i> Variants
             </button>
+            <button type="button" @click="activeTab = 'offer'" :class="activeTab === 'offer' ? 'border-brand-600 text-brand-600 font-bold' : 'border-transparent text-gray-500 hover:text-gray-800 hover:border-gray-300'" class="whitespace-nowrap py-4 border-b-2 transition-all flex items-center gap-2 text-sm font-medium -mb-px cursor-pointer">
+                <i class="ph ph-tag-chevron text-lg" :class="activeTab === 'offer' ? 'text-brand-600' : 'text-gray-400'"></i>
+                <span>Offer</span>
+                <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-gray-100 text-gray-500">Optional</span>
+            </button>
             <button type="button" @click="activeTab = 'visibility'" :class="activeTab === 'visibility' ? 'border-brand-600 text-brand-600 font-bold' : 'border-transparent text-gray-500 hover:text-gray-800 hover:border-gray-300'" class="whitespace-nowrap py-4 border-b-2 transition-all flex items-center gap-2 text-sm font-medium -mb-px cursor-pointer">
                 <i class="ph ph-eye text-lg" :class="activeTab === 'visibility' ? 'text-brand-600' : 'text-gray-400'"></i> Visibility
             </button>
@@ -577,9 +582,199 @@
                     <button type="button" @click="activeTab = 'media'" class="px-6 py-2.5 border border-gray-200 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors flex items-center gap-2">
                         <i class="ph ph-arrow-left"></i> Back
                     </button>
-                    <button type="button" @click="activeTab = 'others'" class="px-6 py-2.5 bg-gray-900 text-white rounded-lg text-sm font-medium hover:bg-gray-800 transition-colors flex items-center gap-2">
-                        Next: Others <i class="ph ph-arrow-right"></i>
+                    <button type="button" @click="activeTab = 'offer'" class="px-6 py-2.5 bg-gray-900 text-white rounded-lg text-sm font-medium hover:bg-gray-800 transition-colors flex items-center gap-2">
+                        Next: Offer <i class="ph ph-arrow-right"></i>
                     </button>
+                </div>
+            </div>
+
+            <!-- Offer Tab -->
+            <div x-show="activeTab === 'offer'" x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0 translate-y-2" x-transition:enter-end="opacity-100 translate-y-0" style="display: none;" x-data="productOfferManager({{ json_encode([
+                'isActive' => old('is_offer_active') ? true : false,
+                'discountType' => old('offer_discount_type', 'percentage'),
+                'discountValue' => old('offer_discount_value', ''),
+                'offerTitle' => old('offer_title', ''),
+                'startDate' => old('offer_start_date', ''),
+                'endDate' => old('offer_end_date', ''),
+                'baseRegularPrice' => (float) old('regular_price', 0),
+            ]) }})">
+                <div class="flex items-center justify-between mb-6 border-b border-gray-100 pb-4">
+                    <div>
+                        <h2 class="text-xl font-bold text-gray-900">Product Offer & Promotional Discount</h2>
+                        <p class="text-sm text-gray-500 mt-1">Set an optional promotional or limited-time discount for this product while keeping its catalog price intact.</p>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="text-xs font-medium px-2.5 py-1 rounded-full" :class="isActive ? 'bg-emerald-100 text-emerald-700 font-semibold' : 'bg-gray-100 text-gray-600'" x-text="isActive ? '● Offer Active' : '○ Offer Disabled'"></span>
+                    </div>
+                </div>
+
+                <div class="space-y-6">
+                    <!-- Main Activation Toggle Card -->
+                    <div class="p-5 rounded-2xl border transition-all" :class="isActive ? 'bg-emerald-50/40 border-emerald-200 shadow-sm' : 'bg-gray-50 border-gray-200'">
+                        <div class="flex items-center justify-between gap-4">
+                            <div class="flex items-center gap-3">
+                                <div class="w-10 h-10 rounded-xl flex items-center justify-center transition-colors" :class="isActive ? 'bg-emerald-500 text-white shadow-sm' : 'bg-gray-200 text-gray-500'">
+                                    <i class="ph ph-tag-chevron text-xl"></i>
+                                </div>
+                                <div>
+                                    <h4 class="text-sm font-bold text-gray-900">Enable Product Offer</h4>
+                                    <p class="text-xs text-gray-500">When enabled, customers will see and buy this product at the discounted offer price.</p>
+                                </div>
+                            </div>
+                            <label class="relative inline-flex items-center cursor-pointer">
+                                <input type="checkbox" name="is_offer_active" value="1" x-model="isActive" class="sr-only peer">
+                                <div class="w-12 h-6 bg-gray-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600"></div>
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- Offer Configuration Settings (Revealed when Active) -->
+                    <div x-show="isActive" x-transition class="space-y-6">
+                        
+                        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                            <!-- Left Column: Settings Form -->
+                            <div class="lg:col-span-7 space-y-5">
+                                
+                                <!-- Offer Title / Badge Label -->
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1.5">Offer Title / Campaign Name <span class="text-xs text-gray-400 font-normal">(Optional)</span></label>
+                                    <div class="relative">
+                                        <span class="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400">
+                                            <i class="ph ph-megaphone text-base"></i>
+                                        </span>
+                                        <input type="text" name="offer_title" x-model="offerTitle" class="block w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 focus:bg-white transition-colors" placeholder="e.g. Flash Deal, Weekend Sale, Special Discount">
+                                    </div>
+                                    <p class="text-[11px] text-gray-500 mt-1">Optional marketing label shown as a promotional highlight or badge.</p>
+                                </div>
+
+                                <!-- Discount Type Selection -->
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">Discount Type *</label>
+                                    <div class="grid grid-cols-3 gap-3">
+                                        <!-- Percentage -->
+                                        <label class="cursor-pointer border rounded-xl p-3 flex flex-col items-center text-center transition-all" :class="discountType === 'percentage' ? 'border-brand-600 bg-brand-50/50 text-brand-700 font-semibold shadow-xs ring-1 ring-brand-500' : 'border-gray-200 hover:bg-gray-50 text-gray-700'">
+                                            <input type="radio" name="offer_discount_type" value="percentage" x-model="discountType" class="sr-only">
+                                            <i class="ph ph-percent text-xl mb-1" :class="discountType === 'percentage' ? 'text-brand-600' : 'text-gray-400'"></i>
+                                            <span class="text-xs">Percentage (%)</span>
+                                        </label>
+
+                                        <!-- Fixed Deduction -->
+                                        <label class="cursor-pointer border rounded-xl p-3 flex flex-col items-center text-center transition-all" :class="discountType === 'fixed' ? 'border-brand-600 bg-brand-50/50 text-brand-700 font-semibold shadow-xs ring-1 ring-brand-500' : 'border-gray-200 hover:bg-gray-50 text-gray-700'">
+                                            <input type="radio" name="offer_discount_type" value="fixed" x-model="discountType" class="sr-only">
+                                            <i class="ph ph-minus-circle text-xl mb-1" :class="discountType === 'fixed' ? 'text-brand-600' : 'text-gray-400'"></i>
+                                            <span class="text-xs">Flat Off (৳)</span>
+                                        </label>
+
+                                        <!-- Direct Offer Price -->
+                                        <label class="cursor-pointer border rounded-xl p-3 flex flex-col items-center text-center transition-all" :class="discountType === 'fixed_price' ? 'border-brand-600 bg-brand-50/50 text-brand-700 font-semibold shadow-xs ring-1 ring-brand-500' : 'border-gray-200 hover:bg-gray-50 text-gray-700'">
+                                            <input type="radio" name="offer_discount_type" value="fixed_price" x-model="discountType" class="sr-only">
+                                            <i class="ph ph-currency-circle-dollar text-xl mb-1" :class="discountType === 'fixed_price' ? 'text-brand-600' : 'text-gray-400'"></i>
+                                            <span class="text-xs">Direct Price (৳)</span>
+                                        </label>
+                                    </div>
+                                </div>
+
+                                <!-- Discount Value Input -->
+                                <div>
+                                    <div class="flex justify-between items-center mb-1.5">
+                                        <label class="block text-sm font-medium text-gray-700">
+                                            <span x-show="discountType === 'percentage'">Discount Percentage *</span>
+                                            <span x-show="discountType === 'fixed'">Discount Amount (Flat Off) *</span>
+                                            <span x-show="discountType === 'fixed_price'">Special Selling Price *</span>
+                                        </label>
+                                        <span class="text-xs text-gray-400" x-text="discountType === 'percentage' ? 'Enter discount 1 to 99%' : (discountType === 'fixed' ? 'Amount to deduct from price' : 'Direct special checkout price')"></span>
+                                    </div>
+                                    <div class="relative">
+                                        <span class="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-500 font-semibold" x-text="discountType === 'percentage' ? '%' : '৳'"></span>
+                                        <input type="number" step="0.01" min="0" name="offer_discount_value" x-model.number="discountValue" @input="recalculate()" class="block w-full pl-9 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm font-semibold text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 focus:bg-white transition-colors" :placeholder="discountType === 'percentage' ? 'e.g. 20 (for 20% off)' : (discountType === 'fixed' ? 'e.g. 150 (for ৳150 off)' : 'e.g. 799 (for direct ৳799 price)')">
+                                    </div>
+                                </div>
+
+                                <!-- Offer Schedule (Start & End Date/Time) -->
+                                <div class="p-4 bg-gray-50 rounded-xl border border-gray-200/80 space-y-3">
+                                    <div class="flex items-center justify-between">
+                                        <span class="text-xs font-semibold text-gray-700 flex items-center gap-1.5">
+                                            <i class="ph ph-clock text-sm text-brand-600"></i> Offer Schedule / Validity <span class="text-gray-400 font-normal">(Optional)</span>
+                                        </span>
+                                        <span class="text-[11px] text-gray-400">Leave empty to run indefinitely</span>
+                                    </div>
+                                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                        <div>
+                                            <label class="block text-[11px] font-medium text-gray-500 mb-1">Start Date & Time</label>
+                                            <input type="datetime-local" name="offer_start_date" x-model="startDate" class="block w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-xs focus:ring-2 focus:ring-brand-500 focus:outline-none">
+                                        </div>
+                                        <div>
+                                            <label class="block text-[11px] font-medium text-gray-500 mb-1">End Date & Time</label>
+                                            <input type="datetime-local" name="offer_end_date" x-model="endDate" class="block w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-xs focus:ring-2 focus:ring-brand-500 focus:outline-none">
+                                        </div>
+                                    </div>
+                                </div>
+
+                            </div>
+
+                            <!-- Right Column: Live Storefront Card Preview & Calculation -->
+                            <div class="lg:col-span-5">
+                                <div class="bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 rounded-2xl p-6 text-white shadow-lg space-y-6">
+                                    <div class="flex items-center justify-between border-b border-slate-700/60 pb-3">
+                                        <div class="flex items-center gap-2">
+                                            <div class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></div>
+                                            <span class="text-xs font-semibold uppercase tracking-wider text-slate-300">Live Offer Preview</span>
+                                        </div>
+                                        <span x-show="offerTitle" x-text="offerTitle" class="text-[11px] bg-brand-500/20 text-brand-300 border border-brand-500/30 px-2 py-0.5 rounded-full font-medium"></span>
+                                    </div>
+
+                                    <!-- Price summary comparison -->
+                                    <div class="space-y-3">
+                                        <div class="flex justify-between items-center text-sm">
+                                            <span class="text-slate-400">Catalog Regular Price:</span>
+                                            <span class="text-slate-200 font-medium line-through">৳<span x-text="getEffectiveRegularPrice().toFixed(2)"></span></span>
+                                        </div>
+
+                                        <div class="flex justify-between items-center text-sm">
+                                            <span class="text-slate-400">Customer Pays (Offer Price):</span>
+                                            <span class="text-2xl font-black text-emerald-400">৳<span x-text="calculatedOfferPrice().toFixed(2)"></span></span>
+                                        </div>
+
+                                        <div class="flex justify-between items-center text-xs pt-2 border-t border-slate-700/60">
+                                            <span class="text-slate-400">Discount Savings:</span>
+                                            <span class="text-amber-300 font-semibold">৳<span x-text="savingsAmount().toFixed(2)"></span> OFF</span>
+                                        </div>
+
+                                        <div class="flex justify-between items-center text-xs">
+                                            <span class="text-slate-400">Calculated Discount Badge:</span>
+                                            <span class="px-2.5 py-1 bg-red-500/20 text-red-400 border border-red-500/30 font-bold rounded-lg text-xs" x-text="'-' + discountPercent() + '% OFF'"></span>
+                                        </div>
+                                    </div>
+
+                                    <!-- Storefront mini simulation box -->
+                                    <div class="p-3.5 bg-slate-800/80 rounded-xl border border-slate-700/80 space-y-2">
+                                        <p class="text-[11px] font-semibold text-slate-300 flex items-center gap-1.5">
+                                            <i class="ph ph-shopping-cart text-brand-400"></i> Storefront Customer Experience
+                                        </p>
+                                        <p class="text-[11px] text-slate-400 leading-relaxed">
+                                            On product cards, details page, cart, and checkout, shoppers see the discounted price <span class="text-emerald-300 font-bold">৳<span x-text="calculatedOfferPrice().toFixed(2)"></span></span> with regular price <span class="line-through text-slate-400">৳<span x-text="getEffectiveRegularPrice().toFixed(2)"></span></span> struck through.
+                                        </p>
+                                    </div>
+
+                                    <div class="text-[11px] text-slate-400 flex items-center gap-1.5">
+                                        <i class="ph ph-shield-check text-emerald-400 text-sm"></i>
+                                        <span>Deactivating the offer at any time automatically restores original prices.</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+
+                    <div class="mt-8 pt-6 border-t border-gray-100 flex justify-between">
+                        <button type="button" @click="activeTab = 'variant'" class="px-6 py-2.5 border border-gray-200 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors flex items-center gap-2">
+                            <i class="ph ph-arrow-left"></i> Back: Variants
+                        </button>
+                        <button type="button" @click="activeTab = 'visibility'" class="px-6 py-2.5 bg-gray-900 text-white rounded-lg text-sm font-medium hover:bg-gray-800 transition-colors flex items-center gap-2">
+                            Next: Visibility <i class="ph ph-arrow-right"></i>
+                        </button>
+                    </div>
+
                 </div>
             </div>
 
@@ -868,6 +1063,57 @@ function productVariantData() {
             this.variants[vIndex].attributes.splice(aIndex, 1);
         }
     }
+}
+
+function productOfferManager(config) {
+    return {
+        isActive: !!config.isActive,
+        discountType: config.discountType || 'percentage',
+        discountValue: config.discountValue || '',
+        offerTitle: config.offerTitle || '',
+        startDate: config.startDate || '',
+        endDate: config.endDate || '',
+        baseRegularPrice: parseFloat(config.baseRegularPrice) || 0,
+
+        getEffectiveRegularPrice() {
+            const input = document.querySelector('input[name="regular_price"]');
+            if (input && parseFloat(input.value) > 0) {
+                return parseFloat(input.value);
+            }
+            return this.baseRegularPrice > 0 ? this.baseRegularPrice : 0;
+        },
+
+        calculatedOfferPrice() {
+            const base = this.getEffectiveRegularPrice();
+            const val = parseFloat(this.discountValue) || 0;
+            if (val <= 0 || !this.isActive) return base;
+
+            if (this.discountType === 'percentage') {
+                const discount = (base * val) / 100;
+                return Math.max(1, Math.round(base - discount));
+            } else if (this.discountType === 'fixed') {
+                return Math.max(1, Math.round(base - val));
+            } else if (this.discountType === 'fixed_price') {
+                return Math.max(1, Math.round(val));
+            }
+            return base;
+        },
+
+        savingsAmount() {
+            const base = this.getEffectiveRegularPrice();
+            const offer = this.calculatedOfferPrice();
+            return Math.max(0, base - offer);
+        },
+
+        discountPercent() {
+            const base = this.getEffectiveRegularPrice();
+            if (base <= 0) return 0;
+            const savings = this.savingsAmount();
+            return Math.round((savings / base) * 100);
+        },
+
+        recalculate() {}
+    };
 }
 </script>
 

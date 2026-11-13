@@ -23,6 +23,34 @@ class VisitorAnalyticsService
     }
 
     /**
+     * Get IDs of all Super Admins and Staff to exclude from visitor tracking
+     */
+    public static function getStaffUserIds(): array
+    {
+        try {
+            $dir = self::getStorageDir();
+            $file = $dir . '/staff_ids.json';
+
+            return \Illuminate\Support\Facades\Cache::remember('staff_user_ids_list', 1800, function () use ($file) {
+                $ids = \App\Models\User::all()
+                    ->filter(fn($u) => $u->hasAdminAccess() || in_array($u->role ?? '', ['super_admin', 'admin', 'manager', 'staff']))
+                    ->pluck('id')
+                    ->map(fn($id) => (int)$id)
+                    ->values()
+                    ->toArray();
+
+                if (!empty($ids)) {
+                    @file_put_contents($file, json_encode($ids));
+                }
+
+                return $ids;
+            });
+        } catch (\Throwable $e) {
+            return [1];
+        }
+    }
+
+    /**
      * Get real-time active visitor count right now
      */
     public static function getLiveCount(): int
@@ -76,12 +104,26 @@ class VisitorAnalyticsService
         $now = time();
         $windowSeconds = 35;
         $visitors = [];
+        $staffIds = self::getStaffUserIds();
 
         foreach ($sessions as $id => $item) {
             $lastSeen = is_array($item) ? ($item['last_seen'] ?? 0) : (int)$item;
             $diff = $now - (int)$lastSeen;
             if ($diff <= $windowSeconds) {
                 if (is_array($item)) {
+                    // Filter out super admin and staff members
+                    if (!empty($item['is_staff'])) {
+                        continue;
+                    }
+                    $role = strtolower($item['role'] ?? '');
+                    if (in_array($role, ['super_admin', 'admin', 'manager', 'staff'])) {
+                        continue;
+                    }
+                    $uId = (int)($item['user_id'] ?? 0);
+                    if ($uId && in_array($uId, $staffIds)) {
+                        continue;
+                    }
+
                     $visitors[] = [
                         'vid' => $id,
                         'user_id' => $item['user_id'] ?? null,

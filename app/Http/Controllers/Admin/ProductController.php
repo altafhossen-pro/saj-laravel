@@ -119,6 +119,30 @@ class ProductController extends Controller
 
         $productType = $request->product_type === 'variable' ? 'variable' : 'simple';
 
+        // Product Offer Configuration
+        $isOfferActive = $request->boolean('is_offer_active');
+        $offerTitle = $request->filled('offer_title') ? trim($request->offer_title) : null;
+        $offerDiscountType = $request->input('offer_discount_type', 'percentage');
+        $offerDiscountValue = $request->filled('offer_discount_value') ? (float) $request->offer_discount_value : null;
+        $offerStartDate = $request->filled('offer_start_date') ? $request->offer_start_date : null;
+        $offerEndDate = $request->filled('offer_end_date') ? $request->offer_end_date : null;
+        $hasValidOffer = $isOfferActive && ($offerDiscountValue !== null && $offerDiscountValue > 0);
+
+        $initialBasePrice = (float) ($request->regular_price ?? 0);
+        $initialOfferRegularPrice = null;
+
+        if ($productType === 'simple' && $hasValidOffer) {
+            $initialOfferRegularPrice = $initialBasePrice;
+            if ($offerDiscountType === 'percentage') {
+                $discount = ($initialBasePrice * $offerDiscountValue) / 100;
+                $initialBasePrice = max(1.0, round($initialBasePrice - $discount));
+            } elseif ($offerDiscountType === 'fixed') {
+                $initialBasePrice = max(1.0, round($initialBasePrice - $offerDiscountValue));
+            } elseif ($offerDiscountType === 'fixed_price') {
+                $initialBasePrice = max(1.0, round($offerDiscountValue));
+            }
+        }
+
         $product = \App\Models\Product\Product::create([
             'title' => $request->name,
             'slug' => $slug,
@@ -128,7 +152,7 @@ class ProductController extends Controller
             'description' => $request->description,
             'featured_image' => $thumbnailPath,
             'gallery' => $galleryPaths,
-            'base_price' => $request->regular_price ?? 0,
+            'base_price' => $initialBasePrice,
             'total_stock' => $request->stock_quantity ?? 0,
             'is_active' => $request->has('is_active'),
             'is_featured' => $request->has('is_featured'),
@@ -157,16 +181,28 @@ class ProductController extends Controller
             'rating_metrics_count' => $request->rating_metrics_count ?? 1,
             'rating_metrics_min' => $request->rating_metrics_min ?? 4.5,
             'rating_metrics_max' => $request->rating_metrics_max ?? 5.0,
+            'is_offer_active' => $hasValidOffer,
+            'offer_title' => $offerTitle,
+            'offer_discount_type' => $offerDiscountType,
+            'offer_discount_value' => $offerDiscountValue,
+            'offer_regular_price' => $initialOfferRegularPrice,
+            'offer_start_date' => $offerStartDate,
+            'offer_end_date' => $offerEndDate,
+            'offer_variant_prices' => null,
         ]);
 
         if ($productType === 'simple') {
             $sku = $request->filled('sku') ? trim($request->sku) : $this->generateNumericSku();
+            $simpleOriginalPrice = $hasValidOffer ? $initialOfferRegularPrice : ($request->old_price ?? 0);
+            $simpleCurrentPrice = $initialBasePrice;
+            $simpleSalePrice = $hasValidOffer ? $initialBasePrice : ($request->old_price ? $request->regular_price : null);
+
             \App\Models\Product\ProductVariant::create([
                 'product_id' => $product->id,
                 'sku' => $sku,
-                'original_price' => $request->old_price ?? 0,
-                'sale_price' => $request->old_price ? $request->regular_price : null,
-                'current_price' => $request->regular_price ?? 0,
+                'original_price' => $simpleOriginalPrice,
+                'sale_price' => $simpleSalePrice,
+                'current_price' => $simpleCurrentPrice,
                 'stock_quantity' => $request->stock_quantity ?? 0,
                 'attributes' => [],
             ]);
@@ -175,6 +211,7 @@ class ProductController extends Controller
             if ($request->has('variants')) {
                 $minPrice = null;
                 $totalStock = 0;
+                $offerVariantPrices = [];
 
                 foreach ($request->variants as $variantData) {
                     $variantImagePaths = [];
@@ -192,13 +229,36 @@ class ProductController extends Controller
                         }
                     }
 
-                    $currentPrice = $variantData['price'] ?? 0;
-                    $stock = $variantData['stock'] ?? 0;
-
-                    if ($minPrice === null || $currentPrice < $minPrice) {
-                        $minPrice = $currentPrice;
-                    }
+                    $rawPrice = (float) ($variantData['price'] ?? 0);
+                    $rawOldPrice = isset($variantData['old_price']) ? (float) $variantData['old_price'] : 0;
+                    $stock = (int) ($variantData['stock'] ?? 0);
                     $totalStock += $stock;
+
+                    if ($hasValidOffer) {
+                        if ($offerDiscountType === 'percentage') {
+                            $discount = ($rawPrice * $offerDiscountValue) / 100;
+                            $vSellingPrice = max(1.0, round($rawPrice - $discount));
+                        } elseif ($offerDiscountType === 'fixed') {
+                            $vSellingPrice = max(1.0, round($rawPrice - $offerDiscountValue));
+                        } elseif ($offerDiscountType === 'fixed_price') {
+                            $vSellingPrice = max(1.0, round($offerDiscountValue));
+                        } else {
+                            $vSellingPrice = $rawPrice;
+                        }
+
+                        $vCurrentPrice = $vSellingPrice;
+                        $vOriginalPrice = $rawPrice;
+                        $vSalePrice = $vSellingPrice;
+                    } else {
+                        $vCurrentPrice = $rawPrice;
+                        $vOriginalPrice = $rawOldPrice;
+                        $vSalePrice = $rawOldPrice > 0 ? $rawPrice : null;
+                    }
+
+                    if ($minPrice === null || $vCurrentPrice < $minPrice) {
+                        $minPrice = $vCurrentPrice;
+                    }
+
                     // Parse attributes
                     $variantAttributes = [];
                     if (!empty($variantData['attributes']) && is_array($variantData['attributes'])) {
@@ -211,20 +271,27 @@ class ProductController extends Controller
 
                     $variantSku = !empty($variantData['sku']) ? trim($variantData['sku']) : $this->generateNumericSku();
 
-                    \App\Models\Product\ProductVariant::create([
+                    $createdVariant = \App\Models\Product\ProductVariant::create([
                         'product_id' => $product->id,
                         'sku' => $variantSku,
-                        'original_price' => $variantData['old_price'] ?? 0,
-                        'current_price' => $currentPrice,
+                        'original_price' => $vOriginalPrice,
+                        'sale_price' => $vSalePrice,
+                        'current_price' => $vCurrentPrice,
                         'stock_quantity' => $stock,
                         'images' => empty($variantImagePaths) ? null : $variantImagePaths,
                         'attributes' => $variantAttributes,
                     ]);
+
+                    if ($hasValidOffer) {
+                        $offerVariantPrices[$createdVariant->id] = $rawPrice;
+                    }
                 }
 
                 $product->update([
                     'base_price' => $minPrice ?? 0,
                     'total_stock' => $totalStock,
+                    'offer_regular_price' => $hasValidOffer ? $minPrice : null,
+                    'offer_variant_prices' => $hasValidOffer ? $offerVariantPrices : null,
                 ]);
             }
         }
@@ -283,64 +350,116 @@ class ProductController extends Controller
 
         $slug = $request->slug ? \Illuminate\Support\Str::slug($request->slug) : \Illuminate\Support\Str::slug($request->name);
 
-        $product->update([
-            'title' => $request->name,
-            'slug' => $slug,
-            'category_id' => $request->category_id,
-            'brand_id' => $request->brand_id,
-            'short_description' => $request->short_description,
-            'description' => $request->description,
-            'featured_image' => $thumbnailPath,
-            'gallery' => $galleryPaths,
-            'base_price' => $request->regular_price ?? 0,
-            'total_stock' => $request->stock_quantity ?? 0,
-            'is_active' => $request->has('is_active'),
-            'is_featured' => $request->has('is_featured'),
-            'is_trending' => $request->has('is_trending'),
-            'is_bestselling' => $request->has('is_bestselling'),
-            'is_new_arrival' => $request->has('is_new_arrival'),
-            'is_force_out_of_stock' => $request->has('is_force_out_of_stock'),
-            'exclude_from_category_discount' => $request->has('exclude_from_category_discount'),
-            'announcement_text' => $request->announcement_text,
-            'delivery_info' => $request->shipping_info,
-            'additional_info' => $request->additional_info,
-            'warranty_info' => $request->warranty_info,
-            'seo' => [
-                'meta_title' => $request->meta_title,
-                'meta_description' => $request->meta_description,
-            ],
-            'product_type' => $productType,
-            'use_variant_images' => $request->has('use_variant_images'),
-            'tags' => $request->tags ?? [],
-            'metrics_mode' => $request->metrics_mode ?? 'organic',
-            'rating_metrics_mode' => $request->rating_metrics_mode ?? 'manual',
-            'rating_metrics_start_date' => $request->rating_metrics_start_date,
-            'rating_metrics_interval_days' => $request->rating_metrics_interval_days ?? 7,
-            'rating_metrics_count' => $request->rating_metrics_count ?? 1,
-            'rating_metrics_min' => $request->rating_metrics_min ?? 4.5,
-            'rating_metrics_max' => $request->rating_metrics_max ?? 5.0,
-            'metrics_start_date' => $request->metrics_start_date,
-            'metrics_daily_avg' => $request->metrics_daily_avg,
-        ]);
+        // Product Offer Configuration
+        $isOfferActive = $request->boolean('is_offer_active');
+        $offerTitle = $request->filled('offer_title') ? trim($request->offer_title) : null;
+        $offerDiscountType = $request->input('offer_discount_type', 'percentage');
+        $offerDiscountValue = $request->filled('offer_discount_value') ? (float) $request->offer_discount_value : null;
+        $offerStartDate = $request->filled('offer_start_date') ? $request->offer_start_date : null;
+        $offerEndDate = $request->filled('offer_end_date') ? $request->offer_end_date : null;
+        $hasValidOffer = $isOfferActive && ($offerDiscountValue !== null && $offerDiscountValue > 0);
 
         if ($productType === 'simple') {
+            $baseRegularPrice = (float) ($request->regular_price ?? 0);
+            if ($baseRegularPrice <= 0 && $product->offer_regular_price > 0) {
+                $baseRegularPrice = (float) $product->offer_regular_price;
+            } elseif ($baseRegularPrice <= 0) {
+                $baseRegularPrice = (float) $product->base_price;
+            }
+
+            $oldPrice = $request->filled('old_price') ? (float) $request->old_price : 0;
+
+            if ($hasValidOffer) {
+                if ($offerDiscountType === 'percentage') {
+                    $discount = ($baseRegularPrice * $offerDiscountValue) / 100;
+                    $sellingPrice = max(1.0, round($baseRegularPrice - $discount));
+                } elseif ($offerDiscountType === 'fixed') {
+                    $sellingPrice = max(1.0, round($baseRegularPrice - $offerDiscountValue));
+                } elseif ($offerDiscountType === 'fixed_price') {
+                    $sellingPrice = max(1.0, round($offerDiscountValue));
+                } else {
+                    $sellingPrice = $baseRegularPrice;
+                }
+
+                $productBasePrice = $sellingPrice;
+                $variantOriginalPrice = $baseRegularPrice; // previous price preserved as crossed-out original price
+                $variantCurrentPrice = $sellingPrice;
+                $variantSalePrice = $sellingPrice;
+                $offerRegularPriceToSave = $baseRegularPrice;
+            } else {
+                $productBasePrice = $baseRegularPrice;
+                $variantOriginalPrice = $oldPrice;
+                $variantCurrentPrice = $baseRegularPrice;
+                $variantSalePrice = $oldPrice > 0 ? $baseRegularPrice : null;
+                $offerRegularPriceToSave = null;
+            }
+
+            $product->update([
+                'title' => $request->name,
+                'slug' => $slug,
+                'category_id' => $request->category_id,
+                'brand_id' => $request->brand_id,
+                'short_description' => $request->short_description,
+                'description' => $request->description,
+                'featured_image' => $thumbnailPath,
+                'gallery' => $galleryPaths,
+                'base_price' => $productBasePrice,
+                'total_stock' => $request->stock_quantity ?? 0,
+                'is_active' => $request->has('is_active'),
+                'is_featured' => $request->has('is_featured'),
+                'is_trending' => $request->has('is_trending'),
+                'is_bestselling' => $request->has('is_bestselling'),
+                'is_new_arrival' => $request->has('is_new_arrival'),
+                'is_force_out_of_stock' => $request->has('is_force_out_of_stock'),
+                'exclude_from_category_discount' => $request->has('exclude_from_category_discount'),
+                'announcement_text' => $request->announcement_text,
+                'delivery_info' => $request->shipping_info,
+                'additional_info' => $request->additional_info,
+                'warranty_info' => $request->warranty_info,
+                'seo' => [
+                    'meta_title' => $request->meta_title,
+                    'meta_description' => $request->meta_description,
+                ],
+                'product_type' => $productType,
+                'use_variant_images' => $request->has('use_variant_images'),
+                'tags' => $request->tags ?? [],
+                'metrics_mode' => $request->metrics_mode ?? 'organic',
+                'rating_metrics_mode' => $request->rating_metrics_mode ?? 'manual',
+                'rating_metrics_start_date' => $request->rating_metrics_start_date,
+                'rating_metrics_interval_days' => $request->rating_metrics_interval_days ?? 7,
+                'rating_metrics_count' => $request->rating_metrics_count ?? 1,
+                'rating_metrics_min' => $request->rating_metrics_min ?? 4.5,
+                'rating_metrics_max' => $request->rating_metrics_max ?? 5.0,
+                'metrics_start_date' => $request->metrics_start_date,
+                'metrics_daily_avg' => $request->metrics_daily_avg,
+                // Offer fields
+                'is_offer_active' => $hasValidOffer,
+                'offer_title' => $offerTitle,
+                'offer_discount_type' => $offerDiscountType,
+                'offer_discount_value' => $offerDiscountValue,
+                'offer_regular_price' => $offerRegularPriceToSave,
+                'offer_start_date' => $offerStartDate,
+                'offer_end_date' => $offerEndDate,
+                'offer_variant_prices' => null,
+            ]);
+
             $variant = $product->variants()->first();
             $sku = $request->filled('sku') ? trim($request->sku) : ($variant?->sku ?: $this->generateNumericSku());
 
             if ($variant) {
                 $variant->update([
                     'sku' => $sku,
-                    'original_price' => $request->old_price ?? 0,
-                    'sale_price' => $request->old_price ? $request->regular_price : null,
-                    'current_price' => $request->regular_price ?? 0,
+                    'original_price' => $variantOriginalPrice,
+                    'sale_price' => $variantSalePrice,
+                    'current_price' => $variantCurrentPrice,
                     'stock_quantity' => $request->stock_quantity ?? 0,
                 ]);
             } else {
                 $product->variants()->create([
                     'sku' => $sku,
-                    'original_price' => $request->old_price ?? 0,
-                    'sale_price' => $request->old_price ? $request->regular_price : null,
-                    'current_price' => $request->regular_price ?? 0,
+                    'original_price' => $variantOriginalPrice,
+                    'sale_price' => $variantSalePrice,
+                    'current_price' => $variantCurrentPrice,
                     'stock_quantity' => $request->stock_quantity ?? 0,
                     'attributes' => [],
                 ]);
@@ -350,6 +469,7 @@ class ProductController extends Controller
             $existingVariantIds = [];
             $minPrice = null;
             $totalStock = 0;
+            $offerVariantPrices = [];
 
             if ($request->has('variants')) {
                 foreach ($request->variants as $variantData) {
@@ -368,13 +488,35 @@ class ProductController extends Controller
                         }
                     }
 
-                    $currentPrice = $variantData['price'] ?? 0;
-                    $stock = $variantData['stock'] ?? 0;
-
-                    if ($minPrice === null || $currentPrice < $minPrice) {
-                        $minPrice = $currentPrice;
-                    }
+                    $rawPrice = (float) ($variantData['price'] ?? 0);
+                    $rawOldPrice = isset($variantData['old_price']) ? (float) $variantData['old_price'] : 0;
+                    $stock = (int) ($variantData['stock'] ?? 0);
                     $totalStock += $stock;
+
+                    if ($hasValidOffer) {
+                        if ($offerDiscountType === 'percentage') {
+                            $discount = ($rawPrice * $offerDiscountValue) / 100;
+                            $vSellingPrice = max(1.0, round($rawPrice - $discount));
+                        } elseif ($offerDiscountType === 'fixed') {
+                            $vSellingPrice = max(1.0, round($rawPrice - $offerDiscountValue));
+                        } elseif ($offerDiscountType === 'fixed_price') {
+                            $vSellingPrice = max(1.0, round($offerDiscountValue));
+                        } else {
+                            $vSellingPrice = $rawPrice;
+                        }
+
+                        $vCurrentPrice = $vSellingPrice;
+                        $vOriginalPrice = $rawPrice;
+                        $vSalePrice = $vSellingPrice;
+                    } else {
+                        $vCurrentPrice = $rawPrice;
+                        $vOriginalPrice = $rawOldPrice;
+                        $vSalePrice = $rawOldPrice > 0 ? $rawPrice : null;
+                    }
+
+                    if ($minPrice === null || $vCurrentPrice < $minPrice) {
+                        $minPrice = $vCurrentPrice;
+                    }
 
                     // Parse attributes
                     $variantAttributes = [];
@@ -393,8 +535,9 @@ class ProductController extends Controller
                             $variantSku = !empty($variantData['sku']) ? trim($variantData['sku']) : ($variant->sku ?: $this->generateNumericSku());
                             $updateData = [
                                 'sku' => $variantSku,
-                                'original_price' => $variantData['old_price'] ?? 0,
-                                'current_price' => $currentPrice,
+                                'original_price' => $vOriginalPrice,
+                                'sale_price' => $vSalePrice,
+                                'current_price' => $vCurrentPrice,
                                 'stock_quantity' => $stock,
                                 'attributes' => $variantAttributes,
                             ];
@@ -403,6 +546,9 @@ class ProductController extends Controller
                             }
                             $variant->update($updateData);
                             $existingVariantIds[] = $variant->id;
+                            if ($hasValidOffer) {
+                                $offerVariantPrices[$variant->id] = $rawPrice;
+                            }
                         }
                     } else {
                         // Create new variant
@@ -410,13 +556,17 @@ class ProductController extends Controller
                         $newVariant = \App\Models\Product\ProductVariant::create([
                             'product_id' => $product->id,
                             'sku' => $variantSku,
-                            'original_price' => $variantData['old_price'] ?? 0,
-                            'current_price' => $currentPrice,
+                            'original_price' => $vOriginalPrice,
+                            'sale_price' => $vSalePrice,
+                            'current_price' => $vCurrentPrice,
                             'stock_quantity' => $stock,
                             'images' => $variantImages,
                             'attributes' => $variantAttributes,
                         ]);
                         $existingVariantIds[] = $newVariant->id;
+                        if ($hasValidOffer) {
+                            $offerVariantPrices[$newVariant->id] = $rawPrice;
+                        }
                     }
                 }
             }
@@ -424,10 +574,54 @@ class ProductController extends Controller
             // Delete removed variants
             $product->variants()->whereNotIn('id', $existingVariantIds)->delete();
 
-            // Update main product with calculated price and stock
+            // Update main product with calculated price, stock, and offer
             $product->update([
+                'title' => $request->name,
+                'slug' => $slug,
+                'category_id' => $request->category_id,
+                'brand_id' => $request->brand_id,
+                'short_description' => $request->short_description,
+                'description' => $request->description,
+                'featured_image' => $thumbnailPath,
+                'gallery' => $galleryPaths,
                 'base_price' => $minPrice ?? 0,
                 'total_stock' => $totalStock,
+                'is_active' => $request->has('is_active'),
+                'is_featured' => $request->has('is_featured'),
+                'is_trending' => $request->has('is_trending'),
+                'is_bestselling' => $request->has('is_bestselling'),
+                'is_new_arrival' => $request->has('is_new_arrival'),
+                'is_force_out_of_stock' => $request->has('is_force_out_of_stock'),
+                'exclude_from_category_discount' => $request->has('exclude_from_category_discount'),
+                'announcement_text' => $request->announcement_text,
+                'delivery_info' => $request->shipping_info,
+                'additional_info' => $request->additional_info,
+                'warranty_info' => $request->warranty_info,
+                'seo' => [
+                    'meta_title' => $request->meta_title,
+                    'meta_description' => $request->meta_description,
+                ],
+                'product_type' => $productType,
+                'use_variant_images' => $request->has('use_variant_images'),
+                'tags' => $request->tags ?? [],
+                'metrics_mode' => $request->metrics_mode ?? 'organic',
+                'rating_metrics_mode' => $request->rating_metrics_mode ?? 'manual',
+                'rating_metrics_start_date' => $request->rating_metrics_start_date,
+                'rating_metrics_interval_days' => $request->rating_metrics_interval_days ?? 7,
+                'rating_metrics_count' => $request->rating_metrics_count ?? 1,
+                'rating_metrics_min' => $request->rating_metrics_min ?? 4.5,
+                'rating_metrics_max' => $request->rating_metrics_max ?? 5.0,
+                'metrics_start_date' => $request->metrics_start_date,
+                'metrics_daily_avg' => $request->metrics_daily_avg,
+                // Offer fields
+                'is_offer_active' => $hasValidOffer,
+                'offer_title' => $offerTitle,
+                'offer_discount_type' => $offerDiscountType,
+                'offer_discount_value' => $offerDiscountValue,
+                'offer_regular_price' => $hasValidOffer ? ($product->offer_regular_price ?: $minPrice) : null,
+                'offer_start_date' => $offerStartDate,
+                'offer_end_date' => $offerEndDate,
+                'offer_variant_prices' => $hasValidOffer ? $offerVariantPrices : null,
             ]);
         }
 

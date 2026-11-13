@@ -616,6 +616,32 @@
                     } catch (e) { }
                 },
                 init() {
+                    // Purge any accidental visitor tokens for admin/staff
+                    try {
+                        var oldVid = localStorage.getItem('fb_vid');
+                        if (oldVid) {
+                            localStorage.removeItem('fb_vid');
+                            localStorage.removeItem('fb_v_profile');
+                            localStorage.removeItem('fb_v_history');
+                            sessionStorage.removeItem('fb_daily_serial');
+                            var payload = JSON.stringify({
+                                vid: oldVid,
+                                act: 'remove_staff',
+                                is_staff: true,
+                                user_id: {{ Auth::id() }}
+                            });
+                            if (navigator.sendBeacon) {
+                                navigator.sendBeacon('/visitor-heartbeat.php', payload);
+                            } else {
+                                fetch('/visitor-heartbeat.php', {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: payload
+                                }).catch(function () {});
+                            }
+                        }
+                    } catch (e) {}
+
                     this.fetchLive();
                     // Instant responsiveness: 5-second poll (takes only ~0.2ms per call)
                     setInterval(() => {

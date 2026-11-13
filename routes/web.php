@@ -75,9 +75,14 @@ Route::middleware(['auth'])->prefix('dashboard')->group(function () {
 // Admin Routes
 Route::middleware(['auth', 'admin_access'])->prefix('admin/dashboard')->group(function () {
     Route::get('/', function () {
-        return view('admin.dashboard');
+        $initialOverviewStats = \App\Http\Controllers\Admin\AnalyticsController::getOverviewStatsData('all_time');
+        $templates = \App\Models\OfferTemplate::where('is_active', true)->latest()->get();
+        $recentOrders = \App\Models\Order::with('user')->where('is_draft_mode', false)->latest()->take(6)->get();
+
+        return view('admin.dashboard', compact('initialOverviewStats', 'templates', 'recentOrders'));
     })->name('admin.dashboard');
 
+    Route::get('/api/overview-stats', [\App\Http\Controllers\Admin\AnalyticsController::class, 'overviewStats'])->name('admin.api.overview-stats');
     Route::get('/api/global-search', [\App\Http\Controllers\Admin\OrderController::class, 'globalSearch'])->name('admin.api.global-search');
 
     // Orders - Manual creation

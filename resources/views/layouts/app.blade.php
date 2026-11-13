@@ -819,6 +819,52 @@
     @stack('scripts')
 
     <!-- Ultra-Light Realtime Visitor Heartbeat Tracker (Zero Server Load & Persistent Shopper Identity) -->
+    @php
+        $isStaffOrAdmin = false;
+        if (auth()->check()) {
+            $authUser = auth()->user();
+            if ((method_exists($authUser, 'hasAdminAccess') && $authUser->hasAdminAccess()) || in_array($authUser->role ?? '', ['super_admin', 'admin', 'manager', 'staff'])) {
+                $isStaffOrAdmin = true;
+            }
+        }
+    @endphp
+
+    @if($isStaffOrAdmin)
+        <!-- Super Admin & Staff: Excluded completely from Visitor Tracking & Live Monitor -->
+        <script>
+            (function () {
+                try {
+                    var vid = localStorage.getItem('fb_vid');
+                    localStorage.removeItem('fb_vid');
+                    localStorage.removeItem('fb_v_profile');
+                    localStorage.removeItem('fb_v_history');
+                    sessionStorage.removeItem('fb_daily_serial');
+
+                    if (vid) {
+                        var payload = JSON.stringify({
+                            vid: vid,
+                            act: 'remove_staff',
+                            is_staff: true,
+                            user_id: {{ Auth::id() }}
+                        });
+                        if (navigator.sendBeacon) {
+                            navigator.sendBeacon('/visitor-heartbeat.php', payload);
+                        } else {
+                            fetch('/visitor-heartbeat.php', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: payload
+                            }).catch(function () {});
+                        }
+                    }
+                } catch (e) {}
+
+                // Safe fallback no-ops
+                window.recordJourneyEvent = function () {};
+                window.triggerVisitorPulse = function () {};
+            })();
+        </script>
+    @else
     <script>
         (function () {
             try {
@@ -844,6 +890,7 @@
                             phone: {!! json_encode(Auth::user()->phone ?? '') !!},
                             email: {!! json_encode(Auth::user()->email ?? '') !!},
                             role: {!! json_encode(Auth::user()->role ?? 'customer') !!},
+                            is_staff: false,
                             is_logged_in: true,
                             last_seen_as: {!! json_encode(Auth::user()->name) !!}
                         };
@@ -1081,7 +1128,8 @@
                         history: visitorHistory,
                         cart_total_items: cartTotalItems,
                         cart_total_amount: cartTotalAmount,
-                        is_new: isNewDaily ? 1 : 0
+                        is_new: isNewDaily ? 1 : 0,
+                        is_staff: false
                     });
 
                     // Single lightweight call directly to fast memory/file endpoint (~0.0002s, bypasses Laravel boot)
@@ -1192,6 +1240,7 @@
             } catch (e) { }
         })();
     </script>
+    @endif
 
     <!-- Real-Time Custom Instant Visitor Offer / Message Modal -->
     <div x-data="{

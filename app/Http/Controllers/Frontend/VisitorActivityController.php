@@ -15,6 +15,18 @@ class VisitorActivityController extends Controller
      */
     public function pulse(Request $request): JsonResponse
     {
+        // Ignore Super Admin & Staff members from activity tracking
+        if (auth()->check()) {
+            $user = auth()->user();
+            if ((method_exists($user, 'hasAdminAccess') && $user->hasAdminAccess()) || in_array($user->role ?? '', ['super_admin', 'admin', 'manager', 'staff'])) {
+                return response()->json([
+                    'status' => 'ignored_staff',
+                    'serial' => 0,
+                    'offer' => null,
+                ]);
+            }
+        }
+
         $payload = $request->all();
         $payload['ip'] = $request->ip();
         $payload['user_agent'] = $request->header('User-Agent');

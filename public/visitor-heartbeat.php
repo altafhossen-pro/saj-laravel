@@ -13,9 +13,9 @@
 date_default_timezone_set('Asia/Dhaka');
 
 // Headers: lightweight, no cache, CORS friendly
-header('Content-Type: application/json; charset=utf-8');
-header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
-header('X-Robots-Tag: noindex, nofollow');
+@header('Content-Type: application/json; charset=utf-8');
+@header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+@header('X-Robots-Tag: noindex, nofollow');
 
 // 1. Storage Location determination (Prefer RAM /dev/shm, fallback to local fast storage)
 $storageDir = null;
@@ -28,6 +28,16 @@ if (is_dir('/dev/shm') && is_writable('/dev/shm')) {
 
 if (!is_dir($storageDir)) {
     @mkdir($storageDir, 0775, true);
+}
+
+// Resolve staff user IDs (cache file or default admins)
+$staffFile = $storageDir . '/staff_ids.json';
+$staffIds = [];
+if (file_exists($staffFile)) {
+    $staffIds = json_decode(@file_get_contents($staffFile), true);
+}
+if (!is_array($staffIds) || empty($staffIds)) {
+    $staffIds = [1, 4];
 }
 
 // If GET request, return instant stats and live visitors list (0ms, bypasses Laravel boot)
@@ -43,6 +53,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['stats'])) {
         $sessions = json_decode($content, true);
         if (is_array($sessions)) {
             foreach ($sessions as $id => $item) {
+                // Strictly exclude Super Admin & Staff members from live count and live shoppers monitor
+                if (is_array($item)) {
+                    if (!empty($item['is_staff'])) {
+                        continue;
+                    }
+                    $itemRole = strtolower($item['role'] ?? '');
+                    if (in_array($itemRole, ['super_admin', 'admin', 'manager', 'staff'])) {
+                        continue;
+                    }
+                    $itemUid = (int)($item['user_id'] ?? 0);
+                    if ($itemUid && in_array($itemUid, $staffIds)) {
+                        continue;
+                    }
+                }
+
                 $lastSeen = is_array($item) ? ($item['last_seen'] ?? 0) : (int)$item;
                 $diff = $now - (int)$lastSeen;
                 if ($diff <= $windowSeconds) {
@@ -191,7 +216,7 @@ $isVisible = isset($payload['is_visible']) ? (bool)$payload['is_visible'] : true
 $scrollPercent = isset($payload['scroll_percent']) ? max(0, min(100, (int)$payload['scroll_percent'])) : 0;
 $profile = isset($payload['profile']) && is_array($payload['profile']) ? $payload['profile'] : [];
 
-$pUserId = !empty($profile['user_id']) ? (int)$profile['user_id'] : null;
+$pUserId = !empty($profile['user_id']) ? (int)$profile['user_id'] : (!empty($payload['user_id']) ? (int)$payload['user_id'] : null);
 $pName = isset($profile['name']) ? substr(strip_tags((string)$profile['name']), 0, 60) : null;
 $pPhone = isset($profile['phone']) ? substr(strip_tags((string)$profile['phone']), 0, 25) : null;
 $pEmail = isset($profile['email']) ? substr(strip_tags((string)$profile['email']), 0, 80) : null;
@@ -200,6 +225,54 @@ $isLoggedIn = !empty($profile['is_logged_in']);
 $lastSeenAs = isset($profile['last_seen_as']) ? substr(strip_tags((string)$profile['last_seen_as']), 0, 60) : null;
 if (!$lastSeenAs && $pName) {
     $lastSeenAs = $pName;
+}
+
+$pRole = strtolower((string)($profile['role'] ?? ''));
+
+// Immediately intercept and drop Super Admin & Staff requests
+$isStaffRequest = !empty($payload['is_staff'])
+    || $action === 'remove_staff'
+    || !empty($profile['is_staff'])
+    || in_array($pRole, ['super_admin', 'admin', 'manager', 'staff'])
+    || ($pUserId && in_array($pUserId, $staffIds));
+
+if ($isStaffRequest) {
+    // Purge staff/admin from active sessions if present
+    if (file_exists($activeFile)) {
+        $fp = @fopen($activeFile, 'c+');
+        if ($fp) {
+            if (flock($fp, LOCK_EX)) {
+                $fSize = filesize($activeFile);
+                $content = $fSize > 0 ? fread($fp, $fSize) : '';
+                $activeSessions = json_decode($content, true);
+                if (is_array($activeSessions)) {
+                    $changed = false;
+                    if (isset($activeSessions[$visitorId])) {
+                        unset($activeSessions[$visitorId]);
+                        $changed = true;
+                    }
+                    if ($pUserId) {
+                        foreach ($activeSessions as $sid => $sess) {
+                            if (is_array($sess) && (int)($sess['user_id'] ?? 0) === $pUserId) {
+                                unset($activeSessions[$sid]);
+                                $changed = true;
+                            }
+                        }
+                    }
+                    if ($changed) {
+                        ftruncate($fp, 0);
+                        rewind($fp);
+                        fwrite($fp, json_encode($activeSessions));
+                    }
+                }
+                flock($fp, LOCK_UN);
+            }
+            fclose($fp);
+        }
+    }
+
+    echo '{"status":"ignored_staff"}';
+    exit;
 }
 
 // Client IP detection (Cloudflare / Reverse proxy friendly)
@@ -372,6 +445,8 @@ if ($fp) {
                 'email' => $savedEmail,
                 'address' => $savedAddress,
                 'is_logged_in' => $isLoggedIn,
+                'role' => $pRole ?: ($existing['role'] ?? 'customer'),
+                'is_staff' => false,
                 'last_seen_as' => $savedLastSeenAs,
                 'is_engaged' => $isEngaged,
                 'is_visible' => $isVisible,

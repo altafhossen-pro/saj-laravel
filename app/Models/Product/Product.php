@@ -39,6 +39,12 @@ class Product extends Model
         'base_price' => 'decimal:2',
         'average_rating' => 'decimal:2',
         'metrics_start_date' => 'date',
+        'is_offer_active' => 'boolean',
+        'offer_discount_value' => 'decimal:2',
+        'offer_regular_price' => 'decimal:2',
+        'offer_start_date' => 'datetime',
+        'offer_end_date' => 'datetime',
+        'offer_variant_prices' => 'array',
     ];
 
     protected $appends = ['total_sold', 'original_price', 'total_reviews', 'active_discount_percent'];
@@ -89,28 +95,102 @@ class Product extends Model
     }
 
     /**
+     * Check if product-specific offer is currently active.
+     */
+    public function isProductOfferActive(): bool
+    {
+        if (!$this->is_offer_active) {
+            return false;
+        }
+
+        $now = now();
+        if ($this->offer_start_date && $now->lt($this->offer_start_date)) {
+            return false;
+        }
+        if ($this->offer_end_date && $now->gt($this->offer_end_date)) {
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
+     * Calculate discounted offer price from a given regular price.
+     */
+    public function calculateDiscountedPrice(float $regularPrice): float
+    {
+        if ($regularPrice <= 0) {
+            return 0.0;
+        }
+
+        $type = $this->offer_discount_type ?? 'percentage';
+        $val = (float) ($this->offer_discount_value ?? 0);
+
+        if ($val <= 0) {
+            return $regularPrice;
+        }
+
+        if ($type === 'percentage') {
+            $discount = ($regularPrice * $val) / 100;
+            return max(1.0, round($regularPrice - $discount));
+        }
+
+        if ($type === 'fixed') {
+            return max(1.0, round($regularPrice - $val));
+        }
+
+        if ($type === 'fixed_price') {
+            return max(1.0, round($val));
+        }
+
+        return $regularPrice;
+    }
+
+    /**
      * Get active discount percentage for badge display (-18%).
      * Returns null if no active offer exists.
      */
     public function getActiveDiscountPercentAttribute(): ?int
     {
-        $offer = $this->active_offer;
-        if (!$offer || !$offer->is_active) {
-            return null;
+        // 1. Direct product-specific active offer
+        if ($this->isProductOfferActive() && (float) ($this->offer_discount_value ?? 0) > 0) {
+            if ($this->offer_discount_type === 'percentage') {
+                return (int) round($this->offer_discount_value);
+            }
+
+            $orig = (float) ($this->offer_regular_price ?: $this->original_price);
+            $curr = (float) $this->base_price;
+            if ($orig > 0 && $orig > $curr) {
+                return (int) round((($orig - $curr) / $orig) * 100);
+            }
+
+            return (int) round($this->offer_discount_value);
         }
 
-        if ($offer->discount_type === 'percentage') {
+        // 2. Active Category Offer
+        $offer = $this->active_offer;
+        if ($offer && $offer->is_active) {
+            if ($offer->discount_type === 'percentage') {
+                return (int) round($offer->discount_value);
+            }
+
+            $orig = (float) $this->original_price;
+            $curr = (float) $this->base_price;
+            if ($orig > 0 && $orig > $curr) {
+                return (int) round((($orig - $curr) / $orig) * 100);
+            }
+
             return (int) round($offer->discount_value);
         }
 
-        // For fixed discount, calculate percentage based on original price
+        // 3. Fallback: if product has original_price higher than current base_price
         $orig = (float) $this->original_price;
         $curr = (float) $this->base_price;
         if ($orig > 0 && $orig > $curr) {
             return (int) round((($orig - $curr) / $orig) * 100);
         }
 
-        return (int) round($offer->discount_value);
+        return null;
     }
 
     /**
@@ -122,7 +202,16 @@ class Product extends Model
             ? $this->variants->first()
             : $this->variants()->first();
 
-        return (float) ($firstVariant?->original_price ?? 0);
+        $orig = (float) ($firstVariant?->original_price ?? 0);
+        if ($orig > 0) {
+            return $orig;
+        }
+
+        if ($this->isProductOfferActive() && (float) ($this->offer_regular_price ?? 0) > 0) {
+            return (float) $this->offer_regular_price;
+        }
+
+        return 0.0;
     }
 
     /**

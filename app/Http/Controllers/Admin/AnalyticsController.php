@@ -585,4 +585,110 @@ class AnalyticsController extends Controller
     {
         return view('admin.analytics.visitors');
     }
+
+    /**
+     * Compute overview statistics for a given time period
+     */
+    public static function getOverviewStatsData(string $period = 'all_time'): array
+    {
+        $startDate = null;
+        $endDate = null;
+
+        switch ($period) {
+            case 'today':
+                $startDate = Carbon::today()->startOfDay();
+                $endDate = Carbon::now()->endOfDay();
+                break;
+            case 'yesterday':
+                $startDate = Carbon::yesterday()->startOfDay();
+                $endDate = Carbon::yesterday()->endOfDay();
+                break;
+            case 'last_7_days':
+                $startDate = Carbon::now()->subDays(6)->startOfDay();
+                $endDate = Carbon::now()->endOfDay();
+                break;
+            case 'last_30_days':
+                $startDate = Carbon::now()->subDays(29)->startOfDay();
+                $endDate = Carbon::now()->endOfDay();
+                break;
+            case 'last_month':
+                $startDate = Carbon::now()->subMonthNoOverflow()->startOfMonth();
+                $endDate = Carbon::now()->subMonthNoOverflow()->endOfMonth();
+                break;
+            case 'last_year':
+                $startDate = Carbon::now()->subYear()->startOfYear();
+                $endDate = Carbon::now()->subYear()->endOfYear();
+                break;
+            case 'all_time':
+            default:
+                $period = 'all_time';
+                $startDate = null;
+                $endDate = null;
+                break;
+        }
+
+        // 1. Total Revenue (sum of orders, excluding cancelled and drafts)
+        $revenueQuery = Order::where('is_draft_mode', false)->whereNotIn('status', ['cancelled']);
+        if ($startDate && $endDate) {
+            $revenueQuery->whereBetween('created_at', [$startDate, $endDate]);
+        }
+        $revenue = (float) $revenueQuery->sum('total');
+
+        // 2. Total Orders (valid non-draft orders)
+        $ordersQuery = Order::where('is_draft_mode', false);
+        if ($startDate && $endDate) {
+            $ordersQuery->whereBetween('created_at', [$startDate, $endDate]);
+        }
+        $totalOrders = (int) $ordersQuery->count();
+
+        // 3. Total Customers
+        $regUserQuery = \App\Models\User::whereDoesntHave('roles', fn($r) => $r->where('is_customer', false))->whereNotIn('role', ['super_admin', 'admin', 'manager', 'staff']);
+        if ($startDate && $endDate) {
+            $regUserQuery->whereBetween('created_at', [$startDate, $endDate]);
+        }
+        $regUserIds = $regUserQuery->pluck('id');
+
+        $orderCustomerIds = (clone $ordersQuery)->whereNotNull('user_id')->pluck('user_id');
+        $uniqueGuestPhones = (clone $ordersQuery)->whereNull('user_id')->get()->map(function ($o) {
+            return $o->shipping_address['phone'] ?? $o->guest_info['phone'] ?? $o->shipping_address['contact'] ?? null;
+        })->filter()->unique();
+
+        $totalCustomers = $regUserIds->merge($orderCustomerIds)->unique()->count() + $uniqueGuestPhones->count();
+        if ($period === 'all_time' && $totalCustomers === 0) {
+            $totalCustomers = \App\Models\User::whereDoesntHave('roles', fn($r) => $r->where('is_customer', false))->whereNotIn('role', ['super_admin', 'admin', 'manager', 'staff'])->count();
+        }
+
+        // 4. Visitors count for this period
+        $visitorsCount = 0;
+        if ($period === 'today') {
+            $todayData = \App\Services\VisitorAnalyticsService::getTodayStats();
+            $visitorsCount = (int) ($todayData['unique'] ?? 0);
+            if ($visitorsCount === 0) {
+                $visitorsCount = \App\Models\VisitorSession::whereDate('session_date', Carbon::today())->count();
+            }
+        } elseif ($startDate && $endDate) {
+            $visitorsCount = \App\Models\VisitorSession::whereBetween('session_date', [$startDate->toDateString(), $endDate->toDateString()])->count();
+        } else {
+            $visitorsCount = \App\Models\VisitorSession::count();
+        }
+
+        return [
+            'success' => true,
+            'period' => $period,
+            'revenue' => $revenue,
+            'formatted_revenue' => '৳' . number_format($revenue, 0),
+            'orders' => $totalOrders,
+            'customers' => $totalCustomers,
+            'visitors' => $visitorsCount,
+        ];
+    }
+
+    /**
+     * API endpoint for dynamic dashboard overview statistics
+     */
+    public function overviewStats(Request $request): \Illuminate\Http\JsonResponse
+    {
+        $period = $request->input('period', 'all_time');
+        return response()->json(self::getOverviewStatsData($period));
+    }
 }
