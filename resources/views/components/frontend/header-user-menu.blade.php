@@ -23,13 +23,13 @@
             class="absolute top-[calc(100%-4px)] right-0 pt-2 z-[99999]">
             
             <div class="w-48 bg-white rounded-xl shadow-lg shadow-black/5 border border-gray-100 py-2 relative">
+                @if(Auth::user()->hasAdminAccess())
+                <a href="{{ route('admin.dashboard') }}" class="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 hover:text-brand-600 transition-colors font-medium">
+                    <i class="ph ph-squares-four text-lg text-brand-600"></i> Dashboard
+                </a>
+                @else
                 <a href="{{ route('dashboard') }}" class="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 hover:text-brand-600 transition-colors font-medium">
                     <i class="ph ph-squares-four text-lg text-gray-400"></i> Dashboard
-                </a>
-                
-                @if(Auth::user()->role === 'super_admin')
-                <a href="{{ route('admin.dashboard') }}" class="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 hover:text-brand-600 transition-colors font-medium border-t border-gray-50 mt-1 pt-1">
-                    <i class="ph ph-shield-star text-lg text-brand-500"></i> Admin Panel
                 </a>
                 @endif
                 

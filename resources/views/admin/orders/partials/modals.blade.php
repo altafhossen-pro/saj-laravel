@@ -594,6 +594,70 @@
     </div>
 </div>
 
+<!-- Delete Order Modal -->
+<div x-show="openDeleteModal" 
+     style="display: none;"
+     class="fixed inset-0 z-[100] overflow-y-auto" 
+     aria-labelledby="delete-order-modal-title" role="dialog" aria-modal="true">
+    <div class="flex items-center justify-center min-h-screen p-4 text-center">
+        <div x-show="openDeleteModal" 
+             x-transition:enter="ease-out duration-200"
+             x-transition:enter-start="opacity-0"
+             x-transition:enter-end="opacity-100"
+             x-transition:leave="ease-in duration-150"
+             x-transition:leave-start="opacity-100"
+             x-transition:leave-end="opacity-0"
+             class="fixed inset-0 bg-slate-900/50 backdrop-blur-xs transition-opacity cursor-pointer" 
+             aria-hidden="true" 
+             @click="if (!deletingOrder) openDeleteModal = false"></div>
+
+        <div x-show="openDeleteModal" 
+             x-transition:enter="ease-out duration-200"
+             x-transition:enter-start="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
+             x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100"
+             x-transition:leave="ease-in duration-150"
+             x-transition:leave-start="opacity-100 translate-y-0 sm:scale-100"
+             x-transition:leave-end="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
+             class="relative inline-block align-bottom bg-white rounded-2xl text-left overflow-hidden shadow-2xl transform transition-all sm:my-8 sm:align-middle sm:max-w-md w-full border border-gray-100">
+            
+            <div class="bg-white p-6">
+                <div class="flex items-start gap-4">
+                    <div class="w-12 h-12 rounded-2xl bg-rose-50 border border-rose-100 text-rose-600 flex items-center justify-center shrink-0">
+                        <i class="ph-bold ph-trash text-2xl"></i>
+                    </div>
+                    <div class="flex-1">
+                        <h3 class="text-lg font-bold text-gray-900" id="delete-order-modal-title">Move Order to Trash?</h3>
+                        <p class="text-sm text-gray-500 mt-1">
+                            Are you sure you want to delete order <span class="font-mono font-bold text-gray-800">#{{ $order->order_id }}</span>?
+                        </p>
+                        <div class="mt-3 p-3 bg-amber-50/80 border border-amber-200/80 rounded-xl text-xs text-amber-800 flex items-start gap-2">
+                            <i class="ph-bold ph-info text-base shrink-0 text-amber-600 mt-0.5"></i>
+                            <span><strong>Soft Delete:</strong> This order will be moved to trash and removed from active views. The record and customer history will remain safely in the database.</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-gray-50 px-6 py-4 border-t border-gray-100 flex items-center justify-end gap-3">
+                <button type="button" 
+                        @click="openDeleteModal = false" 
+                        :disabled="deletingOrder"
+                        class="px-4 py-2 bg-white border border-gray-200 hover:bg-gray-100 text-gray-700 text-sm font-semibold rounded-xl transition-colors cursor-pointer disabled:opacity-50">
+                    Cancel
+                </button>
+                <button type="button" 
+                        @click="deleteOrder()" 
+                        :disabled="deletingOrder"
+                        class="px-5 py-2 bg-rose-600 hover:bg-rose-700 text-white text-sm font-bold rounded-xl shadow-xs transition-colors inline-flex items-center gap-2 cursor-pointer disabled:opacity-50">
+                    <i x-show="deletingOrder" class="ph ph-spinner animate-spin text-base"></i>
+                    <i x-show="!deletingOrder" class="ph-bold ph-trash text-base"></i>
+                    <span x-text="deletingOrder ? 'Deleting...' : 'Move to Trash'"></span>
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Toast -->
 <div x-show="toast.show" x-transition style="display: none;"
      class="fixed bottom-6 right-6 z-[110] flex items-center gap-3 bg-gray-900 text-white px-5 py-3.5 rounded-xl shadow-xl">

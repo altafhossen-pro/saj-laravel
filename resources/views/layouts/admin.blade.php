@@ -100,15 +100,21 @@
                     @endif
 
                     <!-- Orders -->
-                    @if(auth()->user()->can('manage_orders') || auth()->user()->can('create_orders') || auth()->user()->can('manage_courier'))
+                    @if(auth()->user()->hasRole('super_admin') || auth()->user()->can('view_orders') || auth()->user()->can('manage_orders') || auth()->user()->can('create_manual_orders') || auth()->user()->can('create_orders') || auth()->user()->can('edit_orders') || auth()->user()->can('manage_order_status') || auth()->user()->can('cancel_orders') || auth()->user()->can('delete_orders') || auth()->user()->can('manage_courier'))
                     <x-nav-dropdown title="Orders" icon="shopping-cart" theme="light"
                         :active="request()->routeIs('admin.orders.*') || request()->routeIs('admin.orders')">
+                        @if(auth()->user()->hasRole('super_admin') || auth()->user()->can('view_orders') || auth()->user()->can('manage_orders'))
                         <x-nav-link href="{{ route('admin.orders') }}" theme="light" class="!py-2 !text-sm"
                             :active="request()->routeIs('admin.orders')">All Orders</x-nav-link>
+                        @endif
+                        @if(auth()->user()->hasRole('super_admin') || auth()->user()->can('create_manual_orders') || auth()->user()->can('create_orders') || auth()->user()->can('manage_orders'))
                         <x-nav-link href="{{ route('admin.orders.manual') }}" theme="light" class="!py-2 !text-sm"
                             :active="request()->routeIs('admin.orders.manual')">Manual Order</x-nav-link>
+                        @endif
+                        @if(auth()->user()->hasRole('super_admin') || auth()->user()->can('view_orders') || auth()->user()->can('manage_orders'))
                         <x-nav-link href="{{ route('admin.orders.drafts') }}" theme="light" class="!py-2 !text-sm"
                             :active="request()->routeIs('admin.orders.drafts')">Draft Orders</x-nav-link>
+                        @endif
                     </x-nav-dropdown>
                     @endif
 

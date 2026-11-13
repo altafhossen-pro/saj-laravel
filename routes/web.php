@@ -81,21 +81,34 @@ Route::middleware(['auth', 'admin_access'])->prefix('admin/dashboard')->group(fu
     Route::get('/api/global-search', [\App\Http\Controllers\Admin\OrderController::class, 'globalSearch'])->name('admin.api.global-search');
 
     // Orders - Manual creation
-    Route::middleware('check_permission:create_orders|manage_orders')->group(function () {
+    Route::middleware('check_permission:create_manual_orders|create_orders|manage_orders')->group(function () {
         Route::get('/orders/manual', [\App\Http\Controllers\Admin\OrderController::class, 'manual'])->name('admin.orders.manual');
         Route::post('/orders/manual', [\App\Http\Controllers\Admin\OrderController::class, 'storeManual'])->name('admin.orders.store');
     });
 
-    // Orders - Management & Processing
-    Route::middleware('check_permission:manage_orders')->group(function () {
+    // Orders - View & Listing
+    Route::middleware('check_permission:view_orders|manage_orders')->group(function () {
         Route::get('/orders/drafts', [\App\Http\Controllers\Admin\OrderController::class, 'drafts'])->name('admin.orders.drafts');
         Route::get('/all-orders', [\App\Http\Controllers\Admin\OrderController::class, 'index'])->name('admin.orders');
         Route::get('/all-orders/{order_id}', [\App\Http\Controllers\Admin\OrderController::class, 'show'])->name('admin.orders.show');
-        Route::get('/all-orders/{order_id}/edit', [\App\Http\Controllers\Admin\OrderController::class, 'edit'])->name('admin.orders.edit');
         Route::get('/api/orders', [\App\Http\Controllers\Admin\OrderController::class, 'fetchOrders'])->name('admin.orders.fetch');
+    });
+
+    // Orders - Edit
+    Route::middleware('check_permission:edit_orders|manage_orders')->group(function () {
+        Route::get('/all-orders/{order_id}/edit', [\App\Http\Controllers\Admin\OrderController::class, 'edit'])->name('admin.orders.edit');
         Route::put('/api/orders/{order_id}', [\App\Http\Controllers\Admin\OrderController::class, 'update'])->name('admin.orders.update');
-        Route::post('/api/orders/{order_id}/status', [\App\Http\Controllers\Admin\OrderController::class, 'updateStatus'])->name('admin.orders.update-status');
         Route::post('/api/orders/{order_id}/admin-notes', [\App\Http\Controllers\Admin\OrderController::class, 'saveAdminNote'])->name('admin.orders.admin-notes.save');
+    });
+
+    // Orders - Status Management & Cancel
+    Route::middleware('check_permission:manage_order_status|cancel_orders|manage_orders')->group(function () {
+        Route::post('/api/orders/{order_id}/status', [\App\Http\Controllers\Admin\OrderController::class, 'updateStatus'])->name('admin.orders.update-status');
+    });
+
+    // Orders - Soft Deletion
+    Route::middleware('check_permission:delete_orders|manage_orders')->group(function () {
+        Route::delete('/all-orders/{order_id}', [\App\Http\Controllers\Admin\OrderController::class, 'destroy'])->name('admin.orders.destroy');
     });
 
     // Orders - Courier & Steadfast Actions

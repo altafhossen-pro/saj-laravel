@@ -262,10 +262,25 @@ class OrderController extends Controller
             'restock_reason' => 'nullable|string|max:500',
         ]);
 
-        $order = Order::where('order_id', $order_id)->firstOrFail();
+        $order = Order::where('order_id', $order_id)->orWhere('id', $order_id)->firstOrFail();
         
         $oldStatus = $order->status;
         $newStatus = $request->status;
+
+        // Granular permission check: cancel_orders vs manage_order_status
+        if ($newStatus === 'cancelled') {
+            if (!auth()->user()->hasRole('super_admin') && !auth()->user()->can('cancel_orders') && !auth()->user()->can('manage_orders')) {
+                return response()->json([
+                    'message' => 'Access Denied: You do not have permission to cancel orders.',
+                ], 403);
+            }
+        } else {
+            if (!auth()->user()->hasRole('super_admin') && !auth()->user()->can('manage_order_status') && !auth()->user()->can('manage_orders')) {
+                return response()->json([
+                    'message' => 'Access Denied: You do not have permission to update order status.',
+                ], 403);
+            }
+        }
 
         // Rule: Shipped orders cannot be cancelled via normal status modal (valid options: delivered or returned)
         if ($oldStatus === 'shipped' && $newStatus === 'cancelled') {
@@ -1073,5 +1088,45 @@ class OrderController extends Controller
             'orders' => $matchedOrders,
             'products' => $matchedProducts,
         ]);
+    }
+
+    /**
+     * Soft delete an order.
+     */
+    public function destroy(Request $request, $order_id)
+    {
+        $order = Order::where('order_id', $order_id)
+            ->orWhere('id', $order_id)
+            ->firstOrFail();
+
+        $orderIdDisplay = $order->order_id ?: ('#' . $order->id);
+
+        // Record log entry in order_logs before soft delete
+        \App\Models\Order\OrderLog::create([
+            'order_id' => $order->id,
+            'user_id' => auth()->id(),
+            'action' => "Order {$orderIdDisplay} moved to trash (Soft Deleted)",
+            'old_data' => [
+                'status' => $order->status,
+                'total' => (float) $order->total,
+                'deleted_by' => auth()->user()?->name ?? 'Admin',
+            ],
+            'new_data' => [
+                'deleted_at' => now()->toDateTimeString(),
+            ],
+        ]);
+
+        // Soft delete the order
+        $order->delete();
+
+        if ($request->expectsJson() || $request->ajax()) {
+            return response()->json([
+                'success' => true,
+                'message' => "Order {$orderIdDisplay} has been moved to trash successfully.",
+            ]);
+        }
+
+        return redirect()->route('admin.orders')
+            ->with('success', "Order {$orderIdDisplay} has been moved to trash successfully.");
     }
 }

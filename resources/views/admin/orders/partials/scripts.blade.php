@@ -40,6 +40,8 @@
             receivableAmount: {{ (float) ($order->steadfast_receivable_amount ?: 0) }},
             openStatusModal: false,
             openConfirmModal: false,
+            openDeleteModal: false,
+            deletingOrder: false,
             showPrintLabelModal: false,
             loading: false,
             nextStatus: null,
@@ -524,6 +526,31 @@
             closeImagePreview() {
                 this.previewImageUrl = null;
                 this.previewImageTitle = '';
+            },
+
+            async deleteOrder() {
+                if (this.deletingOrder) return;
+                this.deletingOrder = true;
+                try {
+                    const response = await fetch(`/admin/dashboard/all-orders/${this.orderId}`, {
+                        method: 'DELETE',
+                        headers: {
+                            'Accept': 'application/json',
+                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '{{ csrf_token() }}'
+                        }
+                    });
+                    const data = await response.json().catch(() => ({}));
+                    if (!response.ok || !data.success) {
+                        throw new Error(data.message || 'Failed to delete order.');
+                    }
+                    this.showToast(data.message || 'Order moved to trash successfully.');
+                    setTimeout(() => {
+                        window.location.href = "{{ route('admin.orders') }}";
+                    }, 800);
+                } catch (err) {
+                    this.showToast(err.message, 'error');
+                    this.deletingOrder = false;
+                }
             }
         }));
     });

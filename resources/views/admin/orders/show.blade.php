@@ -188,19 +188,31 @@
                     <span>Print Label</span>
                 </button>
             </template>
+            @if(auth()->user()->hasRole('super_admin') || auth()->user()->can('edit_orders') || auth()->user()->can('manage_orders'))
             <a href="{{ route('admin.orders.edit', $order->order_id) }}"
                class="px-4 py-2 bg-white border border-gray-200 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 cursor-pointer transition-colors flex items-center gap-1.5">
                 <i class="ph ph-pencil-simple"></i> Edit Order
             </a>
+            @endif
             <button type="button"
                     class="px-4 py-2 bg-white border border-gray-200 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 cursor-pointer transition-colors">
                 Print Invoice
             </button>
+            @if(auth()->user()->hasRole('super_admin') || auth()->user()->can('manage_order_status') || auth()->user()->can('cancel_orders') || auth()->user()->can('manage_orders'))
             <button type="button"
                     @click="openStatusModal = true"
                     class="px-4 py-2 bg-brand-600 border border-brand-600 text-white rounded-lg text-sm font-medium hover:bg-brand-700 cursor-pointer transition-colors">
                 Update Status
             </button>
+            @endif
+            @if(auth()->user()->hasRole('super_admin') || auth()->user()->can('delete_orders') || auth()->user()->can('manage_orders'))
+            <button type="button"
+                    @click="openDeleteModal = true"
+                    class="px-4 py-2 bg-white border border-rose-200 text-rose-600 rounded-lg text-sm font-medium hover:bg-rose-50 cursor-pointer transition-colors flex items-center gap-1.5 shadow-2xs">
+                <i class="ph ph-trash text-base"></i>
+                <span>Delete Order</span>
+            </button>
+            @endif
         </div>
     </div>
 

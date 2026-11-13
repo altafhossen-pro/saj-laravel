@@ -26,7 +26,7 @@ class AuthController extends Controller
             'password' => 'required'
         ]);
 
-        if (Auth::attempt($credentials)) {
+        if (Auth::attempt($credentials, true)) {
             $request->session()->regenerate();
             
             // Redirect based on admin access
@@ -157,7 +157,7 @@ class AuthController extends Controller
         // Cleanup OTP
         $otpRecord->delete();
 
-        Auth::login($user);
+        Auth::login($user, true);
 
         // Meta CAPI CompleteRegistration Track
         try {
@@ -202,7 +202,7 @@ class AuthController extends Controller
             } catch (\Throwable $logEx) {}
         }
 
-        $redirectUrl = $user->hasRole('super_admin') ? url('/admin/dashboard') : url('/dashboard');
+        $redirectUrl = $user->hasAdminAccess() ? url('/admin/dashboard') : url('/dashboard');
 
         if ($request->expectsJson() || $request->ajax()) {
             return response()->json([
@@ -212,7 +212,7 @@ class AuthController extends Controller
             ]);
         }
 
-        if($user->hasRole('super_admin')) {
+        if($user->hasAdminAccess()) {
             return redirect()->intended('/admin/dashboard');
         }
         return redirect('/dashboard');
@@ -241,20 +241,29 @@ class AuthController extends Controller
         try {
             $googleUser = Socialite::driver('google')->user();
             
-            $user = User::updateOrCreate(
-                ['email' => $googleUser->getEmail()],
-                [
+            $user = User::where('email', $googleUser->getEmail())->first();
+
+            if ($user) {
+                // Keep existing user role & password intact! Only update google_id and avatar if missing
+                $user->google_id = $googleUser->getId();
+                if (!$user->avatar && $googleUser->getAvatar()) {
+                    $user->avatar = $googleUser->getAvatar();
+                }
+                $user->save();
+            } else {
+                $user = User::create([
+                    'email' => $googleUser->getEmail(),
                     'name' => $googleUser->getName(),
                     'google_id' => $googleUser->getId(),
                     'role' => 'user',
                     'avatar' => $googleUser->getAvatar(),
-                    'password' => Hash::make(uniqid()) // Random password for social login
-                ]
-            );
+                    'password' => Hash::make(uniqid('google_', true))
+                ]);
+            }
 
-            Auth::login($user);
+            Auth::login($user, true);
 
-            if($user->hasRole('super_admin')) {
+            if($user->hasAdminAccess()) {
                 return redirect()->intended('/admin/dashboard');
             }
             return redirect('/dashboard');

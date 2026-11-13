@@ -29,10 +29,13 @@ class RolePermissionController extends Controller
         'Orders & Deliveries' => [
             'icon' => 'ph-shopping-cart',
             'permissions' => [
-                'manage_orders' => 'Manage Orders (View, edit status, shipping address & payments)',
-                'create_orders' => 'Manual Orders (Create manual customer orders from admin panel)',
-                'delete_orders' => 'Delete / Cancel Orders (Permanently remove or cancel orders)',
-                'manage_courier' => 'Courier & Shipping (Steadfast consignment booking & shipping rates)',
+                'view_orders' => 'View Orders (Browse order lists, search, filter & view order details)',
+                'create_manual_orders' => 'Create Manual Order (Place manual orders from admin panel)',
+                'edit_orders' => 'Edit Orders (Modify order items, quantities, pricing & shipping address)',
+                'manage_order_status' => 'Manage Order Status (Update statuses: Confirmed, Processing, Shipped, Delivered)',
+                'cancel_orders' => 'Cancel Orders (Mark active orders as cancelled)',
+                'delete_orders' => 'Delete Orders (Soft-delete orders into trash)',
+                'manage_courier' => 'Courier & Shipping (Steadfast consignment booking & tracking sync)',
             ],
         ],
         'Customers & Staff' => [

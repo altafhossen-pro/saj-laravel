@@ -810,14 +810,22 @@
                                         <!-- Dropdown -->
                                         <div x-show="openMenu" 
                                              x-transition.opacity.duration.200ms
-                                             class="absolute right-10 top-10 w-40 bg-white border border-gray-100 rounded-xl shadow-lg z-20 py-1"
+                                             class="absolute right-10 top-10 w-44 bg-white border border-gray-100 rounded-xl shadow-lg z-20 py-1"
                                              style="display: none;">
                                             <a :href="'/admin/dashboard/all-orders/' + order.order_id" class="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 hover:text-brand-600">
                                                 <i class="ph ph-eye text-lg"></i> View Details
                                             </a>
-                                            <button @click="openMenu = false; /* editStatus function here */" class="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 hover:text-amber-600">
+                                            @if(auth()->user()->hasRole('super_admin') || auth()->user()->can('manage_order_status') || auth()->user()->can('manage_orders'))
+                                            <a :href="'/admin/dashboard/all-orders/' + order.order_id" class="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 hover:text-amber-600">
                                                 <i class="ph ph-pencil-simple text-lg"></i> Edit Status
+                                            </a>
+                                            @endif
+                                            @if(auth()->user()->hasRole('super_admin') || auth()->user()->can('delete_orders') || auth()->user()->can('manage_orders'))
+                                            <div class="border-t border-gray-100 my-1"></div>
+                                            <button type="button" @click="openMenu = false; confirmDeleteOrder(order)" class="w-full flex items-center gap-2 px-4 py-2 text-sm text-rose-600 hover:bg-rose-50 transition-colors text-left cursor-pointer">
+                                                <i class="ph ph-trash text-lg"></i> Delete Order
                                             </button>
+                                            @endif
                                         </div>
                                     </td>
                                 </tr>
@@ -848,9 +856,17 @@
                     <a :href="ctx.order ? '/admin/dashboard/all-orders/' + ctx.order.order_id : '#'" role="menuitem" class="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 hover:text-brand-600 cursor-pointer">
                         <i class="ph ph-eye text-lg"></i> View Details
                     </a>
+                    @if(auth()->user()->hasRole('super_admin') || auth()->user()->can('manage_order_status') || auth()->user()->can('manage_orders'))
                     <a :href="ctx.order ? '/admin/dashboard/all-orders/' + ctx.order.order_id : '#'" role="menuitem" class="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 hover:text-amber-600 cursor-pointer">
                         <i class="ph ph-pencil-simple text-lg"></i> Edit Status
                     </a>
+                    @endif
+                    @if(auth()->user()->hasRole('super_admin') || auth()->user()->can('delete_orders') || auth()->user()->can('manage_orders'))
+                    <div class="border-t border-gray-100 my-1"></div>
+                    <button type="button" @click="closeContextMenu(); confirmDeleteOrder(ctx.order)" role="menuitem" class="w-full flex items-center gap-2 px-4 py-2 text-sm text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer text-left">
+                        <i class="ph ph-trash text-lg"></i> Delete Order
+                    </button>
+                    @endif
                 </div>
                 
                 <!-- Pagination -->
@@ -884,6 +900,70 @@
                     </div>
                 </div>
             </div>
+
+            <!-- Custom Delete Order Confirmation Modal -->
+            <div x-show="deleteModal"
+                 style="display: none;"
+                 class="fixed inset-0 z-[100] overflow-y-auto"
+                 aria-labelledby="modal-title" role="dialog" aria-modal="true">
+                <div class="flex items-center justify-center min-h-screen p-4 text-center">
+                    <div x-show="deleteModal" 
+                         x-transition:enter="ease-out duration-200"
+                         x-transition:enter-start="opacity-0"
+                         x-transition:enter-end="opacity-100"
+                         x-transition:leave="ease-in duration-150"
+                         x-transition:leave-start="opacity-100"
+                         x-transition:leave-end="opacity-0"
+                         class="fixed inset-0 bg-slate-900/50 backdrop-blur-xs transition-opacity cursor-pointer"
+                         @click="if(!isDeleting) deleteModal = false"
+                         aria-hidden="true"></div>
+
+                    <div x-show="deleteModal"
+                         x-transition:enter="ease-out duration-200"
+                         x-transition:enter-start="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
+                         x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100"
+                         x-transition:leave="ease-in duration-150"
+                         x-transition:leave-start="opacity-100 translate-y-0 sm:scale-100"
+                         x-transition:leave-end="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
+                         class="relative inline-block align-bottom bg-white rounded-2xl text-left overflow-hidden shadow-2xl transform transition-all sm:my-8 sm:align-middle sm:max-w-md w-full border border-gray-100">
+                        
+                        <div class="bg-white p-6">
+                            <div class="flex items-start gap-4">
+                                <div class="w-12 h-12 rounded-2xl bg-rose-50 border border-rose-100 text-rose-600 flex items-center justify-center shrink-0">
+                                    <i class="ph-bold ph-trash text-2xl"></i>
+                                </div>
+                                <div class="flex-1">
+                                    <h3 class="text-lg font-bold text-gray-900">Move Order to Trash?</h3>
+                                    <p class="text-sm text-gray-500 mt-1">
+                                        Are you sure you want to delete order <span class="font-mono font-bold text-gray-800" x-text="orderToDelete ? '#' + (orderToDelete.order_id || orderToDelete.id) : ''"></span>?
+                                    </p>
+                                    <div class="mt-3 p-3 bg-amber-50/80 border border-amber-200/80 rounded-xl text-xs text-amber-800 flex items-start gap-2">
+                                        <i class="ph-bold ph-info text-base shrink-0 text-amber-600 mt-0.5"></i>
+                                        <span><strong>Soft Delete:</strong> This order will be moved to trash and hidden from active listings. Order history and customer logs will be preserved safely.</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="bg-gray-50 px-6 py-4 border-t border-gray-100 flex items-center justify-end gap-3">
+                            <button type="button"
+                                    @click="deleteModal = false"
+                                    :disabled="isDeleting"
+                                    class="px-4 py-2 bg-white border border-gray-200 hover:bg-gray-100 text-gray-700 text-sm font-semibold rounded-xl transition-colors cursor-pointer disabled:opacity-50">
+                                Cancel
+                            </button>
+                            <button type="button"
+                                    @click="executeDeleteOrder()"
+                                    :disabled="isDeleting"
+                                    class="px-5 py-2 bg-rose-600 hover:bg-rose-700 text-white text-sm font-bold rounded-xl shadow-xs transition-colors inline-flex items-center gap-2 cursor-pointer disabled:opacity-50">
+                                <i x-show="isDeleting" class="ph ph-spinner animate-spin text-base"></i>
+                                <i x-show="!isDeleting" class="ph-bold ph-trash text-base"></i>
+                                <span x-text="isDeleting ? 'Deleting...' : 'Move to Trash'"></span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
 
         <script>
@@ -907,6 +987,48 @@
                         to: 0
                     },
                     ctx: { open: false, x: 0, y: 0, order: null },
+                    deleteModal: false,
+                    orderToDelete: null,
+                    isDeleting: false,
+
+                    confirmDeleteOrder(order) {
+                        this.orderToDelete = order;
+                        this.deleteModal = true;
+                    },
+
+                    async executeDeleteOrder() {
+                        if (!this.orderToDelete || this.isDeleting) return;
+                        this.isDeleting = true;
+                        
+                        try {
+                            const targetId = this.orderToDelete.order_id || this.orderToDelete.id;
+                            const response = await fetch(`/admin/dashboard/all-orders/${targetId}`, {
+                                method: 'DELETE',
+                                headers: {
+                                    'Accept': 'application/json',
+                                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '{{ csrf_token() }}'
+                                }
+                            });
+                            const data = await response.json().catch(() => ({}));
+
+                            if (!response.ok || !data.success) {
+                                throw new Error(data.message || 'Failed to delete order.');
+                            }
+
+                            this.deleteModal = false;
+                            this.orderToDelete = null;
+                            window.dispatchEvent(new CustomEvent('notify', { 
+                                detail: { message: data.message || 'Order moved to trash successfully.', type: 'success' } 
+                            }));
+                            this.fetchOrders();
+                        } catch (err) {
+                            window.dispatchEvent(new CustomEvent('notify', { 
+                                detail: { message: err.message || 'Error deleting order.', type: 'error' } 
+                            }));
+                        } finally {
+                            this.isDeleting = false;
+                        }
+                    },
 
                     openContextMenu(event, order) {
                         const menuWidth = 192;

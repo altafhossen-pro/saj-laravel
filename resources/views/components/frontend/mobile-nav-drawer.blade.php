@@ -73,9 +73,9 @@
                     </div>
                 </div>
                 <div class="mt-3 grid grid-cols-2 gap-2">
-                    <a href="{{ route('dashboard') }}" @click="mobileNavOpen = false"
+                    <a href="{{ auth()->user()->hasAdminAccess() ? route('admin.dashboard') : route('dashboard') }}" @click="mobileNavOpen = false"
                        class="flex items-center justify-center gap-1.5 py-1.5 px-3 bg-white hover:bg-brand-50 text-brand-700 border border-brand-200 rounded-lg text-xs font-medium transition-colors shadow-xs">
-                        <i class="ph ph-user"></i>
+                        <i class="ph ph-squares-four"></i>
                         <span>Dashboard</span>
                     </a>
                     <a href="{{ route('dashboard.orders') }}" @click="mobileNavOpen = false"
