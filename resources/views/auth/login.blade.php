@@ -59,7 +59,7 @@
         <div x-data="{ loading: false }">
             <a href="/auth/google" @click="loading = true" class="mt-6 w-full flex items-center justify-center gap-2 py-2.5 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors text-gray-700 font-medium text-sm cursor-pointer" :class="{ 'opacity-75 cursor-wait': loading }">
                 <template x-if="!loading">
-                    <img src="https://www.svgrepo.com/show/475656/google-color.svg" class="w-5 h-5" alt="Google">
+                    <img src="{{ asset('images/google-icon.svg') }}" class="w-5 h-5" alt="Google">
                 </template>
                 <template x-if="loading">
                     <i class="ph ph-spinner animate-spin text-lg"></i>
