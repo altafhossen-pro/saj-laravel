@@ -54,6 +54,9 @@ Route::get('/sitemap-products-{page}.xml', [\App\Http\Controllers\Frontend\Sitem
 Route::post('/api/visitor/pulse', [\App\Http\Controllers\Frontend\VisitorActivityController::class, 'pulse'])->name('api.visitor.pulse');
 Route::post('/api/visitor/offer/{offer}/respond', [\App\Http\Controllers\Frontend\VisitorActivityController::class, 'respondOffer'])->name('api.visitor.offer.respond');
 
+// Steadfast Courier Webhook Callback
+Route::post('/api/steadfast/webhook', [\App\Http\Controllers\Api\SteadfastWebhookController::class, 'handle'])->name('api.steadfast.webhook');
+
 Route::middleware(['auth'])->prefix('dashboard')->group(function () {
     Route::get('/', [\App\Http\Controllers\Frontend\DashboardController::class, 'index'])->name('dashboard');
     Route::get('/my-orders', [\App\Http\Controllers\Frontend\DashboardController::class, 'orders'])->name('dashboard.orders');
@@ -86,7 +89,10 @@ Route::middleware(['auth', 'role:super_admin'])->prefix('admin/dashboard')->grou
     Route::post('/api/orders/{order_id}/status', [\App\Http\Controllers\Admin\OrderController::class, 'updateStatus'])->name('admin.orders.update-status');
     Route::post('/api/orders/{order_id}/send-to-steadfast', [\App\Http\Controllers\Admin\OrderController::class, 'sendToSteadfast'])->name('admin.orders.send-to-steadfast');
     Route::get('/api/orders/{order_id}/steadfast-status', [\App\Http\Controllers\Admin\OrderController::class, 'getSteadfastStatus'])->name('admin.orders.steadfast-status');
+    Route::post('/api/orders/{order_id}/sync-steadfast-tracking', [\App\Http\Controllers\Admin\OrderController::class, 'syncSteadfastTracking'])->name('admin.orders.sync-steadfast-tracking');
     Route::get('/api/orders/steadfast-fraud-check', [\App\Http\Controllers\Admin\OrderController::class, 'checkSteadfastFraud'])->name('admin.orders.steadfast-fraud-check');
+    Route::post('/api/orders/{order_id}/admin-notes', [\App\Http\Controllers\Admin\OrderController::class, 'saveAdminNote'])->name('admin.orders.admin-notes.save');
+    Route::get('/api/global-search', [\App\Http\Controllers\Admin\OrderController::class, 'globalSearch'])->name('admin.api.global-search');
 
     // Products
     Route::get('/products', [\App\Http\Controllers\Admin\ProductController::class, 'index'])->name('admin.products.index');
@@ -200,6 +206,10 @@ Route::middleware(['auth', 'role:super_admin'])->prefix('admin/dashboard')->grou
     Route::post('/settings/steadfast', [\App\Http\Controllers\Admin\SettingController::class, 'updateSteadfast'])->name('admin.settings.steadfast.update');
     Route::post('/settings/steadfast/ping', [\App\Http\Controllers\Admin\SettingController::class, 'steadfastPing'])->name('admin.settings.steadfast.ping');
     Route::post('/settings/steadfast/balance', [\App\Http\Controllers\Admin\SettingController::class, 'steadfastBalance'])->name('admin.settings.steadfast.balance');
+    Route::get('/settings/steadfast/log/content', [\App\Http\Controllers\Admin\SettingController::class, 'steadfastLogContent'])->name('admin.settings.steadfast.log.content');
+    Route::post('/settings/steadfast/log/save', [\App\Http\Controllers\Admin\SettingController::class, 'steadfastLogSave'])->name('admin.settings.steadfast.log.save');
+    Route::post('/settings/steadfast/log/clear', [\App\Http\Controllers\Admin\SettingController::class, 'steadfastLogClear'])->name('admin.settings.steadfast.log.clear');
+    Route::get('/settings/steadfast/log/download', [\App\Http\Controllers\Admin\SettingController::class, 'steadfastLogDownload'])->name('admin.settings.steadfast.log.download');
 
     Route::get('/settings/telegram', [\App\Http\Controllers\Admin\SettingController::class, 'telegram'])->name('admin.settings.telegram');
     Route::post('/settings/telegram', [\App\Http\Controllers\Admin\SettingController::class, 'updateTelegram'])->name('admin.settings.telegram.update');

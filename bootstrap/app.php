@@ -24,6 +24,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->validateCsrfTokens(except: [
             'api/visitor/pulse',
             'api/visitor/offer/*',
+            'api/steadfast/webhook',
         ]);
 
         $middleware->redirectUsersTo(function () {

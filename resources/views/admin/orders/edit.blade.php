@@ -22,9 +22,13 @@
             : null;
 
         $info = is_array($item->variant_info) ? $item->variant_info : [];
+        $sku = $item->variant_sku ?: ($item->product->sku ?? null);
 
         return [
             'id' => $item->id,
+            'product_id' => $item->product_id,
+            'variant_sku' => $item->variant_sku,
+            'sku' => $sku,
             'name' => $item->name,
             'variant' => $info['label'] ?? null,
             'image' => $imageUrl,
@@ -104,8 +108,127 @@
             <!-- Items -->
             <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
                 <div class="px-6 py-4 border-b border-gray-100 flex justify-between items-center">
-                    <h2 class="text-lg font-bold text-gray-900">Order items (<span x-text="items.length"></span>)</h2>
+                    <div class="flex items-center gap-2">
+                        <h2 class="text-lg font-bold text-gray-900">Order items (<span x-text="items.length"></span>)</h2>
+                    </div>
                 </div>
+
+                <!-- Product Search & Add Bar -->
+                <div class="p-4 sm:p-5 border-b border-gray-100 bg-gray-50/50 relative">
+                    <div class="relative">
+                        <i class="ph ph-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 text-base"></i>
+                        <input type="text" 
+                               x-ref="searchInput" 
+                               x-model="searchQuery" 
+                               @input.debounce.300ms="searchProducts()"
+                               @focus="if(searchQuery.length >= 2 && suggestions.length > 0) showSuggestions = true"
+                               @keydown.enter.prevent="handleSearchEnter()"
+                               placeholder="Scan barcode or search products by name / SKU to add..."
+                               class="w-full pl-10 pr-10 py-2.5 bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500 transition-colors text-sm shadow-2xs">
+                        <i x-show="isSearching" class="ph ph-spinner animate-spin absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400 text-base"></i>
+                        <button type="button" 
+                                x-show="searchQuery && !isSearching" 
+                                @click="searchQuery = ''; suggestions = []; showSuggestions = false;" 
+                                class="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                            <i class="ph ph-x"></i>
+                        </button>
+                    </div>
+
+                    <!-- Suggestions Dropdown -->
+                    <div x-show="suggestions.length > 0 && showSuggestions" 
+                         @click.away="showSuggestions = false"
+                         x-transition
+                         class="absolute z-50 left-4 right-4 mt-2 bg-white rounded-xl shadow-xl border border-gray-200 max-h-96 overflow-y-auto">
+                        <template x-for="product in suggestions" :key="product.id">
+                            <div class="p-3 border-b border-gray-100 last:border-0 hover:bg-gray-50 transition-colors">
+                                <div class="flex items-center gap-3 cursor-pointer"
+                                     @click="if(product.product_type === 'variable' && product.variants && product.variants.length > 0) { expandedProduct = expandedProduct === product.id ? null : product.id } else { addItem(product) }">
+                                    <div class="w-12 h-12 bg-gray-100 rounded-lg overflow-hidden flex-shrink-0 flex items-center justify-center relative border border-gray-200">
+                                        <img x-show="product.featured_image" :src="getImageUrl(product.featured_image)" class="w-full h-full object-cover">
+                                        <i x-show="!product.featured_image" class="ph ph-image text-gray-400 text-xl"></i>
+                                    </div>
+                                    <div class="flex-1 min-w-0">
+                                        <div class="flex items-center gap-2">
+                                            <h4 class="font-medium text-gray-900 truncate text-sm" x-text="product.title"></h4>
+                                            <span x-show="product.product_type !== 'variable'"
+                                                class="px-1.5 py-0.5 bg-gray-100 text-gray-600 rounded text-[9px] font-medium uppercase tracking-wider">Single</span>
+                                            <span x-show="product.product_type === 'variable'"
+                                                class="px-1.5 py-0.5 bg-brand-50 text-brand-700 rounded text-[9px] font-medium uppercase tracking-wider">Variable</span>
+                                        </div>
+                                        <p class="text-xs text-gray-500 mt-1" x-show="product.product_type !== 'variable'">
+                                            <span x-text="'SKU: ' + (product.sku || 'N/A') + ' · ৳' + (product.current_price || product.base_price)"></span>
+                                            <span class="mx-1">&bull;</span>
+                                            <span :class="product.stock > 0 ? 'text-green-600' : 'text-red-500 font-medium'" x-text="product.stock > 0 ? 'Stock: ' + product.stock : 'Out of Stock'"></span>
+                                        </p>
+                                        <p class="text-xs text-gray-500 mt-1" x-show="product.product_type === 'variable'">
+                                            <span x-text="product.variants.length + ' variants'"></span>
+                                            <span class="mx-1">&bull;</span>
+                                            <span :class="product.stock > 0 ? 'text-green-600' : 'text-red-500 font-medium'" x-text="product.stock > 0 ? 'Total Stock: ' + product.stock : 'Out of Stock'"></span>
+                                        </p>
+                                    </div>
+                                    <div x-show="product.product_type !== 'variable'">
+                                        <button type="button" @click.stop="addItem(product)"
+                                            class="px-3 py-1.5 bg-brand-50 hover:bg-brand-100 text-brand-600 rounded-lg text-xs font-semibold transition-colors cursor-pointer inline-flex items-center gap-1">
+                                            <i class="ph-bold ph-plus text-xs"></i> Add
+                                        </button>
+                                    </div>
+                                    <div x-show="product.product_type === 'variable'">
+                                        <button type="button" 
+                                            class="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-xs font-semibold transition-colors cursor-pointer inline-flex items-center gap-1">
+                                            <span x-text="expandedProduct === product.id ? 'Close' : 'Choose Variant'"></span>
+                                            <i class="ph" :class="expandedProduct === product.id ? 'ph-caret-up' : 'ph-caret-down'"></i>
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <!-- Variable Product Variants List -->
+                                <div x-show="product.product_type === 'variable' && product.variants && product.variants.length > 0 && expandedProduct === product.id"
+                                     x-transition
+                                     class="pl-14 pr-2 pb-2 space-y-1.5 mt-3 pt-2 border-t border-gray-100">
+                                    <template x-for="variant in product.variants" :key="variant.id">
+                                        <div class="flex items-center justify-between bg-white border border-gray-200 rounded-lg p-2.5 hover:border-brand-300 hover:shadow-2xs transition-all cursor-pointer group"
+                                             @click.stop="addItem(product, variant)">
+                                            <div class="flex items-center gap-3">
+                                                <div class="w-10 h-10 bg-gray-50 rounded-md overflow-hidden flex items-center justify-center flex-shrink-0 border border-gray-200">
+                                                    <img x-show="variant.images && variant.images.length > 0"
+                                                         :src="getImageUrl(variant.images ? variant.images[0] : null)"
+                                                         class="w-full h-full object-cover">
+                                                    <i x-show="!variant.images || variant.images.length === 0"
+                                                       class="ph ph-image text-gray-300 text-lg"></i>
+                                                </div>
+                                                <div>
+                                                    <!-- Attributes Badges -->
+                                                    <div class="flex flex-wrap gap-1.5 mb-1">
+                                                        <template x-for="(val, key) in variant.attributes">
+                                                            <div class="inline-flex items-center text-[11px] leading-none bg-gray-100 border border-gray-200 rounded-md px-1.5 py-1">
+                                                                <span class="text-gray-500 mr-1" x-text="key + ':'"></span>
+                                                                <span class="font-medium text-gray-800" x-text="val"></span>
+                                                            </div>
+                                                        </template>
+                                                    </div>
+                                                    <!-- SKU, Price & Stock -->
+                                                    <div class="flex items-center gap-2 text-[11px]">
+                                                        <span class="text-brand-600 font-bold" x-text="'৳' + (variant.current_price || product.current_price)"></span>
+                                                        <span class="text-gray-300">&bull;</span>
+                                                        <span class="text-gray-500 font-mono" x-text="'SKU: ' + (variant.sku || 'N/A')"></span>
+                                                        <span class="text-gray-300">&bull;</span>
+                                                        <span :class="variant.stock > 0 ? 'text-green-600 font-medium' : 'text-red-500 font-bold'" 
+                                                              x-text="variant.stock > 0 ? 'Stock: ' + variant.stock : 'Out of Stock'"></span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <button type="button" @click.stop="addItem(product, variant)"
+                                                class="px-3 py-1.5 bg-brand-50 group-hover:bg-brand-600 group-hover:text-white text-brand-600 rounded-md text-xs font-semibold transition-colors flex-shrink-0 flex items-center gap-1 cursor-pointer">
+                                                <i class="ph-bold ph-plus text-xs"></i> Add
+                                            </button>
+                                        </div>
+                                    </template>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+
                 <div class="overflow-x-auto">
                     <table class="w-full text-left text-sm whitespace-nowrap">
                         <thead class="bg-gray-50 text-gray-500 font-medium">
@@ -118,17 +241,30 @@
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-gray-100">
-                            <template x-for="(item, index) in items" :key="item.id">
+                            <template x-for="(item, index) in items" :key="item.id || item.cartKey || index">
                                 <tr>
                                     <td class="px-6 py-4">
                                         <div class="flex items-center gap-3">
-                                            <div class="w-12 h-12 rounded-lg bg-gray-100 flex-shrink-0 overflow-hidden flex items-center justify-center text-gray-400">
+                                            <div class="relative group w-12 h-12 rounded-lg bg-gray-100 flex-shrink-0 overflow-hidden flex items-center justify-center text-gray-400 border border-gray-200 cursor-pointer"
+                                                 @click="if(item.image) openImagePreview(item.image, item.name)"
+                                                 title="Click to view large image">
                                                 <img x-show="item.image" :src="item.image" :alt="item.name" class="w-full h-full object-cover">
+                                                <div x-show="item.image" class="absolute inset-0 bg-black/35 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white">
+                                                    <i class="ph-bold ph-magnifying-glass-plus text-base"></i>
+                                                </div>
                                                 <i x-show="!item.image" class="ph ph-image text-xl"></i>
                                             </div>
                                             <div class="min-w-0">
                                                 <p class="font-medium text-gray-900 truncate max-w-[220px]" x-text="item.name"></p>
-                                                <span x-show="item.variant" class="inline-block mt-0.5 bg-gray-100 px-1.5 py-0.5 rounded text-xs text-gray-500" x-text="item.variant"></span>
+                                                <div class="flex flex-wrap items-center gap-1.5 mt-0.5">
+                                                    <span x-show="item.variant_sku || item.sku" 
+                                                          class="inline-flex items-center gap-1 bg-gray-100 text-gray-700 px-1.5 py-0.5 rounded text-[11px] font-mono font-medium border border-gray-200">
+                                                        <span class="text-gray-400">SKU:</span>
+                                                        <span x-text="item.variant_sku || item.sku"></span>
+                                                    </span>
+                                                    <span x-show="item.variant" class="inline-block bg-brand-50 text-brand-700 border border-brand-100 px-1.5 py-0.5 rounded text-xs font-medium" x-text="item.variant"></span>
+                                                    <span x-show="!item.id" class="inline-block bg-emerald-50 text-emerald-700 border border-emerald-200 px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider">New</span>
+                                                </div>
                                             </div>
                                         </div>
                                     </td>
@@ -287,6 +423,41 @@
         </div>
     </div>
 
+    <!-- Large Image Preview Lightbox Modal -->
+    <div x-show="previewImageUrl" 
+         style="display: none;"
+         class="fixed inset-0 z-[150] overflow-y-auto"
+         aria-labelledby="edit-image-preview-title" role="dialog" aria-modal="true"
+         @keydown.escape.window="closeImagePreview()">
+        <div class="flex items-center justify-center min-h-screen p-4 sm:p-6 text-center">
+            <!-- Backdrop -->
+            <div x-show="previewImageUrl" 
+                 x-transition.opacity.duration.300ms 
+                 class="fixed inset-0 bg-gray-950/80 backdrop-blur-sm cursor-pointer" 
+                 @click="closeImagePreview()"></div>
+
+            <!-- Modal Dialog -->
+            <div x-show="previewImageUrl" 
+                 x-transition.scale.duration.300ms 
+                 class="relative z-10 bg-white rounded-2xl overflow-hidden shadow-2xl max-w-3xl w-full p-4 sm:p-6 text-left border border-gray-100">
+                <div class="flex items-center justify-between pb-3 mb-3 border-b border-gray-100">
+                    <div class="min-w-0 pr-4">
+                        <h3 class="text-base font-bold text-gray-900 truncate" id="edit-image-preview-title" x-text="previewImageTitle || 'Product Image'"></h3>
+                        <p class="text-xs text-gray-500">Full Resolution Product Preview</p>
+                    </div>
+                    <button type="button" 
+                            @click="closeImagePreview()" 
+                            class="w-9 h-9 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-600 flex items-center justify-center transition-colors cursor-pointer shrink-0">
+                        <i class="ph-bold ph-x text-lg"></i>
+                    </button>
+                </div>
+                <div class="w-full max-h-[75vh] flex items-center justify-center bg-gray-50 rounded-xl overflow-hidden p-3 border border-gray-100">
+                    <img :src="previewImageUrl" :alt="previewImageTitle" class="max-h-[70vh] max-w-full object-contain rounded-lg shadow-sm">
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Toast -->
     <div x-show="toast.show" x-transition style="display: none;"
          class="fixed bottom-6 right-6 z-[110] flex items-center gap-3 bg-gray-900 text-white px-5 py-3.5 rounded-xl shadow-xl">
@@ -306,9 +477,16 @@
             errors: {},
             toast: { show: false, message: '', type: 'success' },
             toastTimer: null,
+            searchQuery: '',
+            suggestions: [],
+            showSuggestions: false,
+            isSearching: false,
+            expandedProduct: null,
+            previewImageUrl: null,
+            previewImageTitle: '',
 
             get removed() {
-                const keep = this.items.map(i => i.id);
+                const keep = this.items.map(i => i.id).filter(Boolean);
                 return this.originalItems.filter(i => !keep.includes(i.id));
             },
 
@@ -333,6 +511,161 @@
                 return this.num(value).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
             },
 
+            getImageUrl(path) {
+                if (!path) return '';
+                if (typeof path === 'object') {
+                    path = path.url || path.path || path.image || '';
+                }
+                if (path.startsWith('http://') || path.startsWith('https://')) return path;
+                return '/storage/' + path.replace(/^\//, '');
+            },
+
+            async searchProducts() {
+                const q = (this.searchQuery || '').trim();
+                if (q.length < 2) {
+                    this.suggestions = [];
+                    this.showSuggestions = false;
+                    return;
+                }
+
+                this.isSearching = true;
+                try {
+                    const res = await fetch(`/admin/dashboard/products/search?q=${encodeURIComponent(q)}`);
+                    const data = await res.json();
+
+                    // Direct match logic for barcode scanning / exact SKU
+                    if (q.length >= 3) {
+                        const queryClean = q.toLowerCase();
+                        let exactMatchVariant = null;
+                        let exactMatchProduct = null;
+
+                        for (const product of data) {
+                            if (product.product_type === 'variable' && product.variants) {
+                                const match = product.variants.find(v => (v.sku || '').toLowerCase().trim() === queryClean);
+                                if (match) {
+                                    exactMatchVariant = match;
+                                    exactMatchProduct = product;
+                                    break;
+                                }
+                            } else {
+                                const pSku = (product.sku || (product.variants && product.variants[0] ? product.variants[0].sku : '') || '').toLowerCase().trim();
+                                if (pSku && pSku === queryClean) {
+                                    this.addItem(product);
+                                    return;
+                                }
+                            }
+                        }
+
+                        if (exactMatchVariant) {
+                            this.addItem(exactMatchProduct, exactMatchVariant);
+                            return;
+                        }
+                    }
+
+                    this.suggestions = data;
+                    this.showSuggestions = true;
+                } catch (err) {
+                    console.error(err);
+                } finally {
+                    this.isSearching = false;
+                }
+            },
+
+            handleSearchEnter() {
+                const q = (this.searchQuery || '').trim().toLowerCase();
+                if (!q) return;
+
+                if (this.suggestions.length > 0) {
+                    for (const product of this.suggestions) {
+                        if (product.product_type === 'variable' && product.variants) {
+                            const match = product.variants.find(v => (v.sku || '').toLowerCase().trim() === q);
+                            if (match) {
+                                this.addItem(product, match);
+                                return;
+                            }
+                        } else {
+                            const pSku = (product.sku || '').toLowerCase().trim();
+                            if (pSku === q || (product.title || '').toLowerCase().trim() === q) {
+                                this.addItem(product);
+                                return;
+                            }
+                        }
+                    }
+                    if (this.suggestions.length === 1 && this.suggestions[0].product_type !== 'variable') {
+                        this.addItem(this.suggestions[0]);
+                        return;
+                    }
+                }
+            },
+
+            addItem(product, variant = null) {
+                const targetSku = (variant ? variant.sku : (product.sku || (product.variants && product.variants[0] ? product.variants[0].sku : ''))) || '';
+
+                // Check if item already exists in this.items
+                const existingIndex = this.items.findIndex(i => {
+                    if (variant && variant.sku && i.variant_sku) {
+                        return i.variant_sku.toLowerCase().trim() === variant.sku.toLowerCase().trim();
+                    }
+                    if (variant && variant.id && i.variant_id) {
+                        return i.variant_id == variant.id;
+                    }
+                    if (!variant && product.id && i.product_id) {
+                        return i.product_id == product.id && (!i.variant_sku || i.variant_sku === (product.sku || ''));
+                    }
+                    if (targetSku && (i.variant_sku || i.sku)) {
+                        return (i.variant_sku || i.sku).toLowerCase().trim() === targetSku.toLowerCase().trim();
+                    }
+                    return false;
+                });
+
+                if (existingIndex > -1) {
+                    this.items[existingIndex].quantity = (parseInt(this.items[existingIndex].quantity) || 0) + 1;
+                    this.showToast(`Increased quantity for ${this.items[existingIndex].name} to ${this.items[existingIndex].quantity}`);
+                    this.searchQuery = '';
+                    this.suggestions = [];
+                    this.showSuggestions = false;
+                    this.expandedProduct = null;
+                    return;
+                }
+
+                let variantLabel = null;
+                let variantImage = null;
+                if (variant) {
+                    if (variant.attributes) {
+                        variantLabel = Object.values(variant.attributes).join(', ');
+                    }
+                    if (variant.images && variant.images.length > 0) {
+                        const first = variant.images[0];
+                        const imgPath = typeof first === 'object' ? (first.url || first.path || first.image) : first;
+                        variantImage = this.getImageUrl(imgPath);
+                    }
+                }
+                const finalImage = variantImage || (product.featured_image ? this.getImageUrl(product.featured_image) : null);
+                const rawPrice = variant ? (variant.current_price || product.current_price || product.base_price) : (product.current_price || product.base_price);
+
+                const newItem = {
+                    id: null,
+                    cartKey: 'item_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
+                    product_id: product.id,
+                    variant_id: variant ? variant.id : null,
+                    variant_sku: variant ? variant.sku : null,
+                    sku: variant ? variant.sku : (product.sku || null),
+                    name: product.title,
+                    variant: variantLabel,
+                    image: finalImage,
+                    image_path: variantImage ? null : (product.featured_image || null),
+                    quantity: 1,
+                    price: this.num(rawPrice),
+                };
+
+                this.items.unshift(newItem);
+                this.showToast(`Added ${product.title} to order`);
+                this.searchQuery = '';
+                this.suggestions = [];
+                this.showSuggestions = false;
+                this.expandedProduct = null;
+            },
+
             removeItem(index) {
                 if (this.items.length === 1) return;
                 this.items.splice(index, 1);
@@ -340,8 +673,10 @@
 
             restoreItems() {
                 // Put removed items back in their original order, keeping edits made to the rest
-                const current = Object.fromEntries(this.items.map(i => [i.id, i]));
-                this.items = this.originalItems.map(o => current[o.id] || JSON.parse(JSON.stringify(o)));
+                const current = Object.fromEntries(this.items.filter(i => i.id).map(i => [i.id, i]));
+                const restored = this.originalItems.map(o => current[o.id] || JSON.parse(JSON.stringify(o)));
+                const newItems = this.items.filter(i => !i.id);
+                this.items = [...restored, ...newItems];
             },
 
             showToast(message, type = 'success') {
@@ -362,7 +697,12 @@
                     coupon_discount: this.num(this.form.coupon_discount),
                     shipping_cost: this.num(this.form.shipping_cost),
                     items: this.items.map(i => ({
-                        id: i.id,
+                        id: i.id || null,
+                        product_id: i.product_id || null,
+                        variant_sku: i.variant_sku || null,
+                        name: i.name,
+                        image: i.image_path || (i.image && !i.image.startsWith('http') ? i.image.replace(/^\/storage\//, '') : null),
+                        variant_info: i.variant ? { label: i.variant } : null,
                         quantity: parseInt(i.quantity) || 0,
                         price: this.num(i.price),
                     })),
@@ -397,6 +737,17 @@
                     window.scrollTo({ top: 0, behavior: 'smooth' });
                     document.querySelector('main')?.scrollTo({ top: 0, behavior: 'smooth' });
                 }
+            },
+
+            openImagePreview(url, title = '') {
+                if (!url) return;
+                this.previewImageUrl = url;
+                this.previewImageTitle = title;
+            },
+
+            closeImagePreview() {
+                this.previewImageUrl = null;
+                this.previewImageTitle = '';
             }
         }));
     });

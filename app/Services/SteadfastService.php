@@ -311,6 +311,12 @@ class SteadfastService
                 $errorMessage = implode(' | ', $flattened);
             }
 
+            SteadfastLogger::error("Steadfast booking failed for Order #{$order->order_id}: {$errorMessage}", [
+                'status' => $response->status(),
+                'payload' => $payload,
+                'errors' => $data['errors'] ?? null,
+            ]);
+
             Log::error("Steadfast create_order failed for order {$order->order_id}: ", [
                 'status' => $response->status(),
                 'payload' => $payload,

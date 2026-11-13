@@ -645,10 +645,10 @@
             <!-- Filters -->
             <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-100 mb-6 flex flex-wrap gap-4 items-end">
                 <div class="w-full md:w-auto flex-1 min-w-[200px]">
-                    <label class="block text-xs font-medium text-gray-500 mb-1">Search (Order ID, Name, Phone)</label>
+                    <label class="block text-xs font-medium text-gray-500 mb-1">Search (Order ID, Phone, Steadfast CID, Name)</label>
                     <div class="relative">
                         <i class="ph ph-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"></i>
-                        <input type="text" x-model="filters.search" @input.debounce.500ms="fetchOrders(1)" class="w-full bg-gray-50 border border-gray-200 rounded-lg pl-9 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" placeholder="Search orders...">
+                        <input type="text" x-model="filters.search" @input.debounce.500ms="fetchOrders(1)" class="w-full bg-gray-50 border border-gray-200 rounded-lg pl-9 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" placeholder="Search by Order ID, phone, Steadfast CID...">
                     </div>
                 </div>
                 <div class="w-full md:w-auto min-w-[150px]">
@@ -711,8 +711,18 @@
                         <tbody class="divide-y divide-gray-100">
                             <template x-for="order in orders" :key="order.id">
                                 <tr class="hover:bg-gray-50 transition-colors" :class="ctx.open && ctx.order && ctx.order.id === order.id ? 'bg-gray-50' : ''" @contextmenu.prevent="openContextMenu($event, order)">
-                                    <td class="px-6 py-4 font-medium text-brand-600">
-                                        <a :href="'/admin/dashboard/all-orders/' + order.order_id" x-text="order.order_id" class="hover:underline flex items-center gap-1"></a>
+                                    <td class="px-6 py-4 font-medium">
+                                        <div class="flex flex-col items-start gap-0.5">
+                                            <a :href="'/admin/dashboard/all-orders/' + order.order_id" x-text="order.order_id" class="text-brand-600 hover:text-brand-800 hover:underline font-bold text-sm flex items-center gap-1"></a>
+                                            <template x-if="order.steadfast_consignment_id">
+                                                <a :href="'/admin/dashboard/all-orders/' + order.order_id" 
+                                                   class="inline-flex items-center gap-1 text-[11px] text-gray-500 hover:text-pink-600 transition-colors group"
+                                                   title="View Order Details (Steadfast Consignment)">
+                                                    <span class="text-pink-600 font-semibold group-hover:underline">steadfast:</span>
+                                                    <span class="font-mono text-gray-600 group-hover:text-pink-700 font-medium" x-text="order.steadfast_consignment_id"></span>
+                                                </a>
+                                            </template>
+                                        </div>
                                     </td>
                                     <td class="px-6 py-4">
                                         <div class="flex flex-col items-start gap-1">

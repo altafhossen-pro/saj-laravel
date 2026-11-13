@@ -262,6 +262,7 @@ class CheckoutController extends Controller
             $order->billing_address = $customerInfo;
 
             $order->status = 'pending';
+            $order->is_stock_deducted = false;
             $order->payment_method = $data['payment_method'];
             $order->payment_status = 'pending';
             
@@ -289,22 +290,11 @@ class CheckoutController extends Controller
                 $coupon->increment('used_count');
             }
 
-            // 4. Save Order Items & Reduce Stock
+            // 4. Save Order Items
+            // Note: Stock is NOT deducted on Pending checkout. Stock deduction is triggered when order is Confirmed.
             foreach ($orderItemsData as $itemData) {
                 $orderItem = new OrderItem($itemData);
                 $order->items()->save($orderItem);
-            }
-
-            foreach ($stockReductions as $sr) {
-                $p = $sr['product'];
-                $v = $sr['variant'];
-                $q = $sr['quantity'];
-
-                if ($v) {
-                    $v->decrement('stock_quantity', $q);
-                }
-                $p->decrement('total_stock', $q);
-                $p->increment('total_sold', $q);
             }
 
             DB::commit();

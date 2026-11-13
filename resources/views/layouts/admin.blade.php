@@ -7,6 +7,8 @@
     @php
         $adminSiteName = \App\Models\Setting::get('site_name', 'SAJ');
         $adminFavicon = \App\Models\Setting::get('site_favicon') ?: asset('favicon.ico');
+        $headerMerchantId = \App\Models\Setting::get('steadfast_merchant_id', '');
+        $headerShowMerchantId = \App\Models\Setting::get('steadfast_show_merchant_id_in_header', '1');
     @endphp
     <title>@yield('title', 'Admin Panel - ' . $adminSiteName)</title>
     <link rel="icon" type="image/png" href="{{ $adminFavicon }}">
@@ -233,10 +235,142 @@
                 </div>
 
                 <!-- Right Actions -->
-                <div class="flex items-center gap-2 sm:gap-4 ml-2 sm:ml-4" x-data="liveVisitorPoller()">
+                <div class="flex items-center gap-2 sm:gap-3.5 ml-2 sm:ml-4">
+                    <!-- Global Header Search -->
+                    <div x-data="globalHeaderSearch()" class="relative" @click.away="showDropdown = false">
+                        <div class="relative w-36 sm:w-56 md:w-64 lg:w-72">
+                            <i class="ph ph-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm"></i>
+                            <input type="text"
+                                   x-ref="globalSearchInput"
+                                   x-model="query"
+                                   @input.debounce.300ms="search()"
+                                   @focus="if(query.length >= 2 && (orders.length > 0 || products.length > 0)) showDropdown = true"
+                                   @keydown.escape="showDropdown = false"
+                                   placeholder="Search orders, phone, CID, products..."
+                                   class="w-full bg-gray-50 hover:bg-gray-100 focus:bg-white border border-gray-200 focus:border-brand-500 rounded-xl pl-8.5 pr-8 py-1.5 text-xs text-gray-800 focus:outline-none focus:ring-2 focus:ring-brand-500/20 transition-all shadow-2xs">
+                            <i x-show="loading" class="ph ph-spinner animate-spin absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-xs" style="display: none;"></i>
+                            <button type="button" 
+                                    x-show="query && !loading" 
+                                    @click="query = ''; orders = []; products = []; showDropdown = false;" 
+                                    class="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-xs"
+                                    style="display: none;">
+                                <i class="ph ph-x"></i>
+                            </button>
+                        </div>
+
+                        <!-- Search Suggestions Dropdown -->
+                        <div x-show="showDropdown && (orders.length > 0 || products.length > 0 || hasSearched)" 
+                             x-transition.opacity.duration.200ms
+                             style="display: none;"
+                             class="absolute right-0 sm:left-0 sm:right-auto mt-2 w-[320px] sm:w-[380px] md:w-[420px] bg-white rounded-2xl shadow-2xl border border-gray-200 z-[120] max-h-[460px] overflow-y-auto divide-y divide-gray-100">
+                            
+                            <!-- Orders Section -->
+                            <template x-if="orders.length > 0">
+                                <div class="p-3">
+                                    <div class="flex items-center justify-between px-2 mb-2">
+                                        <span class="text-[10px] font-bold uppercase tracking-wider text-gray-400 flex items-center gap-1">
+                                            <i class="ph-bold ph-shopping-cart text-brand-600"></i> Orders
+                                        </span>
+                                        <span class="text-[10px] font-semibold text-gray-400" x-text="orders.length + ' found'"></span>
+                                    </div>
+                                    <div class="space-y-1">
+                                        <template x-for="order in orders" :key="order.id">
+                                            <a :href="order.url" 
+                                               class="flex items-center justify-between p-2 rounded-xl hover:bg-brand-50/60 transition-colors group cursor-pointer">
+                                                <div class="min-w-0 pr-2">
+                                                    <div class="flex items-center gap-2">
+                                                        <span class="font-bold text-xs text-brand-700 group-hover:underline" x-text="'#' + order.order_id"></span>
+                                                        <template x-if="order.steadfast_consignment_id">
+                                                            <span class="inline-flex items-center gap-0.5 text-[10px] font-mono text-pink-700 bg-pink-50 border border-pink-200 px-1.5 py-0.2 rounded font-semibold">
+                                                                <span>CID:</span> <span x-text="order.steadfast_consignment_id"></span>
+                                                            </span>
+                                                        </template>
+                                                    </div>
+                                                    <div class="text-[11px] text-gray-700 font-medium truncate mt-0.5">
+                                                        <span x-text="order.customer_name"></span>
+                                                        <template x-if="order.customer_phone">
+                                                            <span class="text-gray-400 font-mono" x-text="' · ' + order.customer_phone"></span>
+                                                        </template>
+                                                    </div>
+                                                </div>
+                                                <div class="text-right shrink-0">
+                                                    <span class="text-xs font-bold text-gray-900 block" x-text="'৳' + order.total"></span>
+                                                    <span class="text-[9px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded"
+                                                          :class="{
+                                                             'bg-emerald-50 text-emerald-700': order.status === 'delivered',
+                                                             'bg-purple-50 text-purple-700': order.status === 'shipped',
+                                                             'bg-indigo-50 text-indigo-700': order.status === 'processing',
+                                                             'bg-amber-50 text-amber-700': order.status === 'pending' || order.status === 'confirmed',
+                                                             'bg-red-50 text-red-700': order.status === 'cancelled' || order.status === 'returned',
+                                                          }"
+                                                          x-text="order.status"></span>
+                                                </div>
+                                            </a>
+                                        </template>
+                                    </div>
+                                </div>
+                            </template>
+
+                            <!-- Products Section -->
+                            <template x-if="products.length > 0">
+                                <div class="p-3">
+                                    <div class="flex items-center justify-between px-2 mb-2">
+                                        <span class="text-[10px] font-bold uppercase tracking-wider text-gray-400 flex items-center gap-1">
+                                            <i class="ph-bold ph-package text-brand-600"></i> Products
+                                        </span>
+                                        <span class="text-[10px] font-semibold text-gray-400" x-text="products.length + ' found'"></span>
+                                    </div>
+                                    <div class="space-y-1">
+                                        <template x-for="product in products" :key="product.id">
+                                            <a :href="product.url" 
+                                               class="flex items-center gap-2.5 p-2 rounded-xl hover:bg-brand-50/60 transition-colors group cursor-pointer">
+                                                <div class="w-9 h-9 rounded-lg bg-gray-100 overflow-hidden flex items-center justify-center shrink-0 border border-gray-200">
+                                                    <img x-show="product.image" :src="product.image" :alt="product.title" class="w-full h-full object-cover">
+                                                    <i x-show="!product.image" class="ph ph-package text-gray-400 text-base"></i>
+                                                </div>
+                                                <div class="flex-1 min-w-0">
+                                                    <p class="text-xs font-medium text-gray-900 truncate group-hover:text-brand-700" x-text="product.title"></p>
+                                                    <div class="flex items-center gap-2 text-[10px] text-gray-500 mt-0.5">
+                                                        <span class="font-bold text-brand-600" x-text="'৳' + product.price"></span>
+                                                        <template x-if="product.sku">
+                                                            <span class="font-mono text-gray-600 bg-gray-100 px-1 rounded" x-text="'SKU: ' + product.sku"></span>
+                                                        </template>
+                                                        <span :class="product.stock > 0 ? 'text-emerald-600 font-medium' : 'text-red-500 font-medium'" x-text="product.stock > 0 ? 'Stock: ' + product.stock : 'Out of Stock'"></span>
+                                                    </div>
+                                                </div>
+                                            </a>
+                                        </template>
+                                    </div>
+                                </div>
+                            </template>
+
+                            <!-- Empty State -->
+                            <template x-if="hasSearched && orders.length === 0 && products.length === 0 && !loading">
+                                <div class="p-6 text-center text-xs text-gray-500">
+                                    <i class="ph ph-magnifying-glass text-xl text-gray-400 mb-1 block"></i>
+                                    <span>No orders or products matching "<strong x-text="query" class="text-gray-700"></strong>"</span>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+
+                    <!-- Steadfast Merchant ID Badge -->
+                    @if(!empty($headerMerchantId) && $headerShowMerchantId == '1')
+                        <div x-data="{ copiedMid: false }"
+                             @click="navigator.clipboard.writeText('{{ $headerMerchantId }}'); copiedMid = true; setTimeout(() => copiedMid = false, 2000)"
+                             title="Steadfast Merchant ID (Click to copy)"
+                             class="hidden md:inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-pink-50 hover:bg-pink-100 border border-pink-200 text-pink-700 text-xs font-semibold cursor-pointer select-none transition-colors shadow-2xs group shrink-0">
+                            <i class="ph-bold ph-truck text-pink-600"></i>
+                            <span class="text-gray-500 text-[10px] font-bold uppercase tracking-wider">MID:</span>
+                            <span class="font-mono font-black text-pink-800">{{ $headerMerchantId }}</span>
+                            <i class="ph text-xs" :class="copiedMid ? 'ph-bold ph-check text-green-600' : 'ph-copy text-pink-400 group-hover:text-pink-600'"></i>
+                        </div>
+                    @endif
+
                     <!-- Realtime Visitor Badge with Authentic YouTube/Odometer style Rolling Reel -->
-                    <div class="hidden sm:inline-flex items-center gap-2.5 px-3.5 py-1.5 rounded-full bg-emerald-50 border border-emerald-200/80 text-xs font-semibold text-emerald-900 shadow-xs select-none"
-                        title="Live active visitors browsing the store">
+                    <div class="hidden sm:inline-flex items-center gap-2.5 px-3.5 py-1.5 rounded-full bg-emerald-50 border border-emerald-200/80 text-xs font-semibold text-emerald-900 shadow-xs select-none shrink-0"
+                         x-data="liveVisitorPoller()"
+                         title="Live active visitors browsing the store">
                         <span class="relative flex h-2.5 w-2.5">
                             <span
                                 class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
@@ -387,6 +521,40 @@
 
     <!-- Realtime Tracker & Poller for Admin -->
     <script>
+        function globalHeaderSearch() {
+            return {
+                query: '',
+                orders: [],
+                products: [],
+                loading: false,
+                showDropdown: false,
+                hasSearched: false,
+                async search() {
+                    const q = (this.query || '').trim();
+                    if (q.length < 2) {
+                        this.orders = [];
+                        this.products = [];
+                        this.showDropdown = false;
+                        this.hasSearched = false;
+                        return;
+                    }
+                    this.loading = true;
+                    try {
+                        const res = await fetch(`{{ route('admin.api.global-search') }}?q=${encodeURIComponent(q)}`);
+                        const data = await res.json();
+                        this.orders = data.orders || [];
+                        this.products = data.products || [];
+                        this.showDropdown = true;
+                        this.hasSearched = true;
+                    } catch (e) {
+                        console.error(e);
+                    } finally {
+                        this.loading = false;
+                    }
+                }
+            };
+        }
+
         function liveVisitorPoller() {
             return {
                 liveCount: 0,

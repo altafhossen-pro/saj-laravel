@@ -27,11 +27,15 @@ class Order extends Model
         'update_history' => 'array',
         'affiliate_order' => 'array',
         'is_added_into_steadfast' => 'boolean',
+        'is_stock_deducted' => 'boolean',
         'is_read_by_admin' => 'boolean',
         'total' => 'decimal:2',
         'discount' => 'decimal:2',
         'shipping_cost' => 'decimal:2',
         'steadfast_collected_amount' => 'decimal:2',
+        'steadfast_delivery_charge' => 'decimal:2',
+        'steadfast_cod_charge' => 'decimal:2',
+        'steadfast_receivable_amount' => 'decimal:2',
     ];
 
     /**

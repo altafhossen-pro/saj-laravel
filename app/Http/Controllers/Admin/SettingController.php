@@ -7,6 +7,7 @@ use Illuminate\Http\Request;
 
 use Illuminate\Support\Facades\Storage;
 use App\Models\Setting;
+use App\Services\SteadfastLogger;
 
 class SettingController extends Controller
 {
@@ -218,11 +219,26 @@ class SettingController extends Controller
     {
         $apiKey = Setting::get('steadfast_api_key', '');
         $secretKey = Setting::get('steadfast_secret_key', '');
+        $merchantId = Setting::get('steadfast_merchant_id', '');
+        $showMerchantIdInHeader = Setting::get('steadfast_show_merchant_id_in_header', '1');
         $webhookToken = Setting::get('steadfast_webhook_token', '');
         $baseUrl = Setting::get('steadfast_base_url', 'https://portal.packzy.com/api/v1');
         $callbackUrl = url('/api/steadfast/webhook');
 
-        return view('admin.settings.steadfast', compact('apiKey', 'secretKey', 'webhookToken', 'baseUrl', 'callbackUrl'));
+        $logContent = SteadfastLogger::getContent();
+        $logMeta = SteadfastLogger::getMetadata();
+
+        return view('admin.settings.steadfast', compact(
+            'apiKey',
+            'secretKey',
+            'merchantId',
+            'showMerchantIdInHeader',
+            'webhookToken',
+            'baseUrl',
+            'callbackUrl',
+            'logContent',
+            'logMeta'
+        ));
     }
 
     public function updateSteadfast(Request $request)
@@ -230,12 +246,16 @@ class SettingController extends Controller
         $request->validate([
             'steadfast_api_key' => 'nullable|string|max:255',
             'steadfast_secret_key' => 'nullable|string|max:255',
+            'steadfast_merchant_id' => 'nullable|string|max:100',
+            'steadfast_show_merchant_id_in_header' => 'nullable',
             'steadfast_webhook_token' => 'nullable|string|max:255',
             'steadfast_base_url' => 'nullable|url|max:255',
         ]);
 
         Setting::set('steadfast_api_key', $request->input('steadfast_api_key', ''), 'string', 'courier');
         Setting::set('steadfast_secret_key', $request->input('steadfast_secret_key', ''), 'string', 'courier');
+        Setting::set('steadfast_merchant_id', $request->input('steadfast_merchant_id', ''), 'string', 'courier');
+        Setting::set('steadfast_show_merchant_id_in_header', $request->boolean('steadfast_show_merchant_id_in_header') ? '1' : '0', 'boolean', 'courier');
         Setting::set('steadfast_webhook_token', $request->input('steadfast_webhook_token', ''), 'string', 'courier');
         Setting::set('steadfast_base_url', $request->input('steadfast_base_url', 'https://portal.packzy.com/api/v1'), 'string', 'courier');
 
@@ -252,13 +272,71 @@ class SettingController extends Controller
     public function steadfastPing(\App\Services\SteadfastService $steadfastService)
     {
         $result = $steadfastService->ping();
+        if (!$result['success']) {
+            SteadfastLogger::warning("Steadfast ping check failed: {$result['message']}");
+        }
         return response()->json($result);
     }
 
     public function steadfastBalance(\App\Services\SteadfastService $steadfastService)
     {
         $result = $steadfastService->getBalance();
+        if (!$result['success']) {
+            SteadfastLogger::warning("Steadfast balance check failed: " . ($result['message'] ?? 'Error'));
+        }
         return response()->json($result);
+    }
+
+    public function steadfastLogContent()
+    {
+        return response()->json([
+            'success' => true,
+            'content' => SteadfastLogger::getContent(),
+            'meta' => SteadfastLogger::getMetadata(),
+        ]);
+    }
+
+    public function steadfastLogSave(Request $request)
+    {
+        $request->validate([
+            'content' => 'nullable|string',
+        ]);
+
+        $content = $request->input('content', '');
+        $saved = SteadfastLogger::saveContent($content);
+
+        if (!$saved) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to save log file. Please check file permissions.',
+            ], 500);
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Steadfast log saved successfully.',
+            'meta' => SteadfastLogger::getMetadata(),
+        ]);
+    }
+
+    public function steadfastLogClear()
+    {
+        SteadfastLogger::clear();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Steadfast log cleared successfully.',
+            'meta' => SteadfastLogger::getMetadata(),
+        ]);
+    }
+
+    public function steadfastLogDownload()
+    {
+        $path = SteadfastLogger::getLogPath();
+        $filename = 'steadfast-' . date('Y-m-d-His') . '.log';
+        return response()->download($path, $filename, [
+            'Content-Type' => 'text/plain',
+        ]);
     }
 
     public function telegram()

@@ -137,15 +137,30 @@ class OrderController extends Controller
 
         // Search
         if ($request->filled('search')) {
-            $search = $request->search;
-            $query->where(function($q) use ($search) {
+            $search = trim($request->search);
+            $cleanPhone = preg_replace('/[^0-9]/', '', $search);
+
+            $query->where(function($q) use ($search, $cleanPhone) {
                 $q->where('order_id', 'like', "%{$search}%")
+                  ->orWhere('steadfast_consignment_id', 'like', "%{$search}%")
+                  ->orWhere('steadfast_tracking_code', 'like', "%{$search}%")
                   ->orWhere('shipping_address->name', 'like', "%{$search}%")
                   ->orWhere('shipping_address->phone', 'like', "%{$search}%")
-                  ->orWhereHas('user', function($userQ) use ($search) {
+                  ->orWhere('guest_info->name', 'like', "%{$search}%")
+                  ->orWhere('guest_info->phone', 'like', "%{$search}%")
+                  ->orWhereHas('user', function($userQ) use ($search, $cleanPhone) {
                       $userQ->where('name', 'like', "%{$search}%")
                             ->orWhere('phone', 'like', "%{$search}%");
+                      if (!empty($cleanPhone) && strlen($cleanPhone) >= 4) {
+                          $userQ->orWhere('phone', 'like', "%{$cleanPhone}%");
+                      }
                   });
+
+                if (!empty($cleanPhone) && strlen($cleanPhone) >= 4) {
+                    $q->orWhere('shipping_address->phone', 'like', "%{$cleanPhone}%")
+                      ->orWhere('guest_info->phone', 'like', "%{$cleanPhone}%")
+                      ->orWhere('steadfast_consignment_id', 'like', "%{$cleanPhone}%");
+                }
             });
         }
 
@@ -202,6 +217,9 @@ class OrderController extends Controller
             return [
                 'id' => $order->id, // Internal ID, maybe keep it but don't show in URL
                 'order_id' => $order->order_id, // This is the string/unique ID we will use in URLs
+                'steadfast_consignment_id' => $order->steadfast_consignment_id,
+                'steadfast_tracking_code' => $order->steadfast_tracking_code,
+                'is_added_into_steadfast' => (bool) $order->is_added_into_steadfast,
                 'customer_name' => $customerName,
                 'customer_phone' => $customerPhone,
                 'customer_type' => $userId ? 'Registered' : 'Guest',
@@ -238,12 +256,24 @@ class OrderController extends Controller
         $request->validate([
             'status' => 'required|in:pending,confirmed,processing,shipped,delivered,cancelled,returned',
             'send_to_steadfast' => 'nullable|boolean',
+            'restock_items' => 'nullable|array',
+            'restock_items.*.item_id' => 'required_with:restock_items|integer',
+            'restock_items.*.quantity' => 'required_with:restock_items|integer|min:0',
+            'restock_reason' => 'nullable|string|max:500',
         ]);
 
         $order = Order::where('order_id', $order_id)->firstOrFail();
         
         $oldStatus = $order->status;
         $newStatus = $request->status;
+
+        // Rule: Shipped orders cannot be cancelled via normal status modal (valid options: delivered or returned)
+        if ($oldStatus === 'shipped' && $newStatus === 'cancelled') {
+            return response()->json([
+                'message' => 'Orders cannot be cancelled once shipped. Please choose "returned" or "delivered".',
+            ], 422);
+        }
+
         $steadfastBooked = false;
         $consignmentData = null;
 
@@ -271,6 +301,24 @@ class OrderController extends Controller
 
         if ($oldStatus !== $newStatus) {
             $order->status = $newStatus;
+
+            // Deduct stock if order is moving from pending to confirmed (or beyond) and stock wasn't deducted yet
+            if (in_array($newStatus, ['confirmed', 'processing', 'shipped', 'delivered']) && !$order->is_stock_deducted) {
+                \App\Services\OrderStockService::deductOrderStock($order);
+            }
+
+            // Restock items if order is being cancelled or returned and stock was previously deducted
+            if (in_array($newStatus, ['cancelled', 'returned']) && $order->is_stock_deducted) {
+                $restockSelections = $request->input('restock_items', []);
+                if (!empty($restockSelections) && is_array($restockSelections)) {
+                    \App\Services\OrderStockService::restockOrderItems(
+                        $order,
+                        $restockSelections,
+                        $newStatus,
+                        $request->input('restock_reason')
+                    );
+                }
+            }
             
             // Add to status timestamps
             $timestamps = is_array($order->status_timestamps) ? $order->status_timestamps : [];
@@ -323,6 +371,7 @@ class OrderController extends Controller
                 ? 'Status updated to ' . ucfirst($newStatus) . ' and parcel booked in Steadfast successfully!' 
                 : 'Status updated successfully',
             'status' => $newStatus,
+            'is_stock_deducted' => (bool) $order->is_stock_deducted,
             'steadfast_booked' => $steadfastBooked,
             'is_added_into_steadfast' => (bool) $order->is_added_into_steadfast,
             'steadfast_consignment_id' => $order->steadfast_consignment_id,
@@ -409,15 +458,265 @@ class OrderController extends Controller
         return response()->json($result);
     }
 
+    public function syncSteadfastTracking($order_id, SteadfastService $steadfastService, \App\Services\TelegramService $telegramService)
+    {
+        $order = Order::where('order_id', $order_id)->firstOrFail();
+        if (!$order->steadfast_consignment_id && !$order->steadfast_tracking_code) {
+            return response()->json([
+                'success' => false,
+                'message' => 'No Steadfast booking exists for this order.'
+            ], 404);
+        }
+
+        $nowBdt = now()->setTimezone('Asia/Dhaka');
+        $trackingHistory = is_array($order->tracking) ? $order->tracking : [];
+
+        // 1. Fetch detailed trackings milestone trail if available
+        $apiTrackingsRes = $steadfastService->getTrackingsByInvoice($order->order_id);
+        $fetchedTrackings = $apiTrackingsRes['data']['trackings'] ?? ($apiTrackingsRes['trackings'] ?? []);
+
+        // 2. Fetch current status & delivery charge
+        $statusRes = $order->steadfast_consignment_id 
+            ? $steadfastService->getDeliveryStatusByConsignmentId($order->steadfast_consignment_id)
+            : $steadfastService->getDeliveryStatusByTrackingCode($order->steadfast_tracking_code);
+
+        $statusData = $statusRes['data'] ?? $statusRes;
+        $deliveryStatus = $statusData['delivery_status'] ?? ($statusData['status'] ?? null);
+        $apiDeliveryCharge = $statusData['delivery_charge'] ?? null;
+        $apiCodAmount = $statusData['cod_amount'] ?? null;
+
+        // If Steadfast API returned tracking milestones, merge them
+        if (!empty($fetchedTrackings) && is_array($fetchedTrackings)) {
+            foreach ($fetchedTrackings as $step) {
+                $stepTime = $step['updated_at'] ?? $step['created_at'] ?? null;
+                $stepBdt = $stepTime ? \Carbon\Carbon::parse($stepTime)->setTimezone('Asia/Dhaka') : $nowBdt;
+                $stepNote = $step['note'] ?? $step['message'] ?? null;
+                $stepStatus = $step['status'] ?? 'update';
+
+                if (empty($stepNote)) {
+                    $stepNote = "Consignment status: " . ucfirst(str_replace(['_', '-'], ' ', $stepStatus));
+                }
+
+                // Check duplicate by note and timestamp
+                $alreadyExists = false;
+                foreach ($trackingHistory as $existing) {
+                    if (($existing['note'] ?? '') === $stepNote && ($existing['timestamp'] ?? '') === $stepBdt->toDateTimeString()) {
+                        $alreadyExists = true;
+                        break;
+                    }
+                }
+
+                if (!$alreadyExists) {
+                    $trackingHistory[] = [
+                        'id' => uniqid('trk_'),
+                        'courier' => 'Steadfast',
+                        'source' => 'api_sync',
+                        'status' => $stepStatus,
+                        'note' => $stepNote,
+                        'dispatched_by' => $step['dispatched_by'] ?? null,
+                        'timestamp' => $stepBdt->toDateTimeString(),
+                        'formatted_date' => $stepBdt->format('d M Y'),
+                        'formatted_time' => $stepBdt->format('h:i a'),
+                        'timezone' => 'BDT',
+                        'created_at' => $nowBdt->toDateTimeString(),
+                    ];
+                }
+            }
+        }
+
+        // Check if status changed to delivered
+        $oldStatus = $order->status;
+        $normalizedStatus = strtolower(trim((string)$deliveryStatus));
+        $isDelivered = in_array($normalizedStatus, ['delivered', 'partial_delivered', 'partial delivered']);
+
+        // Determine delivery charge & COD
+        $deliveryCharge = $apiDeliveryCharge ?: ($order->steadfast_delivery_charge > 0 ? $order->steadfast_delivery_charge : ($order->shipping_cost > 0 ? $order->shipping_cost : 70.0));
+        $codAmount = $apiCodAmount !== null ? (float)$apiCodAmount : ($order->steadfast_collected_amount > 0 ? (float)$order->steadfast_collected_amount : ($order->payment_status === 'paid' ? 0.0 : (float)$order->total));
+
+        $payout = \App\Http\Controllers\Api\SteadfastWebhookController::calculatePayout((float)$codAmount, (float)$deliveryCharge);
+
+        $order->steadfast_collected_amount = $payout['cod_amount'];
+        $order->steadfast_delivery_charge = $payout['delivery_charge'];
+        $order->steadfast_cod_charge = $payout['cod_charge'];
+        $order->steadfast_receivable_amount = $payout['net_receivable'];
+
+        if ($isDelivered && $oldStatus !== 'delivered') {
+            $order->status = 'delivered';
+            $order->payment_status = 'paid';
+            $timestamps = is_array($order->status_timestamps) ? $order->status_timestamps : [];
+            $timestamps['delivered'] = now()->toDateTimeString();
+            $order->status_timestamps = $timestamps;
+
+            // Send Telegram message to admin (NO SMS or Mail to user as instructed)
+            if ($telegramService->isConfigured()) {
+                try {
+                    $shipping = is_array($order->shipping_address) ? $order->shipping_address : json_decode($order->shipping_address ?? '[]', true);
+                    $customerName = $shipping['name'] ?? optional($order->user)->name ?? 'Customer';
+                    $customerPhone = $shipping['phone'] ?? optional($order->user)->phone ?? 'N/A';
+                    $addressParts = array_filter([$shipping['address'] ?? '', $shipping['city'] ?? '', $shipping['zone'] ?? '']);
+                    $customerAddress = implode(', ', $addressParts);
+
+                    $msg = "🎉 <b>Steadfast Parcel Delivered!</b>\n\n";
+                    $msg .= "📦 <b>Order ID:</b> #{$order->order_id}\n";
+                    $msg .= "👤 <b>Customer:</b> {$customerName} ({$customerPhone})\n";
+                    if (!empty($customerAddress)) {
+                        $msg .= "📍 <b>Address:</b> {$customerAddress}\n";
+                    }
+                    $msg .= "🚚 <b>Consignment ID:</b> #" . ($order->steadfast_consignment_id ?: 'N/A') . "\n";
+                    if (!empty($order->steadfast_tracking_code)) {
+                        $msg .= "🔍 <b>Tracking Code:</b> {$order->steadfast_tracking_code}\n";
+                    }
+                    $msg .= "\n<b>💰 Financial Breakdown:</b>\n";
+                    $msg .= "• Cash Collected: ৳" . number_format($payout['cod_amount'], 2) . "\n";
+                    $msg .= "• Delivery Charge: −৳" . number_format($payout['delivery_charge'], 2) . "\n";
+                    $msg .= "• COD Charge (1%): −৳" . number_format($payout['cod_charge'], 2) . "\n";
+                    $msg .= "━━━━━━━━━━━━━━━━━━━━\n";
+                    $msg .= "💵 <b>You Receive (Profit): ৳" . number_format($payout['net_receivable'], 2) . "</b>\n\n";
+                    $msg .= "⏰ " . $nowBdt->format('d M Y, h:i A') . " BDT";
+
+                    $telegramService->sendMessage($msg, null, 'HTML');
+                } catch (\Throwable $tEx) {}
+            }
+        }
+
+        $order->tracking = $trackingHistory;
+        $order->save();
+
+        // Sort latest on top for UI
+        usort($trackingHistory, function($a, $b) {
+            return strcmp($b['timestamp'] ?? '', $a['timestamp'] ?? '');
+        });
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Steadfast tracking synced successfully.',
+            'status' => $order->status,
+            'payment_status' => $order->payment_status,
+            'delivery_status' => $deliveryStatus,
+            'tracking' => $trackingHistory,
+            'payout' => $payout,
+            'order' => [
+                'collected_amount' => $order->steadfast_collected_amount,
+                'delivery_charge' => $order->steadfast_delivery_charge,
+                'cod_charge' => $order->steadfast_cod_charge,
+                'receivable_amount' => $order->steadfast_receivable_amount,
+            ]
+        ]);
+    }
+
     public function checkSteadfastFraud(Request $request, SteadfastService $steadfastService)
     {
         $phone = $request->query('phone');
+        $orderId = $request->query('order_id');
+        $force = filter_var($request->query('force', false), FILTER_VALIDATE_BOOLEAN);
+
         if (!$phone) {
             return response()->json(['success' => false, 'message' => 'Phone number is required.'], 422);
         }
 
-        $result = $steadfastService->checkFraud($phone);
-        return response()->json($result);
+        $cleanPhone = $steadfastService->formatPhone($phone);
+        if (empty($cleanPhone)) {
+            return response()->json(['success' => false, 'message' => 'Invalid phone number.'], 422);
+        }
+
+        // Determine if this order is > 10 days old
+        $isOrderOld = false;
+        if ($orderId) {
+            $order = Order::where('order_id', $orderId)->orWhere('id', $orderId)->first();
+            if ($order && $order->created_at) {
+                $isOrderOld = $order->created_at->lt(now()->subDays(10));
+            }
+        }
+
+        // Check persistent DB cache
+        $record = \App\Models\CustomerDeliveryRecord::where('phone', $cleanPhone)->first();
+        $isFresh = $record && $record->isFresh();
+
+        // 1. If order is older than 10 days and not force:
+        // Policy: Do NOT call Steadfast API automatically to protect rate limits!
+        if ($isOrderOld && !$force) {
+            if ($record) {
+                return response()->json([
+                    'success' => true,
+                    'source' => 'cache_db_old_order',
+                    'is_cached' => true,
+                    'is_old_order' => true,
+                    'message' => 'Order is older than 10 days (served from persistent database cache).',
+                    'data' => $record->toDisplayArray(),
+                ]);
+            }
+
+            return response()->json([
+                'success' => true,
+                'source' => 'none',
+                'is_cached' => false,
+                'is_old_order' => true,
+                'message' => 'Order is older than 10 days. Click refresh button to check record manually.',
+                'data' => null,
+            ]);
+        }
+
+        // 2. If cached within 24 hours and not force:
+        // Return cached data immediately without touching Steadfast API!
+        if ($isFresh && !$force) {
+            return response()->json([
+                'success' => true,
+                'source' => 'cache_db_24h',
+                'is_cached' => true,
+                'is_old_order' => $isOrderOld,
+                'message' => 'Customer record served from persistent 24h cache.',
+                'data' => $record->toDisplayArray(),
+            ]);
+        }
+
+        // 3. Otherwise (cache expired, new phone, or force clicked by admin with captcha):
+        // Query Steadfast API
+        $apiResult = $steadfastService->checkFraud($cleanPhone);
+
+        if (!empty($apiResult['success']) && isset($apiResult['data'])) {
+            $apiData = $apiResult['data'];
+            
+            $record = \App\Models\CustomerDeliveryRecord::updateOrCreate(
+                ['phone' => $cleanPhone],
+                [
+                    'delivery_ratio' => $apiData['delivery_ratio'] ?? null,
+                    'cancellation_ratio' => $apiData['cancellation_ratio'] ?? null,
+                    'volume_band' => $apiData['volume_band'] ?? null,
+                    'volume_range' => $apiData['volume_range'] ?? null,
+                    'total_reports' => (int) ($apiData['total_reports'] ?? 0),
+                    'fraud_categories' => $apiData['fraud_categories'] ?? [],
+                    'raw_response' => $apiData,
+                    'checked_at' => now(),
+                ]
+            );
+
+            return response()->json([
+                'success' => true,
+                'source' => 'api_live',
+                'is_cached' => false,
+                'is_old_order' => $isOrderOld,
+                'message' => 'Fresh record retrieved from Steadfast & cached in database for 24h.',
+                'data' => $record->toDisplayArray(),
+            ]);
+        }
+
+        // If Steadfast API returned error or rate limit (429), fallback gracefully to existing DB record if available!
+        if ($record) {
+            return response()->json([
+                'success' => true,
+                'source' => 'fallback_db',
+                'is_cached' => true,
+                'is_old_order' => $isOrderOld,
+                'message' => 'Steadfast rate limit or unavailable. Showing last cached record.',
+                'data' => $record->toDisplayArray(),
+            ]);
+        }
+
+        return response()->json([
+            'success' => false,
+            'message' => $apiResult['message'] ?? 'Failed to retrieve record from Steadfast.',
+            'status' => $apiResult['status'] ?? 500,
+        ], $apiResult['status'] ?? 500);
     }
 
     public function edit($order_id)
@@ -443,7 +742,12 @@ class OrderController extends Controller
             'shipping.zone' => 'nullable|string|max:255',
 
             'items' => 'required|array|min:1',
-            'items.*.id' => 'required|integer',
+            'items.*.id' => 'nullable',
+            'items.*.product_id' => 'nullable|integer',
+            'items.*.variant_sku' => 'nullable|string|max:100',
+            'items.*.name' => 'required|string|max:255',
+            'items.*.image' => 'nullable|string',
+            'items.*.variant_info' => 'nullable|array',
             'items.*.quantity' => 'required|integer|min:1',
             'items.*.price' => 'required|numeric|min:0',
 
@@ -464,7 +768,8 @@ class OrderController extends Controller
 
         $validItemIds = $order->items->pluck('id')->all();
         foreach ($data['items'] as $row) {
-            if (!in_array((int) $row['id'], $validItemIds, true)) {
+            $rowId = !empty($row['id']) ? (int) $row['id'] : null;
+            if ($rowId && !in_array($rowId, $validItemIds, true)) {
                 return response()->json(['message' => 'One of the items does not belong to this order.'], 422);
             }
         }
@@ -472,23 +777,38 @@ class OrderController extends Controller
         $oldOrderData = $order->toArray();
         $oldOrderData['items'] = $order->items->toArray();
 
-        DB::transaction(function () use ($order, $data) {
-            // Items: update kept rows, delete removed rows
+        DB::transaction(function () use ($order, $data, $validItemIds) {
+            // Items: update kept rows, create newly added rows, delete removed rows
             $keptIds = [];
             $subtotal = 0;
             foreach ($data['items'] as $row) {
-                $item = $order->items->firstWhere('id', (int) $row['id']);
+                $rowId = !empty($row['id']) ? (int) $row['id'] : null;
                 $price = round((float) $row['price'], 2);
                 $qty = (int) $row['quantity'];
                 $lineTotal = round($price * $qty, 2);
 
-                $item->update([
-                    'price' => $price,
-                    'quantity' => $qty,
-                    'subtotal' => $lineTotal,
-                ]);
+                if ($rowId && in_array($rowId, $validItemIds, true)) {
+                    $item = $order->items->firstWhere('id', $rowId);
+                    $item->update([
+                        'price' => $price,
+                        'quantity' => $qty,
+                        'subtotal' => $lineTotal,
+                    ]);
+                    $keptIds[] = $item->id;
+                } else {
+                    $newItem = $order->items()->create([
+                        'product_id' => $row['product_id'] ?? null,
+                        'variant_sku' => $row['variant_sku'] ?? null,
+                        'name' => $row['name'],
+                        'image' => $row['image'] ?? null,
+                        'price' => $price,
+                        'quantity' => $qty,
+                        'subtotal' => $lineTotal,
+                        'variant_info' => $row['variant_info'] ?? null,
+                    ]);
+                    $keptIds[] = $newItem->id;
+                }
 
-                $keptIds[] = $item->id;
                 $subtotal += $lineTotal;
             }
             $order->items()->whereNotIn('id', $keptIds)->delete();
@@ -513,6 +833,11 @@ class OrderController extends Controller
                     'updated_by' => auth()->id() ?? 0,
                     'timestamp' => now()->toDateTimeString(),
                 ];
+
+                // Deduct stock if order was pending and is now confirmed or beyond
+                if (in_array($data['status'], ['confirmed', 'processing', 'shipped', 'delivered']) && !$order->is_stock_deducted) {
+                    \App\Services\OrderStockService::deductOrderStock($order);
+                }
             }
 
             $history[] = [
@@ -566,6 +891,165 @@ class OrderController extends Controller
         return response()->json([
             'message' => 'Order updated successfully',
             'redirect' => route('admin.orders.show', $order->order_id),
+        ]);
+    }
+
+    public function saveAdminNote(Request $request, $order_id)
+    {
+        $request->validate([
+            'note' => 'required|string|max:5000',
+        ]);
+
+        $order = Order::where('order_id', $order_id)->firstOrFail();
+        $nowBdt = now()->setTimezone('Asia/Dhaka');
+        $user = auth()->user();
+
+        $rawNotes = $order->admin_notes;
+        $notesList = [];
+
+        if (!empty($rawNotes)) {
+            $decoded = json_decode($rawNotes, true);
+            if (is_array($decoded)) {
+                $notesList = $decoded;
+            } else {
+                $notesList[] = [
+                    'id' => uniqid('note_'),
+                    'note' => (string) $rawNotes,
+                    'admin_name' => 'Admin',
+                    'timestamp' => $order->updated_at ? $order->updated_at->setTimezone('Asia/Dhaka')->toDateTimeString() : $nowBdt->toDateTimeString(),
+                    'formatted_date' => $order->updated_at ? $order->updated_at->setTimezone('Asia/Dhaka')->format('d M Y') : $nowBdt->format('d M Y'),
+                    'formatted_time' => $order->updated_at ? $order->updated_at->setTimezone('Asia/Dhaka')->format('h:i a') : $nowBdt->format('h:i a'),
+                    'timezone' => 'BDT',
+                ];
+            }
+        }
+
+        $newEntry = [
+            'id' => uniqid('note_'),
+            'note' => trim($request->input('note')),
+            'admin_name' => $user ? $user->name : 'Admin',
+            'admin_id' => $user ? $user->id : null,
+            'timestamp' => $nowBdt->toDateTimeString(),
+            'formatted_date' => $nowBdt->format('d M Y'),
+            'formatted_time' => $nowBdt->format('h:i a'),
+            'timezone' => 'BDT',
+        ];
+
+        array_unshift($notesList, $newEntry);
+
+        $order->admin_notes = json_encode($notesList, JSON_UNESCAPED_UNICODE);
+        $order->save();
+
+        try {
+            \App\Models\Order\OrderLog::create([
+                'order_id' => $order->id,
+                'user_id' => $user ? $user->id : null,
+                'action' => 'Admin note added: "' . \Illuminate\Support\Str::limit($newEntry['note'], 40) . '"',
+                'old_data' => null,
+                'new_data' => ['admin_note' => $newEntry['note']],
+            ]);
+        } catch (\Throwable $e) {}
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Admin note saved successfully!',
+            'notes' => $notesList,
+        ]);
+    }
+
+    public function globalSearch(Request $request)
+    {
+        $q = trim((string) $request->input('q', ''));
+        if (mb_strlen($q) < 2) {
+            return response()->json([
+                'orders' => [],
+                'products' => [],
+            ]);
+        }
+
+        $cleanPhone = preg_replace('/[^0-9]/', '', $q);
+
+        // 1. Search Orders
+        $orderQuery = Order::with('user');
+        $orderQuery->where(function ($query) use ($q, $cleanPhone) {
+            $query->where('order_id', 'like', "%{$q}%")
+                  ->orWhere('steadfast_consignment_id', 'like', "%{$q}%")
+                  ->orWhere('steadfast_tracking_code', 'like', "%{$q}%")
+                  ->orWhere('shipping_address->phone', 'like', "%{$q}%")
+                  ->orWhere('shipping_address->name', 'like', "%{$q}%")
+                  ->orWhere('guest_info->phone', 'like', "%{$q}%")
+                  ->orWhere('guest_info->name', 'like', "%{$q}%")
+                  ->orWhereHas('user', function ($u) use ($q, $cleanPhone) {
+                      $u->where('name', 'like', "%{$q}%")
+                        ->orWhere('phone', 'like', "%{$q}%");
+                      if (!empty($cleanPhone)) {
+                          $u->orWhere('phone', 'like', "%{$cleanPhone}%");
+                      }
+                  });
+
+            if (!empty($cleanPhone) && strlen($cleanPhone) >= 4) {
+                $query->orWhere('shipping_address->phone', 'like', "%{$cleanPhone}%")
+                      ->orWhere('guest_info->phone', 'like', "%{$cleanPhone}%")
+                      ->orWhere('steadfast_consignment_id', 'like', "%{$cleanPhone}%");
+            }
+        });
+
+        $matchedOrders = $orderQuery->orderBy('created_at', 'desc')->limit(6)->get()->map(function ($order) {
+            $shipping = is_array($order->shipping_address) ? $order->shipping_address : [];
+            $guest = is_array($order->guest_info) ? $order->guest_info : [];
+            $customerName = $shipping['name'] ?? ($guest['name'] ?? optional($order->user)->name ?? 'Customer');
+            $customerPhone = $shipping['phone'] ?? ($guest['phone'] ?? optional($order->user)->phone ?? '');
+
+            return [
+                'id' => $order->id,
+                'order_id' => $order->order_id,
+                'customer_name' => $customerName,
+                'customer_phone' => $customerPhone,
+                'steadfast_consignment_id' => $order->steadfast_consignment_id,
+                'status' => $order->status,
+                'total' => number_format((float) $order->total, 2),
+                'date' => $order->created_at ? $order->created_at->format('d M Y') : '',
+                'url' => route('admin.orders.show', $order->order_id),
+            ];
+        });
+
+        // 2. Search Products
+        $matchedProducts = \App\Models\Product\Product::select('id', 'title', 'product_type', 'featured_image', 'base_price', 'total_stock')
+            ->with(['variants' => function ($vQuery) {
+                $vQuery->select('id', 'product_id', 'sku', 'current_price', 'stock_quantity');
+            }])
+            ->where(function ($pQuery) use ($q) {
+                $pQuery->where('title', 'like', "%{$q}%")
+                       ->orWhereHas('variants', function ($v) use ($q) {
+                           $v->where('sku', 'like', "%{$q}%");
+                       });
+            })
+            ->limit(6)
+            ->get()
+            ->map(function ($prod) {
+                $firstVariant = $prod->variants->first();
+                $sku = $firstVariant ? $firstVariant->sku : null;
+                $img = $prod->featured_image;
+                $imgUrl = null;
+                if ($img) {
+                    $imgUrl = \Illuminate\Support\Str::startsWith($img, ['http://', 'https://']) ? $img : \Illuminate\Support\Facades\Storage::url($img);
+                }
+
+                return [
+                    'id' => $prod->id,
+                    'title' => $prod->title,
+                    'sku' => $sku,
+                    'image' => $imgUrl,
+                    'price' => number_format((float) $prod->base_price, 2),
+                    'stock' => $prod->total_stock ?? 0,
+                    'type' => $prod->product_type,
+                    'url' => route('admin.products.edit', $prod->id),
+                ];
+            });
+
+        return response()->json([
+            'orders' => $matchedOrders,
+            'products' => $matchedProducts,
         ]);
     }
 }
