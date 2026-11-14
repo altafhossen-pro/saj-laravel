@@ -662,7 +662,7 @@ class SettingController extends Controller
 
             // Gemini
             'gemini_api_key' => Setting::get('gemini_api_key', env('GEMINI_API_KEY', '')),
-            'gemini_model' => Setting::get('gemini_model', 'gemini-3.8-flash'),
+            'gemini_model' => Setting::get('gemini_model', 'gemini-3.1-flash-lite'),
 
             // OpenAI
             'openai_api_key' => Setting::get('openai_api_key', env('OPENAI_API_KEY', '')),
@@ -697,7 +697,7 @@ class SettingController extends Controller
         Setting::set('default_ai_provider', $request->input('default_provider', 'gemini'));
 
         Setting::set('gemini_api_key', trim($request->input('gemini_api_key', '')));
-        Setting::set('gemini_model', trim($request->input('gemini_model', 'gemini-3.8-flash')));
+        Setting::set('gemini_model', trim($request->input('gemini_model', 'gemini-3.1-flash-lite')));
 
         Setting::set('openai_api_key', trim($request->input('openai_api_key', '')));
         Setting::set('openai_model', trim($request->input('openai_model', 'gpt-4o-mini')));

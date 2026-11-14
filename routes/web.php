@@ -419,6 +419,12 @@ Route::middleware(['auth', 'admin_access'])->prefix('admin/dashboard')->group(fu
     // Buying Guides Management
     Route::prefix('guides')->name('admin.guides.')->group(function () {
         Route::get('/search-products', [\App\Http\Controllers\Admin\BuyingGuideController::class, 'searchProducts'])->name('search-products');
+        Route::get('/ai-pending', [\App\Http\Controllers\Admin\BuyingGuideController::class, 'aiPending'])->name('ai-pending');
+        Route::post('/ai-generate', [\App\Http\Controllers\Admin\BuyingGuideController::class, 'aiGenerate'])->name('ai-generate');
+        Route::post('/quick-import', [\App\Http\Controllers\Admin\BuyingGuideController::class, 'quickImport'])->name('quick-import');
+        Route::post('/{guide}/ai-refine', [\App\Http\Controllers\Admin\BuyingGuideController::class, 'aiRefine'])->name('ai-refine');
+        Route::get('/{guide}/preview', [\App\Http\Controllers\Admin\BuyingGuideController::class, 'preview'])->name('preview');
+        Route::post('/{guide}/publish', [\App\Http\Controllers\Admin\BuyingGuideController::class, 'publishGuide'])->name('publish');
         Route::patch('/{guide}/toggle-publish', [\App\Http\Controllers\Admin\BuyingGuideController::class, 'togglePublish'])->name('toggle-publish');
         Route::get('/', [\App\Http\Controllers\Admin\BuyingGuideController::class, 'index'])->name('index');
         Route::get('/create', [\App\Http\Controllers\Admin\BuyingGuideController::class, 'create'])->name('create');

@@ -26,9 +26,14 @@
                                 @endif
                             </div>
                             <div class="min-w-0 max-w-sm">
-                                <a href="{{ route('admin.guides.edit', $guide) }}" class="font-bold text-gray-900 hover:text-brand-600 transition-colors line-clamp-1">
-                                    {{ $guide->title }}
-                                </a>
+                                <div class="flex items-center gap-1.5">
+                                    <a href="{{ route('admin.guides.edit', $guide) }}" class="font-bold text-gray-900 hover:text-brand-600 transition-colors line-clamp-1">
+                                        {{ $guide->title }}
+                                    </a>
+                                    @if($guide->is_ai_generated)
+                                    <span class="px-1.5 py-0.2 rounded text-[10px] font-bold bg-purple-50 text-purple-700 border border-purple-200 shrink-0">AI</span>
+                                    @endif
+                                </div>
                                 <span class="text-[11px] text-gray-400 font-mono flex items-center gap-1 mt-0.5">
                                     /guides/{{ $guide->slug }}
                                 </span>
@@ -70,6 +75,12 @@
 
                     <td class="py-3.5 px-4 text-right">
                         <div class="flex items-center justify-end gap-1.5">
+                            <a href="{{ route('admin.guides.preview', $guide) }}"
+                               class="p-2 text-purple-600 hover:text-purple-800 rounded-lg hover:bg-purple-50 transition-colors"
+                               title="Safe Preview">
+                                <i class="ph-bold ph-eye text-base"></i>
+                            </a>
+
                             @if($guide->is_published)
                             <a href="{{ route('guides.show', $guide->slug) }}" target="_blank"
                                class="p-2 text-gray-400 hover:text-brand-600 rounded-lg hover:bg-gray-100 transition-colors"

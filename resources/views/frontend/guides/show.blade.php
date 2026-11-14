@@ -4,6 +4,10 @@
 @section('canonical', $seo['canonical'])
 
 @section('meta')
+    <!-- Robots Directive for Google Search Rich Thumbnails (Scoped to Guide) -->
+    <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1">
+    <meta name="googlebot" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1">
+
     <meta name="description" content="{{ $seo['description'] }}">
     @if(!empty($seo['keywords']))
     <meta name="keywords" content="{{ $seo['keywords'] }}">
@@ -14,6 +18,8 @@
     <meta property="og:type" content="article">
     <meta property="og:url" content="{{ $seo['canonical'] }}">
     <meta property="og:image" content="{{ $seo['og_image'] }}">
+    <meta property="og:image:secure_url" content="{{ $seo['og_image'] }}">
+    <meta property="og:image:alt" content="{{ $guide->title }}">
     <meta property="article:published_time" content="{{ ($guide->published_at ?? $guide->created_at)->toIso8601String() }}">
     <meta property="article:modified_time" content="{{ $guide->updated_at->toIso8601String() }}">
     @if($guide->topic)
@@ -25,6 +31,9 @@
     <meta name="twitter:title" content="{{ $seo['title'] }}">
     <meta name="twitter:description" content="{{ $seo['description'] }}">
     <meta name="twitter:image" content="{{ $seo['og_image'] }}">
+
+    <!-- Google Thumbnail Meta Tag Fallback -->
+    <meta name="thumbnail" content="{{ $seo['og_image'] }}">
 
     <!-- Schema.org JSON-LD Structured Data for Google Rich Snippets -->
     <script type="application/ld+json">
@@ -101,6 +110,8 @@
             <div class="aspect-16/9 rounded-3xl overflow-hidden bg-gray-100 border border-gray-100 shadow-xs">
                 <img src="{{ $guide->featured_image_url }}"
                      alt="{{ $guide->title }}"
+                     fetchpriority="high"
+                     itemprop="image"
                      class="w-full h-full object-cover">
             </div>
             @endif
@@ -119,8 +130,10 @@
                 @include('frontend.guides.partials._share_bar', ['guide' => $guide])
             </div>
 
-            <!-- Recommended / Attached Store Products -->
-            @include('frontend.guides.partials._related_products', ['relatedProducts' => $relatedProducts])
+            <!-- Recommended / Attached Store Products (Scoped data-nosnippet) -->
+            <div data-nosnippet>
+                @include('frontend.guides.partials._related_products', ['relatedProducts' => $relatedProducts])
+            </div>
         </article>
 
         <!-- Right Sidebar (4 Columns - Sticky) -->
@@ -203,7 +216,7 @@
                         </div>
                         <a href="{{ route('guides.index') }}" class="text-[11px] font-bold text-brand-600 hover:underline">View All</a>
                     </div>
-                    <div class="space-y-3">
+                    <div class="space-y-3" data-nosnippet>
                         @foreach($moreGuides as $mg)
                         <a href="{{ route('guides.show', $mg->slug) }}" class="flex items-center gap-3 p-2 rounded-xl hover:bg-gray-50 transition-colors group">
                             <div class="w-14 h-12 rounded-lg bg-gray-100 overflow-hidden shrink-0 border border-gray-100">
@@ -228,7 +241,7 @@
 
     <!-- More Guides Full Width Grid (Bottom) -->
     @if($moreGuides->count() > 0)
-    <section class="mt-16 pt-10 border-t border-gray-100 space-y-6">
+    <section class="mt-16 pt-10 border-t border-gray-100 space-y-6" data-nosnippet>
         <div class="flex items-center justify-between">
             <div>
                 <h3 class="text-xl font-bold text-gray-900">More Buying Guides</h3>
@@ -265,9 +278,11 @@
     font-size: 1.5rem !important;
     font-weight: 800 !important;
     color: #111827 !important;
-    margin-top: 2rem !important;
-    margin-bottom: 0.75rem !important;
-    line-height: 1.3 !important;
+    margin-top: 2.25rem !important;
+    margin-bottom: 0.85rem !important;
+    line-height: 1.35 !important;
+    border-bottom: 2px solid #f3f4f6 !important;
+    padding-bottom: 0.5rem !important;
 }
 .guide-content h3 {
     display: block !important;

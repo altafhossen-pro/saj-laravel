@@ -215,10 +215,25 @@
 
                     <!-- Buying Guides -->
                     @if(auth()->user()->hasRole('super_admin') || auth()->user()->can('manage_guides') || auth()->user()->can('manage_homepage') || auth()->user()->can('manage_settings'))
+                    @php
+                        $aiPendingGuideCount = \App\Models\BuyingGuide::aiPending()->count();
+                    @endphp
                     <x-nav-dropdown title="Buying Guides" icon="book-open-text" theme="light"
                         :active="request()->routeIs('admin.guides.*')">
                         <x-nav-link href="{{ route('admin.guides.index') }}" theme="light" class="!py-2 !text-sm"
                             :active="request()->routeIs('admin.guides.index')">All Guides</x-nav-link>
+                        <x-nav-link href="{{ route('admin.guides.ai-pending') }}" theme="light" class="!py-2 !text-sm flex items-center justify-between"
+                            :active="request()->routeIs('admin.guides.ai-pending')">
+                            <span class="flex items-center gap-1.5">
+                                <i class="ph-bold ph-sparkle text-purple-600 text-xs"></i>
+                                <span>AI Pending Guides</span>
+                            </span>
+                            @if($aiPendingGuideCount > 0)
+                            <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-100 text-purple-700">
+                                {{ $aiPendingGuideCount }}
+                            </span>
+                            @endif
+                        </x-nav-link>
                         <x-nav-link href="{{ route('admin.guides.create') }}" theme="light" class="!py-2 !text-sm"
                             :active="request()->routeIs('admin.guides.create')">Create Guide</x-nav-link>
                     </x-nav-dropdown>

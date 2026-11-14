@@ -427,33 +427,47 @@ class AiService
             set_time_limit(180);
             if ($provider === self::PROVIDER_GEMINI) {
                 $cleanModel = str_replace('models/', '', $model);
-                $url = "https://generativelanguage.googleapis.com/v1beta/models/{$cleanModel}:generateContent?key={$apiKey}";
-                $response = Http::timeout($config['timeout'] ?? 90)
-                    ->withOptions([
-                        'curl' => [
-                            CURLOPT_IPRESOLVE => CURL_IPRESOLVE_V4,
-                            CURLOPT_SSL_VERIFYPEER => false,
-                        ],
-                        'verify' => false,
-                    ])
-                    ->withHeaders(['Content-Type' => 'application/json'])
-                    ->post($url, [
-                        'contents' => [
-                            [
-                                'parts' => [['text' => $prompt]]
-                            ]
-                        ],
-                        'generationConfig' => [
-                            'temperature' => $config['temperature'] ?? 0.7,
-                            'maxOutputTokens' => $config['max_tokens'] ?? 4096,
-                        ]
-                    ]);
+                $allFast = ['gemini-3.1-flash-lite', 'gemini-flash-lite-latest', 'gemini-3.5-flash-lite'];
+                $candidates = array_unique(array_merge([$cleanModel], $allFast));
 
-                if ($response->successful()) {
-                    return $response->json('candidates.0.content.parts.0.text');
+                foreach ($candidates as $attemptModel) {
+                    $url = "https://generativelanguage.googleapis.com/v1beta/models/{$attemptModel}:generateContent?key={$apiKey}";
+                    try {
+                        $response = Http::timeout($config['timeout'] ?? 30)
+                            ->withOptions([
+                                'curl' => [
+                                    CURLOPT_IPRESOLVE => CURL_IPRESOLVE_V4,
+                                    CURLOPT_SSL_VERIFYPEER => false,
+                                    CURLOPT_CONNECTTIMEOUT => 6,
+                                ],
+                                'verify' => false,
+                            ])
+                            ->withHeaders(['Content-Type' => 'application/json'])
+                            ->post($url, [
+                                'contents' => [
+                                    [
+                                        'parts' => [['text' => mb_convert_encoding($prompt, 'UTF-8', 'UTF-8')]]
+                                    ]
+                                ],
+                                'generationConfig' => [
+                                    'temperature' => $config['temperature'] ?? 0.7,
+                                    'maxOutputTokens' => $config['max_tokens'] ?? 2048,
+                                ]
+                            ]);
+
+                        if ($response->successful()) {
+                            return $response->json('candidates.0.content.parts.0.text');
+                        }
+
+                        $status = $response->status();
+                        Log::warning("AiService generateContent [{$attemptModel}] failed (HTTP {$status}): " . $response->body());
+                        continue;
+                    } catch (\Throwable $e) {
+                        Log::warning("AiService generateContent [{$attemptModel}] exception: " . $e->getMessage());
+                        continue;
+                    }
                 }
 
-                Log::error("AiService Gemini generation error: " . $response->body());
                 return null;
             }
 
@@ -587,61 +601,83 @@ class AiService
         try {
             if ($provider === self::PROVIDER_GEMINI) {
                 $cleanModel = str_replace('models/', '', $model);
-                $url = "https://generativelanguage.googleapis.com/v1beta/models/{$cleanModel}:streamGenerateContent?alt=sse&key={$apiKey}";
+                
+                // Build model candidates: requested model first, followed by ultra-fast reliable lite models
+                $allFast = ['gemini-3.1-flash-lite', 'gemini-flash-lite-latest', 'gemini-3.5-flash-lite'];
+                $candidates = array_unique(array_merge([$cleanModel], $allFast));
 
-                $ch = curl_init($url);
-                curl_setopt($ch, CURLOPT_RETURNTRANSFER, false);
-                curl_setopt($ch, CURLOPT_POST, true);
-                curl_setopt($ch, CURLOPT_IPRESOLVE, CURL_IPRESOLVE_V4);
-                curl_setopt($ch, CURLOPT_TIMEOUT, 120);
-                curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-                curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
-                curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
-                curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode([
-                    'contents' => [
-                        ['parts' => [['text' => $message]]]
-                    ]
-                ]));
+                $hasStreamedAny = false;
+                $lastErrorMsg = '';
 
-                $buffer = '';
-                $hasContent = false;
-                $rawResponse = '';
+                foreach ($candidates as $attemptModel) {
+                    $url = "https://generativelanguage.googleapis.com/v1beta/models/{$attemptModel}:streamGenerateContent?alt=sse&key={$apiKey}";
 
-                curl_setopt($ch, CURLOPT_WRITEFUNCTION, function ($ch, $chunk) use (&$buffer, &$hasContent, &$rawResponse, $onChunk) {
-                    $rawResponse .= $chunk;
-                    $buffer .= $chunk;
-                    while (($pos = strpos($buffer, "\n")) !== false) {
-                        $line = trim(substr($buffer, 0, $pos));
-                        $buffer = substr($buffer, $pos + 1);
+                    $ch = curl_init($url);
+                    curl_setopt($ch, CURLOPT_RETURNTRANSFER, false);
+                    curl_setopt($ch, CURLOPT_POST, true);
+                    curl_setopt($ch, CURLOPT_IPRESOLVE, CURL_IPRESOLVE_V4);
+                    curl_setopt($ch, CURLOPT_TIMEOUT, 12);
+                    curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 5);
+                    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+                    curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
+                    curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
+                    curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode([
+                        'contents' => [
+                            ['parts' => [['text' => $message]]]
+                        ]
+                    ]));
 
-                        if (str_starts_with($line, 'data: ')) {
-                            $jsonStr = substr($line, 6);
-                            $data = json_decode($jsonStr, true);
-                            if (isset($data['candidates'][0]['content']['parts'][0]['text'])) {
-                                $text = $data['candidates'][0]['content']['parts'][0]['text'];
-                                if ($text !== '') {
-                                    $hasContent = true;
-                                    if ($onChunk) $onChunk($text);
+                    $buffer = '';
+                    $modelHadContent = false;
+                    $rawResponse = '';
+
+                    curl_setopt($ch, CURLOPT_WRITEFUNCTION, function ($ch, $chunk) use (&$buffer, &$modelHadContent, &$rawResponse, &$hasStreamedAny, $onChunk) {
+                        $rawResponse .= $chunk;
+                        $buffer .= $chunk;
+                        while (($pos = strpos($buffer, "\n")) !== false) {
+                            $line = trim(substr($buffer, 0, $pos));
+                            $buffer = substr($buffer, $pos + 1);
+
+                            if (str_starts_with($line, 'data: ')) {
+                                $jsonStr = substr($line, 6);
+                                $data = json_decode($jsonStr, true);
+                                if (isset($data['candidates'][0]['content']['parts'][0]['text'])) {
+                                    $text = $data['candidates'][0]['content']['parts'][0]['text'];
+                                    if ($text !== '') {
+                                        $modelHadContent = true;
+                                        $hasStreamedAny = true;
+                                        if ($onChunk) $onChunk($text);
+                                    }
                                 }
                             }
                         }
+                        return strlen($chunk);
+                    });
+
+                    curl_exec($ch);
+                    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+                    $curlErr = curl_error($ch);
+                    curl_close($ch);
+
+                    if ($modelHadContent) {
+                        return; // Successfully streamed!
                     }
-                    return strlen($chunk);
-                });
 
-                curl_exec($ch);
-                $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-                $curlErr = curl_error($ch);
-                curl_close($ch);
-
-                if (!$hasContent) {
+                    // If it failed before sending any content, check if retry is appropriate
                     if ($httpCode !== 200) {
                         $errJson = json_decode($rawResponse, true);
-                        $msg = $errJson['error']['message'] ?? $curlErr ?: "HTTP Error {$httpCode}";
-                        if ($onChunk) $onChunk("⚠️ Gemini API error ({$httpCode}): {$msg}");
+                        $lastErrorMsg = $errJson['error']['message'] ?? $curlErr ?: "HTTP Error {$httpCode}";
+                        if ($httpCode === 503 || $httpCode === 429 || $httpCode === 404) {
+                            continue; // Try next fast candidate
+                        }
                     } elseif (!empty($curlErr)) {
-                        if ($onChunk) $onChunk("⚠️ Connection error: {$curlErr}");
+                        $lastErrorMsg = $curlErr;
+                        continue; // Timeout on heavy model, try next fast candidate
                     }
+                }
+
+                if (!$hasStreamedAny && $onChunk) {
+                    $onChunk("⚠️ Gemini API error: " . ($lastErrorMsg ?: "Server busy. Please try again."));
                 }
                 return;
             }
@@ -777,5 +813,255 @@ class AiService
         } catch (Throwable $e) {
             if ($onChunk) $onChunk("⚠️ Streaming error: " . $e->getMessage());
         }
+    }
+
+    /**
+     * Generate an AI Buying Guide from product or custom topic
+     */
+    public static function generateBuyingGuide(array $params): array
+    {
+        set_time_limit(180);
+        $mode = $params['mode'] ?? 'custom_topic';
+        $productId = !empty($params['product_id']) ? (int) $params['product_id'] : null;
+        $topic = trim((string) ($params['topic'] ?? ''));
+        $instructions = trim((string) ($params['instructions'] ?? ''));
+        $webResearch = !empty($params['web_research']);
+
+        $productContext = '';
+        $relatedProductIds = [];
+        $targetSubject = $topic;
+
+        if ($mode === 'product' && $productId) {
+            $product = \App\Models\Product\Product::with(['category', 'brand', 'variants'])->find($productId);
+            if ($product) {
+                $relatedProductIds[] = $product->id;
+                $targetSubject = $product->name;
+                $categoryName = $product->category?->name ?? 'General';
+                $brandName = $product->brand?->name ?? 'Brand';
+                $price = $product->price ?? $product->regular_price ?? 'N/A';
+                $rawDesc = strip_tags((string) $product->description);
+                $desc = mb_substr($rawDesc, 0, 800, 'UTF-8');
+
+                $productContext = <<<PROD
+Target Product: {$product->name}
+Category: {$categoryName}
+Brand: {$brandName}
+Price: {$price} BDT
+Description Snippet: {$desc}
+PROD;
+            }
+        }
+
+        $researchInstruction = $webResearch
+            ? "ENRICHMENT: Include real-world buying criteria, Bangladeshi market context, price-to-performance evaluation, authenticity verification tips, and genuine buyer considerations."
+            : "Focus on clear purchasing advice and detailed product features.";
+
+        $customNotes = !empty($instructions) ? "ADMIN CUSTOM INSTRUCTIONS:\n{$instructions}" : "";
+
+        $prompt = <<<PROMPT
+You are a senior ecommerce buying guide writer, product specialist, and SEO expert.
+Write an engaging, authoritative, and comprehensive buying guide in natural, fluent Bengali (বাংলা) for Bangladeshi shoppers.
+
+SUBJECT: {$targetSubject}
+{$productContext}
+{$researchInstruction}
+{$customNotes}
+
+GUIDELINES:
+1. Tone: Friendly, authoritative, transparent, and trustworthy.
+2. Structure in HTML:
+   - Use <h2> for main section headers (e.g. ভূমিকা, কেন এটি কিনবেন, কেনার আগে যা খেয়াল রাখবেন, সুবিধা ও সীমাবদ্ধতা, ব্যবহারবিধি, FAQ).
+   - Use <h3> for sub-points.
+   - Use <p> for readable, conversational paragraphs.
+   - Use <ul> and <li> for feature bullet points, checklists, or tips.
+   - Include a <h2>প্রায়শই জিজ্ঞাসিত প্রশ্ন (FAQ)</h2> section with 3 to 5 clear Q&A pairs using <strong> for questions.
+3. Keep content clean HTML (no <html>, <body>, or markdown code blocks).
+
+OUTPUT FORMAT:
+Return ONLY a valid JSON object without markdown code blocks, backticks, or extra commentary.
+JSON Structure:
+{
+  "title": "আকর্ষণীয় ও এসইও ফ্রেন্ডলি বাংলা শিরোনাম",
+  "topic": "ক্যাটাগরি বা টপিকের নাম",
+  "excerpt": "২-৩ বাক্যে আকর্ষণীয় সারসংক্ষেপ (১৫০-২৫০ অক্ষর)",
+  "reading_time_minutes": 4,
+  "meta_title": "SEO Meta Title (max 60 chars)",
+  "meta_description": "SEO Meta Description (max 155 chars)",
+  "meta_keywords": "buying guide, bangla, keywords...",
+  "content": "<h2>...</h2><p>...</p>..."
+}
+PROMPT;
+
+        $provider = self::getDefaultProvider();
+        $response = self::generateContent($prompt, $provider, null, [
+            'temperature' => 0.6,
+            'max_tokens' => 4096,
+            'timeout' => 45,
+        ]);
+
+        if (empty($response)) {
+            throw new \RuntimeException("AI provider failed to generate content. Please check your AI API key and connection.");
+        }
+
+        $parsed = self::parseJsonOutput($response);
+
+        if (empty($parsed['title']) || empty($parsed['content'])) {
+            Log::error("AiService parseJsonOutput failed. Raw response: " . $response);
+            throw new \RuntimeException("AI response format was invalid. Please try generating again.");
+        }
+
+        return [
+            'title' => trim($parsed['title']),
+            'topic' => trim($parsed['topic'] ?? ($topic ?: 'Buying Guide')),
+            'excerpt' => trim($parsed['excerpt'] ?? ''),
+            'reading_time_minutes' => (int) ($parsed['reading_time_minutes'] ?? 4),
+            'meta_title' => trim($parsed['meta_title'] ?? $parsed['title']),
+            'meta_description' => trim($parsed['meta_description'] ?? substr($parsed['excerpt'] ?? '', 0, 160)),
+            'meta_keywords' => trim($parsed['meta_keywords'] ?? ''),
+            'content' => trim($parsed['content']),
+            'related_product_ids' => $relatedProductIds,
+            'ai_metadata' => [
+                'mode' => $mode,
+                'source_product_id' => $productId,
+                'prompt_subject' => $targetSubject,
+                'web_research' => $webResearch,
+                'custom_instructions' => $instructions,
+                'provider' => $provider,
+                'model' => self::getModel($provider),
+                'generated_at' => now()->toDateTimeString(),
+                'history' => [],
+            ],
+        ];
+    }
+
+    /**
+     * Refine an existing AI Buying Guide with admin instructions.
+     * STRICT GUARD: Allowed ONLY for pending (unpublished) guides!
+     */
+    public static function refineBuyingGuide(\App\Models\BuyingGuide $guide, string $instruction): array
+    {
+        if (!$guide->canBeModifiedByAi()) {
+            throw new \DomainException("Security Guard: Published guides cannot be modified by AI to protect live content. Only pending guides are editable.");
+        }
+
+        set_time_limit(180);
+        $instruction = trim($instruction);
+        if (empty($instruction)) {
+            throw new \InvalidArgumentException("Refinement instruction cannot be empty.");
+        }
+
+        $prompt = <<<PROMPT
+You are a senior editor and ecommerce copywriter.
+You are tasked with revising and improving an existing Bengali Buying Guide based on the admin's specific instructions.
+
+CURRENT GUIDE DATA:
+Title: {$guide->title}
+Topic: {$guide->topic}
+Excerpt: {$guide->excerpt}
+Content HTML:
+{$guide->content}
+
+ADMIN MODIFICATION REQUEST:
+"{$instruction}"
+
+INSTRUCTIONS:
+1. Modify the content, title, excerpt, and structure strictly following the admin's request.
+2. Keep clean semantic HTML (h2, h3, p, ul, li, strong).
+3. Ensure natural Bengali phrasing, high readability, and SEO relevance.
+
+OUTPUT FORMAT:
+Return ONLY a valid JSON object without markdown code blocks or backticks.
+JSON Structure:
+{
+  "title": "Updated or current title",
+  "topic": "Updated or current topic",
+  "excerpt": "Updated or current excerpt",
+  "reading_time_minutes": 4,
+  "meta_title": "SEO Meta Title",
+  "meta_description": "SEO Meta Description",
+  "meta_keywords": "SEO Keywords",
+  "content": "<h2>...</h2><p>Updated content HTML...</p>"
+}
+PROMPT;
+
+        $provider = self::getDefaultProvider();
+        $response = self::generateContent($prompt, $provider, null, [
+            'temperature' => 0.5,
+            'max_tokens' => 4096,
+            'timeout' => 45,
+        ]);
+
+        if (empty($response)) {
+            throw new \RuntimeException("AI provider failed to generate revisions. Please try again.");
+        }
+
+        $parsed = self::parseJsonOutput($response);
+
+        if (empty($parsed['content'])) {
+            throw new \RuntimeException("AI response format was invalid during refinement.");
+        }
+
+        $meta = is_array($guide->ai_metadata) ? $guide->ai_metadata : [];
+        $history = $meta['history'] ?? [];
+        $history[] = [
+            'instruction' => $instruction,
+            'modified_at' => now()->toDateTimeString(),
+            'user_id' => auth()->id() ?? 0,
+            'previous_title' => $guide->title,
+        ];
+        $meta['history'] = $history;
+        $meta['last_refined_at'] = now()->toDateTimeString();
+
+        $guide->title = trim($parsed['title'] ?? $guide->title);
+        $guide->topic = trim($parsed['topic'] ?? $guide->topic);
+        $guide->excerpt = trim($parsed['excerpt'] ?? $guide->excerpt);
+        $guide->content = trim($parsed['content']);
+        $guide->reading_time_minutes = (int) ($parsed['reading_time_minutes'] ?? $guide->reading_time_minutes);
+        $guide->meta_title = trim($parsed['meta_title'] ?? $guide->meta_title);
+        $guide->meta_description = trim($parsed['meta_description'] ?? $guide->meta_description);
+        $guide->meta_keywords = trim($parsed['meta_keywords'] ?? $guide->meta_keywords);
+        $guide->ai_metadata = $meta;
+        $guide->save();
+
+        return [
+            'success' => true,
+            'message' => 'Guide refined successfully by AI!',
+            'guide' => $guide,
+        ];
+    }
+
+    /**
+     * Clean and parse JSON output from AI models safely
+     */
+    protected static function parseJsonOutput(string $raw): array
+    {
+        $raw = trim($raw);
+
+        // 1. Direct json_decode attempt
+        $data = json_decode($raw, true);
+        if (is_array($data) && !empty($data)) {
+            return $data;
+        }
+
+        // 2. Extract content within ```json ... ``` codeblock if present
+        if (preg_match('/```(?:json)?\s*(\{.*?\})\s*```/s', $raw, $matches)) {
+            $data = json_decode($matches[1], true);
+            if (is_array($data) && !empty($data)) {
+                return $data;
+            }
+        }
+
+        // 3. Robust substring extraction between outermost { and } (bypasses PCRE backtrack limits)
+        $start = strpos($raw, '{');
+        $end = strrpos($raw, '}');
+        if ($start !== false && $end !== false && $end > $start) {
+            $jsonCandidate = substr($raw, $start, $end - $start + 1);
+            $data = json_decode($jsonCandidate, true);
+            if (is_array($data) && !empty($data)) {
+                return $data;
+            }
+        }
+
+        return [];
     }
 }

@@ -237,7 +237,7 @@ class SitemapController extends Controller
             ];
 
             BuyingGuide::published()
-                ->select(['id', 'slug', 'title', 'featured_image', 'updated_at', 'published_at'])
+                ->select(['id', 'slug', 'title', 'featured_image', 'og_image', 'updated_at', 'published_at'])
                 ->chunk(1000, function ($guides) use (&$urls, $baseUrl) {
                     foreach ($guides as $guide) {
                         $item = [
@@ -247,9 +247,10 @@ class SitemapController extends Controller
                             'priority' => '0.8',
                         ];
 
-                        if (!empty($guide->featured_image)) {
+                        $imgSource = !empty($guide->og_image) ? $guide->og_image : $guide->featured_image;
+                        if (!empty($imgSource)) {
                             $item['image'] = [
-                                'loc' => $this->resolveImageUrl($guide->featured_image, $baseUrl),
+                                'loc' => $this->resolveImageUrl($imgSource, $baseUrl),
                                 'title' => $guide->title,
                             ];
                         }

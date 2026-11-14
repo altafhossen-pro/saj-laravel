@@ -526,43 +526,79 @@
     </div>
 
     <!-- ================= LIVE AI CHAT PLAYGROUND ================= -->
-    <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-        <div class="px-5 py-4 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
-            <div class="flex items-center gap-2.5">
-                <div class="w-8 h-8 rounded-lg bg-brand-50 text-brand-600 flex items-center justify-center text-base">
-                    <i class="ph-bold ph-chat-teardrop-dots"></i>
+    <div class="bg-white rounded-2xl shadow-sm border border-gray-150 overflow-hidden">
+        <!-- Chat Header -->
+        <div class="px-5 py-3.5 border-b border-gray-150 flex flex-wrap items-center justify-between gap-3 bg-white">
+            <div class="flex items-center gap-3">
+                <div class="w-9 h-9 rounded-xl bg-linear-to-tr from-purple-600 to-indigo-600 text-white flex items-center justify-center text-base shadow-xs shrink-0">
+                    <i class="ph-bold ph-sparkle"></i>
                 </div>
                 <div>
                     <h3 class="text-sm font-bold text-gray-900 flex items-center gap-2">
-                        <span>Live AI Test Chat & Playground</span>
-                        <span class="px-2 py-0.5 text-[10px] font-bold rounded-full bg-purple-50 text-purple-700 border border-purple-200"
-                              x-text="'Testing: ' + getActiveModelName()"></span>
+                        <span>Live AI Test Chat</span>
+                        <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-semibold"
+                            :class="chatStreaming ? 'bg-purple-50 text-purple-700 border border-purple-200' : 'bg-emerald-50 text-emerald-700 border border-emerald-200'">
+                            <span class="w-1.5 h-1.5 rounded-full animate-pulse" :class="chatStreaming ? 'bg-purple-600' : 'bg-emerald-500'"></span>
+                            <span x-text="chatStreaming ? 'Responding...' : 'Online & Ready'"></span>
+                        </span>
                     </h3>
-                    <p class="text-xs text-gray-500">Test prompt generation directly with your selected model to evaluate content quality in real-time.</p>
+                    <p class="text-[11px] text-gray-400">Ask any question or test prompts directly with your selected AI model in real-time.</p>
                 </div>
             </div>
 
+            <!-- Model Switcher & Actions -->
             <div class="flex items-center gap-2">
-                <button type="button" @click="clearChat()" class="px-3 py-1 rounded-lg text-xs font-medium text-gray-500 hover:text-gray-700 hover:bg-gray-100 transition cursor-pointer">
-                    Clear Chat
+                <div class="flex items-center gap-1.5 bg-gray-50 border border-gray-200 rounded-lg px-2.5 py-1 text-xs">
+                    <span class="text-gray-400 text-[11px] font-medium">Model:</span>
+                    <select x-model="form[activeTab].model" class="bg-transparent font-semibold text-gray-700 text-xs focus:outline-none cursor-pointer">
+                        <template x-if="activeTab === 'gemini'">
+                            <optgroup label="⚡ Ultra-Fast / Recommended (Instant 800ms)">
+                                <option value="gemini-3.1-flash-lite">⚡ gemini-3.1-flash-lite (Instant 800ms)</option>
+                                <option value="gemini-flash-lite-latest">⚡ gemini-flash-lite-latest (Fast)</option>
+                                <option value="gemini-3.5-flash-lite">gemini-3.5-flash-lite (Stable Lite)</option>
+                            </optgroup>
+                            <optgroup label="Standard Flash Models">
+                                <option value="gemini-3.8-flash">gemini-3.8-flash</option>
+                                <option value="gemini-3.5-flash">gemini-3.5-flash</option>
+                                <option value="gemini-flash-latest">gemini-flash-latest</option>
+                            </optgroup>
+                        </template>
+                        <template x-if="activeTab === 'openai'">
+                            <option value="gpt-4o-mini">gpt-4o-mini (Fast)</option>
+                            <option value="gpt-4o">gpt-4o</option>
+                        </template>
+                        <template x-if="activeTab === 'groq'">
+                            <option value="llama-3.3-70b-versatile">llama-3.3-70b-versatile</option>
+                            <option value="llama-3.1-8b-instant">llama-3.1-8b-instant (Fastest)</option>
+                        </template>
+                        <template x-if="activeTab === 'claude'">
+                            <option value="claude-3-5-sonnet-20241022">claude-3-5-sonnet-20241022</option>
+                            <option value="claude-3-5-haiku-20241022">claude-3-5-haiku-20241022 (Fastest)</option>
+                        </template>
+                    </select>
+                </div>
+
+                <button type="button" @click="clearChat()" class="px-3 py-1.5 rounded-lg text-xs font-medium text-gray-500 hover:text-red-600 hover:bg-red-50 border border-gray-200 transition flex items-center gap-1 cursor-pointer" title="Clear conversation">
+                    <i class="ph-bold ph-trash"></i>
+                    <span>Clear</span>
                 </button>
             </div>
         </div>
 
         <!-- Chat Messages Body -->
-        <div class="p-5 space-y-4 max-h-[420px] min-h-[180px] overflow-y-auto bg-gray-50/30" id="chatMessagesContainer">
+        <div class="p-5 space-y-4 max-h-[460px] min-h-[240px] overflow-y-auto bg-slate-50/60" id="chatMessagesContainer">
             <!-- Initial Prompt Suggestions if empty -->
             <template x-if="chatMessages.length === 0">
-                <div class="text-center py-6 space-y-3">
-                    <div class="w-12 h-12 rounded-2xl bg-purple-50 text-purple-600 mx-auto flex items-center justify-center text-xl">
+                <div class="text-center py-8 space-y-3.5">
+                    <div class="w-12 h-12 rounded-2xl bg-purple-50 text-purple-600 mx-auto flex items-center justify-center text-xl shadow-2xs">
                         <i class="ph-bold ph-sparkle"></i>
                     </div>
                     <div class="space-y-1">
-                        <h4 class="text-xs font-bold text-gray-800">Test Your Model with a Live Prompt</h4>
-                        <p class="text-[11px] text-gray-400">Click a sample prompt below or type your own question to test how the model writes.</p>
+                        <h4 class="text-xs font-bold text-gray-800">Start a Conversation</h4>
+                        <p class="text-[11px] text-gray-400">Click a sample prompt below or type your message to see the instant response.</p>
                     </div>
 
-                    <div class="flex flex-wrap items-center justify-center gap-2 pt-2">
+                    <div class="flex flex-wrap items-center justify-center gap-2 pt-2 max-w-lg mx-auto">
                         <button type="button" @click="sendQuickPrompt('একটি ভালো মানের স্কিন কেয়ার ক্রিম ব্যবহারের সঠিক নিয়ম ও ৩টি উপকারিতা বাংলায় লিখো।')"
                             class="px-3 py-1.5 rounded-full bg-white border border-gray-200 hover:border-purple-300 text-[11px] text-gray-700 shadow-2xs hover:bg-purple-50 transition cursor-pointer">
                             ✨ স্কিন কেয়ার ক্রিমের নিয়ম ও উপকারিতা
@@ -581,36 +617,48 @@
 
             <!-- Message Thread -->
             <template x-for="(msg, idx) in chatMessages" :key="idx">
-                <div class="flex" :class="msg.role === 'user' ? 'justify-end' : 'justify-start'">
-                    <!-- User Message Bubble -->
+                <div class="flex flex-col space-y-1">
+                    <!-- User Message (Right Aligned) -->
                     <template x-if="msg.role === 'user'">
-                        <div class="max-w-[80%] bg-brand-600 text-white rounded-2xl rounded-tr-xs px-4 py-2.5 text-xs shadow-xs">
-                            <p class="whitespace-pre-wrap leading-relaxed" x-text="msg.text"></p>
+                        <div class="flex items-end justify-end gap-2.5">
+                            <div class="max-w-[78%] sm:max-w-[72%] bg-slate-900 text-white rounded-2xl rounded-br-xs px-4 py-2.5 text-xs shadow-xs leading-relaxed">
+                                <p class="whitespace-pre-wrap select-text" x-text="msg.text"></p>
+                            </div>
+                            <div class="w-7 h-7 rounded-full bg-slate-200 text-slate-700 flex items-center justify-center text-[10px] font-bold shrink-0 shadow-xs mb-0.5 select-none" title="You">
+                                You
+                            </div>
                         </div>
                     </template>
 
-                    <!-- AI Message Bubble -->
+                    <!-- AI Message (Left Aligned) -->
                     <template x-if="msg.role === 'assistant'">
-                        <div class="max-w-[85%] bg-white border border-gray-200/80 rounded-2xl rounded-tl-xs p-4 text-xs shadow-xs space-y-2">
-                            <div class="flex items-center justify-between gap-3 pb-1 border-b border-gray-100 text-[10px] text-gray-400">
-                                <span class="font-bold text-purple-700 flex items-center gap-1">
-                                    <i class="ph-bold ph-robot"></i> <span x-text="msg.model"></span>
-                                </span>
-                                <div class="flex items-center gap-1.5">
-                                    <span x-show="msg.streaming" class="flex items-center gap-1 text-brand-600 font-semibold">
-                                        <i class="ph-bold ph-broadcast animate-pulse"></i> Streaming...
-                                    </span>
-                                    <span x-show="msg.latency && !msg.streaming" x-text="msg.latency + 'ms'"></span>
-                                </div>
+                        <div class="flex items-end justify-start gap-2.5">
+                            <div class="w-7 h-7 rounded-full bg-linear-to-tr from-purple-600 to-indigo-600 text-white flex items-center justify-center text-xs shrink-0 shadow-xs mb-0.5 select-none" title="AI Assistant">
+                                <i class="ph-bold ph-sparkle"></i>
                             </div>
-                            <div class="text-gray-800 whitespace-pre-wrap leading-relaxed font-sans">
+                            <div class="max-w-[85%] sm:max-w-[80%] bg-white border border-gray-200/90 rounded-2xl rounded-bl-xs px-4 py-3 text-xs shadow-xs text-gray-800 leading-relaxed space-y-1.5">
+                                <!-- Modern Typing Bouncing Dots (Awaiting Response) -->
                                 <template x-if="msg.streaming && !msg.text">
-                                    <div class="flex items-center gap-2 text-gray-400 py-1">
-                                        <i class="ph-bold ph-circle-notch animate-spin text-purple-600"></i>
-                                        <span class="italic text-[11px]">Thinking & generating response...</span>
+                                    <div class="flex items-center gap-1.5 py-1 px-1">
+                                        <span class="w-2 h-2 rounded-full bg-purple-500 animate-bounce" style="animation-duration: 0.8s;"></span>
+                                        <span class="w-2 h-2 rounded-full bg-purple-500 animate-bounce" style="animation-duration: 0.8s; animation-delay: 0.15s;"></span>
+                                        <span class="w-2 h-2 rounded-full bg-purple-500 animate-bounce" style="animation-duration: 0.8s; animation-delay: 0.3s;"></span>
                                     </div>
                                 </template>
-                                <span x-text="msg.text"></span><span x-show="msg.streaming" class="inline-block w-1.5 h-3.5 bg-brand-600 animate-pulse ml-0.5 rounded-xs align-middle"></span>
+
+                                <!-- Streamed / Final Text -->
+                                <div class="whitespace-pre-wrap select-text font-sans">
+                                    <span x-text="msg.text"></span>
+                                    <span x-show="msg.streaming && msg.text" class="inline-block w-1.5 h-3.5 bg-purple-600 animate-pulse ml-0.5 rounded-xs align-middle"></span>
+                                </div>
+
+                                <!-- Metadata Footer (Model & Latency) -->
+                                <div class="pt-1 flex items-center justify-between text-[10px] text-gray-400 font-mono select-none" x-show="!msg.streaming">
+                                    <span class="flex items-center gap-1 text-purple-600 font-medium">
+                                        <i class="ph-bold ph-robot"></i> <span x-text="msg.model"></span>
+                                    </span>
+                                    <span x-show="msg.latency" x-text="msg.latency + 'ms'"></span>
+                                </div>
                             </div>
                         </div>
                     </template>
@@ -618,14 +666,14 @@
             </template>
         </div>
 
-        <!-- Chat Input Bar with Auto-expanding Textarea -->
-        <div class="p-3 bg-white border-t border-gray-100 flex items-end gap-2.5">
+        <!-- Chat Input Bar -->
+        <div class="p-3 bg-white border-t border-gray-150 flex items-end gap-2.5">
             <div class="flex-1 relative">
                 <textarea x-ref="chatTextarea" x-model="chatInput"
                     @input="autoResizeTextarea($event.target)"
                     @keydown.enter="handleChatEnter($event)"
                     rows="1"
-                    placeholder="Type your message or prompt here... (Press Enter to send, Shift+Enter for new line)"
+                    placeholder="Type your message here... (Press Enter to send, Shift+Enter for new line)"
                     class="w-full resize-none px-4 py-2.5 text-xs border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 bg-gray-50 focus:bg-white transition-all max-h-36 min-h-[42px] leading-relaxed"
                     :disabled="chatStreaming"></textarea>
             </div>

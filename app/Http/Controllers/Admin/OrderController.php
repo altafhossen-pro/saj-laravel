@@ -473,6 +473,15 @@ class OrderController extends Controller
             ];
             $order->update_history = $history;
             $order->save();
+
+            // Trigger Meta Conversions API (CAPI) Purchase if not yet sent
+            if (empty($timestamps['fb_purchase_sent_at'])) {
+                try {
+                    \App\Services\FacebookCapiService::trackPurchase($order);
+                } catch (\Throwable $fbEx) {
+                    \Illuminate\Support\Facades\Log::warning("Meta CAPI Purchase tracking error on Steadfast ship: " . $fbEx->getMessage());
+                }
+            }
         }
 
         return response()->json([

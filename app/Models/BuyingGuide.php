@@ -19,10 +19,38 @@ class BuyingGuide extends Model
     protected $casts = [
         'related_product_ids' => 'array',
         'is_published' => 'boolean',
+        'is_ai_generated' => 'boolean',
+        'ai_metadata' => 'array',
         'published_at' => 'datetime',
         'reading_time_minutes' => 'integer',
         'views_count' => 'integer',
     ];
+
+    /**
+     * Scope: AI Generated pending review only
+     */
+    public function scopeAiPending($query)
+    {
+        return $query->where('is_ai_generated', true)->where('is_published', false);
+    }
+
+    /**
+     * Scope: All AI Generated guides
+     */
+    public function scopeAiGenerated($query)
+    {
+        return $query->where('is_ai_generated', true);
+    }
+
+    /**
+     * Check if this guide can be modified/refined by AI
+     * Strictly allowed ONLY for pending / unpublished AI guides.
+     * Published guides are permanently locked from AI alteration.
+     */
+    public function canBeModifiedByAi(): bool
+    {
+        return (bool) ($this->is_ai_generated && !$this->is_published);
+    }
 
     /**
      * Relationship: Author
@@ -77,6 +105,27 @@ class BuyingGuide extends Model
     }
 
     /**
+     * Accessor: OpenGraph / Dedicated Google SERP Thumbnail image URL
+     */
+    public function getOgImageUrlAttribute(): ?string
+    {
+        if (!empty($this->og_image)) {
+            if (Str::startsWith($this->og_image, ['http://', 'https://'])) {
+                return $this->og_image;
+            }
+
+            $trimmed = ltrim($this->og_image, '/');
+            if (Str::startsWith($trimmed, 'storage/')) {
+                return url($trimmed);
+            }
+
+            return url(Storage::url($this->og_image));
+        }
+
+        return $this->featured_image_url;
+    }
+
+    /**
      * Accessor: Related products Eloquent Collection
      */
     public function getRelatedProductsAttribute()
@@ -93,6 +142,40 @@ class BuyingGuide extends Model
     }
 
     /**
+     * Normalize Markdown and HTML headings.
+     * Converts markdown headings (e.g. ##, ###, or <p>## ...</p>) into standard HTML <h2>, <h3> tags,
+     * formats bold markers, and cleans nested wrapper tags so styling and TOC always work reliably.
+     */
+    public static function normalizeHeadings(?string $content): string
+    {
+        if (empty($content)) {
+            return '';
+        }
+
+        // 1. Convert TinyMCE or copy-paste paragraphs containing markdown headings: <p>## Title</p>
+        $content = preg_replace_callback('/<p>\s*(#{1,6})\s+(.*?)\s*<\/p>/iu', function ($matches) {
+            $level = strlen($matches[1]);
+            $text = trim($matches[2]);
+            return "<h{$level}>{$text}</h{$level}>";
+        }, $content);
+
+        // 2. Convert raw markdown headings on their own lines: ## Title or ### Title
+        $content = preg_replace_callback('/^(#{1,6})\s+(.+)$/mu', function ($matches) {
+            $level = strlen($matches[1]);
+            $text = trim($matches[2]);
+            return "<h{$level}>{$text}</h{$level}>";
+        }, $content);
+
+        // 3. Convert markdown bold **text** to <strong>text</strong>
+        $content = preg_replace('/\*\*(.*?)\*\*/u', '<strong>$1</strong>', $content);
+
+        // 4. Clean up any accidental <p><hX>...</hX></p> wrappers
+        $content = preg_replace('/<p>\s*(<h[1-6][^>]*>.*?<\/h[1-6]>)\s*<\/p>/is', '$1', $content);
+
+        return $content;
+    }
+
+    /**
      * Parse Table of Contents from <h1>, <h2>, and <h3> tags in the HTML content
      * Returns an array of: [['id' => '...', 'title' => '...', 'level' => 1|2|3]]
      */
@@ -103,13 +186,15 @@ class BuyingGuide extends Model
             return $toc;
         }
 
+        $normalizedContent = self::normalizeHeadings($this->content);
+
         // Match h1, h2 and h3 elements
         $pattern = '/<(h[123])(?:\s+[^>]*)?>(.*?)<\/\1>/si';
-        if (preg_match_all($pattern, $this->content, $matches, PREG_SET_ORDER)) {
+        if (preg_match_all($pattern, $normalizedContent, $matches, PREG_SET_ORDER)) {
             $usedIds = [];
 
             foreach ($matches as $match) {
-                $level = (int) substr($match[1], 1); // 2 or 3
+                $level = (int) substr($match[1], 1); // 1, 2 or 3
                 $rawTitle = strip_tags($match[2]);
                 $cleanTitle = html_entity_decode(trim($rawTitle));
 
@@ -144,7 +229,7 @@ class BuyingGuide extends Model
     }
 
     /**
-     * Processed Content: Injects matching anchor IDs and scroll-offset class into <h2> and <h3> tags
+     * Processed Content: Normalizes headings and injects matching anchor IDs and scroll-offset class into <h2> and <h3> tags
      */
     public function getProcessedContentAttribute(): string
     {
@@ -152,6 +237,7 @@ class BuyingGuide extends Model
             return '';
         }
 
+        $content = self::normalizeHeadings($this->content);
         $usedIds = [];
         $pattern = '/<(h[123])(\s+[^>]*)?>(.*?)<\/\1>/si';
 
@@ -191,7 +277,7 @@ class BuyingGuide extends Model
             }
 
             return "<{$tag} id=\"{$slug}\" {$cleanAttrs}>{$inner}</{$tag}>";
-        }, $this->content);
+        }, $content);
     }
 
     /**

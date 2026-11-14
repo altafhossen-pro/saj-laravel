@@ -75,22 +75,27 @@ class BuyingGuideController extends Controller
         $siteLogo = Setting::get('site_logo');
         $siteLogoUrl = $siteLogo ? asset($siteLogo) : url('/images/logo.png');
 
+        $primaryImageUrl = $guide->og_image_url ?: $guide->featured_image_url;
+        $allGuideImages = array_values(array_unique(array_filter([
+            $primaryImageUrl,
+            $guide->featured_image_url,
+        ])));
+
         $seo = [
             'title' => $guide->meta_title ?: "{$guide->title} | {$siteName}",
             'description' => $guide->meta_description ?: ($guide->excerpt ?: strip_tags(substr($guide->content, 0, 160))),
             'keywords' => $guide->meta_keywords,
             'canonical' => $guide->canonical_url ?: route('guides.show', $guide->slug),
-            'og_image' => $guide->og_image ?: $guide->featured_image_url,
+            'og_image' => $primaryImageUrl,
         ];
 
-        // Schema.org Article Structured Data
+        // Schema.org Article Structured Data (Strictly Compliant with Google Search Central Documentation)
         $articleSchema = [
             '@context' => 'https://schema.org',
             '@type' => 'Article',
             'headline' => $guide->title,
-            'image' => [
-                $guide->featured_image_url,
-            ],
+            'image' => $allGuideImages,
+            'thumbnailUrl' => $primaryImageUrl,
             'datePublished' => ($guide->published_at ?? $guide->created_at)->toIso8601String(),
             'dateModified' => $guide->updated_at->toIso8601String(),
             'author' => [
@@ -110,6 +115,10 @@ class BuyingGuideController extends Controller
             'mainEntityOfPage' => [
                 '@type' => 'WebPage',
                 '@id' => route('guides.show', $guide->slug),
+                'primaryImageOfPage' => [
+                    '@type' => 'ImageObject',
+                    'url' => $primaryImageUrl,
+                ],
             ],
         ];
 

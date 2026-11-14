@@ -32,6 +32,12 @@
         </div>
 
         <div class="flex items-center gap-2">
+            <a href="{{ route('admin.guides.preview', $guide->id) }}"
+               class="px-3 py-2 text-xs font-bold text-purple-700 bg-purple-50 hover:bg-purple-100 border border-purple-200 rounded-xl transition-colors inline-flex items-center gap-1.5"
+               title="Preview without publishing">
+                <i class="ph-bold ph-eye text-sm"></i>
+                <span>Safe Preview</span>
+            </a>
             @if($guide->is_published)
             <a href="{{ route('guides.show', $guide->slug) }}" target="_blank"
                class="px-3 py-2 text-xs font-semibold text-gray-700 bg-gray-50 hover:bg-gray-100 border border-gray-200 rounded-xl transition-colors inline-flex items-center gap-1.5">
