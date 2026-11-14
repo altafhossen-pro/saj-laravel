@@ -28,6 +28,7 @@ class Category extends Model
         'homepage_layout',
         'homepage_max_products',
         'homepage_per_page',
+        'homepage_product_sort',
     ];
 
     protected $casts = [

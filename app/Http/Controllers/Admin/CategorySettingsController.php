@@ -13,6 +13,7 @@ class CategorySettingsController extends Controller
         $request->validate([
             'show_on_homepage' => 'sometimes|boolean',
             'homepage_layout' => 'sometimes|in:grid,slider',
+            'homepage_product_sort' => 'sometimes|in:latest,oldest,random,popular,price_low_high,price_high_low',
             'homepage_max_products' => 'sometimes|integer|min:1',
             'homepage_per_page' => 'sometimes|integer|min:1',
             'sort_order' => 'sometimes|nullable|integer|min:0',
@@ -28,6 +29,10 @@ class CategorySettingsController extends Controller
 
         if ($request->has('homepage_layout')) {
             $category->homepage_layout = $request->homepage_layout;
+        }
+
+        if ($request->has('homepage_product_sort')) {
+            $category->homepage_product_sort = $request->homepage_product_sort;
         }
 
         if ($request->has('homepage_max_products')) {

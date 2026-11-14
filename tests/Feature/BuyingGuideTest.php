@@ -383,4 +383,22 @@ class BuyingGuideTest extends TestCase
         $response->assertRedirect(route('admin.guides.index'));
         $this->assertSoftDeleted('buying_guides', ['id' => $guide->id]);
     }
+
+    public function test_admin_can_access_cache_manager_and_purge_sitemap_cache()
+    {
+        $admin = $this->getSuperAdmin();
+
+        // Access Cache Manager page
+        $response = $this->actingAs($admin)
+            ->get(route('admin.settings.cache'));
+        $response->assertStatus(200);
+        $response->assertSee('Purge Cache & Sitemap Manager', false);
+        $response->assertSee('Google XML Sitemap Cache');
+
+        // Trigger Purge Sitemap
+        $purgeResponse = $this->actingAs($admin)
+            ->post(route('admin.settings.cache.purge-sitemap'));
+        $purgeResponse->assertRedirect(route('admin.settings.cache'));
+        $purgeResponse->assertSessionHas('success');
+    }
 }

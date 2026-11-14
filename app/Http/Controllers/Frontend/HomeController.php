@@ -42,9 +42,32 @@ class HomeController extends Controller
                 
             foreach($categories as $category) {
                 $categoryIds = $category->getAllDescendantIds();
-                $category->homepage_products = Product::whereIn('category_id', $categoryIds)
-                    ->where('is_active', true)
-                    ->latest()
+                $productsQuery = Product::whereIn('category_id', $categoryIds)
+                    ->where('is_active', true);
+
+                switch ($category->homepage_product_sort) {
+                    case 'oldest':
+                        $productsQuery->oldest();
+                        break;
+                    case 'random':
+                        $productsQuery->inRandomOrder();
+                        break;
+                    case 'popular':
+                        $productsQuery->orderBy('total_sold', 'desc');
+                        break;
+                    case 'price_low_high':
+                        $productsQuery->orderBy('base_price', 'asc');
+                        break;
+                    case 'price_high_low':
+                        $productsQuery->orderBy('base_price', 'desc');
+                        break;
+                    case 'latest':
+                    default:
+                        $productsQuery->latest();
+                        break;
+                }
+
+                $category->homepage_products = $productsQuery
                     ->take($category->homepage_max_products)
                     ->get($productColumns);
             }

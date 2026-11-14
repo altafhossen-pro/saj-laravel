@@ -19,6 +19,7 @@
             'homepage_layout' => $c->homepage_layout ?? 'grid',
             'homepage_max_products' => (int)($c->homepage_max_products ?? 100),
             'homepage_per_page' => (int)($c->homepage_per_page ?? 20),
+            'homepage_product_sort' => $c->homepage_product_sort ?? 'latest',
             'show_on_homepage' => (bool)$c->show_on_homepage,
             'sort_order' => (int)($c->sort_order ?? 0),
         ];
@@ -191,11 +192,18 @@
                             <!-- Layout Style badge -->
                             <td class="px-6 py-4">
                                 <div>
-                                    <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold"
-                                        :class="category.homepage_layout === 'slider' ? 'bg-purple-50 text-purple-700 border border-purple-200' : 'bg-emerald-50 text-emerald-700 border border-emerald-200'">
-                                        <i class="ph text-sm" :class="category.homepage_layout === 'slider' ? 'ph-arrows-horizontal' : 'ph-squares-four'"></i>
-                                        <span class="capitalize" x-text="category.homepage_layout || 'Grid'"></span>
-                                    </span>
+                                    <div class="flex items-center gap-1.5 flex-wrap">
+                                        <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold"
+                                            :class="category.homepage_layout === 'slider' ? 'bg-purple-50 text-purple-700 border border-purple-200' : 'bg-emerald-50 text-emerald-700 border border-emerald-200'">
+                                            <i class="ph text-sm" :class="category.homepage_layout === 'slider' ? 'ph-arrows-horizontal' : 'ph-squares-four'"></i>
+                                            <span class="capitalize" x-text="category.homepage_layout || 'Grid'"></span>
+                                        </span>
+                                        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[11px] font-medium bg-blue-50 text-blue-700 border border-blue-200/60"
+                                            :title="'Product sorting: ' + getSortLabel(category.homepage_product_sort)">
+                                            <i class="ph ph-arrows-down-up text-xs text-blue-500"></i>
+                                            <span x-text="getSortLabel(category.homepage_product_sort)"></span>
+                                        </span>
+                                    </div>
                                     <div class="text-[11px] text-gray-400 mt-1">
                                         Max: <span x-text="category.homepage_max_products || 100"></span>
                                         <template x-if="(category.homepage_layout || 'grid') === 'grid'">
@@ -314,6 +322,21 @@
                                     </div>
                                 </div>
 
+                                <!-- Product Sorting -->
+                                <div>
+                                    <label class="block text-xs font-semibold uppercase text-gray-600 tracking-wider mb-1.5">Product Sorting</label>
+                                    <select x-model="settingsForm.productSort"
+                                        class="w-full py-2.5 px-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 text-sm bg-white cursor-pointer">
+                                        <option value="latest">Newest First (Latest Added)</option>
+                                        <option value="oldest">Oldest First</option>
+                                        <option value="random">Random Order</option>
+                                        <option value="popular">Popular / Most Sold</option>
+                                        <option value="price_low_high">Price: Low to High</option>
+                                        <option value="price_high_low">Price: High to Low</option>
+                                    </select>
+                                    <p class="mt-1 text-[11px] text-gray-400">Order in which products appear in this homepage section.</p>
+                                </div>
+
                                 <!-- Product Limits -->
                                 <div class="grid grid-cols-2 gap-3">
                                     <div>
@@ -380,6 +403,7 @@
             activeItem: null,
             settingsForm: {
                 layout: 'grid',
+                productSort: 'latest',
                 maxProducts: 100,
                 perPage: 20
             },
@@ -516,9 +540,22 @@
                 });
             },
 
+            getSortLabel(sort) {
+                const labels = {
+                    'latest': 'Newest First',
+                    'oldest': 'Oldest First',
+                    'random': 'Random',
+                    'popular': 'Popular',
+                    'price_low_high': 'Price: Low → High',
+                    'price_high_low': 'Price: High → Low'
+                };
+                return labels[sort] || 'Newest First';
+            },
+
             openSettings(category) {
                 this.activeItem = category;
                 this.settingsForm.layout = category.homepage_layout || 'grid';
+                this.settingsForm.productSort = category.homepage_product_sort || 'latest';
                 this.settingsForm.maxProducts = category.homepage_max_products || 100;
                 this.settingsForm.perPage = category.homepage_per_page || 20;
                 this.isSettingsOpen = true;
@@ -541,6 +578,7 @@
                     },
                     body: JSON.stringify({
                         homepage_layout: this.settingsForm.layout,
+                        homepage_product_sort: this.settingsForm.productSort,
                         homepage_max_products: parseInt(this.settingsForm.maxProducts) || 100,
                         homepage_per_page: parseInt(this.settingsForm.perPage) || 20
                     })
@@ -549,6 +587,7 @@
                 .then(data => {
                     if (data.success) {
                         this.activeItem.homepage_layout = this.settingsForm.layout;
+                        this.activeItem.homepage_product_sort = this.settingsForm.productSort;
                         this.activeItem.homepage_max_products = parseInt(this.settingsForm.maxProducts) || 100;
                         this.activeItem.homepage_per_page = parseInt(this.settingsForm.perPage) || 20;
                         this.closeSettings();
