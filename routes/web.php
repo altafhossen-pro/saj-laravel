@@ -326,6 +326,10 @@ Route::middleware(['auth', 'admin_access'])->prefix('admin/dashboard')->group(fu
         Route::get('/settings/ai', [\App\Http\Controllers\Admin\SettingController::class, 'aiSettings'])->name('admin.settings.ai');
         Route::post('/settings/ai', [\App\Http\Controllers\Admin\SettingController::class, 'updateAiSettings'])->name('admin.settings.ai.update');
         Route::post('/settings/ai/test', [\App\Http\Controllers\Admin\SettingController::class, 'testAiConnection'])->name('admin.settings.ai.test');
+        Route::post('/settings/ai/gemini-models', [\App\Http\Controllers\Admin\SettingController::class, 'getGeminiModels'])->name('admin.settings.ai.gemini-models');
+        Route::post('/settings/ai/gemini-limits', [\App\Http\Controllers\Admin\SettingController::class, 'getGeminiLimits'])->name('admin.settings.ai.gemini-limits');
+        Route::post('/settings/ai/chat', [\App\Http\Controllers\Admin\SettingController::class, 'aiChat'])->name('admin.settings.ai.chat');
+        Route::post('/settings/ai/chat-stream', [\App\Http\Controllers\Admin\SettingController::class, 'aiChatStream'])->name('admin.settings.ai.chat-stream');
         Route::get('/settings/smtp', [\App\Http\Controllers\Admin\SmtpSettingsController::class, 'index'])->name('admin.settings.smtp');
         Route::post('/settings/smtp', [\App\Http\Controllers\Admin\SmtpSettingsController::class, 'update'])->name('admin.settings.smtp.update');
         Route::post('/settings/smtp/reachability', [\App\Http\Controllers\Admin\SmtpSettingsController::class, 'testReachability'])->name('admin.settings.smtp.reachability');

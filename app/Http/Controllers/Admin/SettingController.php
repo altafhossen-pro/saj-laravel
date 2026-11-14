@@ -662,7 +662,7 @@ class SettingController extends Controller
 
             // Gemini
             'gemini_api_key' => Setting::get('gemini_api_key', env('GEMINI_API_KEY', '')),
-            'gemini_model' => Setting::get('gemini_model', 'gemini-2.0-flash'),
+            'gemini_model' => Setting::get('gemini_model', 'gemini-3.8-flash'),
 
             // OpenAI
             'openai_api_key' => Setting::get('openai_api_key', env('OPENAI_API_KEY', '')),
@@ -697,7 +697,7 @@ class SettingController extends Controller
         Setting::set('default_ai_provider', $request->input('default_provider', 'gemini'));
 
         Setting::set('gemini_api_key', trim($request->input('gemini_api_key', '')));
-        Setting::set('gemini_model', trim($request->input('gemini_model', 'gemini-2.0-flash')));
+        Setting::set('gemini_model', trim($request->input('gemini_model', 'gemini-3.8-flash')));
 
         Setting::set('openai_api_key', trim($request->input('openai_api_key', '')));
         Setting::set('openai_model', trim($request->input('openai_model', 'gpt-4o-mini')));
@@ -726,6 +726,76 @@ class SettingController extends Controller
         $result = \App\Services\AiService::testConnection($provider, $apiKey, $model);
 
         return response()->json($result);
+    }
+
+    public function getGeminiModels(Request $request)
+    {
+        $apiKey = $request->input('api_key');
+        $result = \App\Services\AiService::getGeminiModels($apiKey);
+
+        return response()->json($result);
+    }
+
+    public function getGeminiLimits(Request $request)
+    {
+        $apiKey = $request->input('api_key');
+        $model = $request->input('model');
+        $result = \App\Services\AiService::getGeminiLimits($apiKey, $model);
+
+        return response()->json($result);
+    }
+
+    public function aiChat(Request $request)
+    {
+        set_time_limit(180);
+        $request->validate([
+            'message' => 'required|string|max:2000',
+            'provider' => 'nullable|string',
+            'model' => 'nullable|string',
+            'api_key' => 'nullable|string',
+        ]);
+
+        $message = $request->input('message');
+        $provider = $request->input('provider', 'gemini');
+        $model = $request->input('model');
+        $apiKey = $request->input('api_key');
+
+        $result = \App\Services\AiService::chatTest($message, $provider, $model, $apiKey);
+
+        return response()->json($result);
+    }
+
+    public function aiChatStream(Request $request)
+    {
+        set_time_limit(180);
+        if (ob_get_level()) {
+            @ob_end_clean();
+        }
+
+        $message = $request->input('message');
+        $provider = $request->input('provider', 'gemini');
+        $model = $request->input('model');
+        $apiKey = $request->input('api_key');
+
+        return response()->stream(function () use ($message, $provider, $model, $apiKey) {
+            \App\Services\AiService::streamChat($message, $provider, $model, $apiKey, function ($chunk) {
+                echo "data: " . json_encode(['chunk' => $chunk]) . "\n\n";
+                if (ob_get_level() > 0) {
+                    @ob_flush();
+                }
+                flush();
+            });
+            echo "data: [DONE]\n\n";
+            if (ob_get_level() > 0) {
+                @ob_flush();
+            }
+            flush();
+        }, 200, [
+            'Content-Type' => 'text/event-stream',
+            'Cache-Control' => 'no-cache, no-transform',
+            'X-Accel-Buffering' => 'no',
+            'Connection' => 'keep-alive',
+        ]);
     }
 }
 
