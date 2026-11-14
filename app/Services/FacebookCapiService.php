@@ -39,15 +39,20 @@ class FacebookCapiService
 
         // 1. Prepare User Data (Hashed per Meta guidelines: SHA-256 lowercase)
         $formattedUserData = [
-            'client_ip_address' => $request ? $request->ip() : null,
-            'client_user_agent' => $request ? $request->userAgent() : null,
+            'client_ip_address' => $userData['client_ip_address'] ?? ($request ? $request->ip() : null),
+            'client_user_agent' => $userData['client_user_agent'] ?? ($request ? $request->userAgent() : null),
         ];
 
-        // Cookies _fbp and _fbc
-        if ($request && $request->hasCookie('_fbp')) {
+        // Cookies _fbp and _fbc (Prioritize stored visitor attribution, fallback to active request cookies)
+        if (!empty($userData['fbp'])) {
+            $formattedUserData['fbp'] = $userData['fbp'];
+        } elseif ($request && $request->hasCookie('_fbp')) {
             $formattedUserData['fbp'] = $request->cookie('_fbp');
         }
-        if ($request && $request->hasCookie('_fbc')) {
+
+        if (!empty($userData['fbc'])) {
+            $formattedUserData['fbc'] = $userData['fbc'];
+        } elseif ($request && $request->hasCookie('_fbc')) {
             $formattedUserData['fbc'] = $request->cookie('_fbc');
         }
 
@@ -134,8 +139,8 @@ class FacebookCapiService
         $eventPayload = [
             'event_name' => $eventName,
             'event_time' => time(),
-            'event_source_url' => $request ? $request->fullUrl() : url('/'),
-            'action_source' => 'website',
+            'event_source_url' => $userData['event_source_url'] ?? ($request ? $request->fullUrl() : url('/')),
+            'action_source' => $userData['action_source'] ?? 'website',
             'user_data' => array_filter($formattedUserData),
             'custom_data' => $customData,
         ];
@@ -186,15 +191,24 @@ class FacebookCapiService
     }
 
     /**
-     * Track Purchase Event on Order Completion
+     * Track Purchase Event upon Order Confirmation (Web & Manual/Omnichannel)
      */
-    public static function trackPurchase(Order $order, ?string $eventId = null): void
+    public static function trackPurchase(Order $order, ?string $eventId = null): bool
     {
         try {
             if (!self::isConfigured() || !Setting::get('fb_track_purchase', true)) {
-                return;
+                return false;
             }
 
+            // Deduplication Check: Prevent firing duplicate Purchase events for the same order
+            $statusTimestamps = is_array($order->status_timestamps) ? $order->status_timestamps : [];
+            if (!empty($statusTimestamps['fb_purchase_sent_at'])) {
+                Log::info("Meta CAPI: Purchase event already sent for Order #{$order->order_id}. Skipping duplicate.");
+                return false;
+            }
+
+            // Load items if missing
+            $order->loadMissing('items');
             $items = $order->items ?? [];
             $contentIds = [];
             $contents = [];
@@ -212,6 +226,14 @@ class FacebookCapiService
             $customerPhone = $order->shipping_address['phone'] ?? $order->guest_info['phone'] ?? $order->user?->phone;
             $customerName = $order->shipping_address['name'] ?? $order->guest_info['name'] ?? $order->user?->name;
             $customerEmail = $order->user?->email ?? null;
+
+            // Extract stored visitor attribution data (fbp, fbc, ip, user-agent)
+            $metaAttr = $order->guest_info['meta_attribution'] ?? [];
+            $clientIp = $metaAttr['client_ip_address'] ?? $order->ip_address;
+            $clientUa = $metaAttr['client_user_agent'] ?? null;
+            $fbp = $metaAttr['fbp'] ?? null;
+            $fbc = $metaAttr['fbc'] ?? null;
+            $sourceUrl = $metaAttr['event_source_url'] ?? url('/checkout');
 
             // Detect City safely from delivery type or address
             $city = null;
@@ -244,8 +266,9 @@ class FacebookCapiService
             }
 
             $externalId = $order->user_id ? ('usr_' . $order->user_id) : ('ord_' . ($order->order_id ?? $order->id));
+            $resolvedEventId = $eventId ?: ('purchase_' . ($order->order_id ?? $order->id));
 
-            self::sendEvent(
+            $result = self::sendEvent(
                 'Purchase',
                 [
                     'value' => (float) $order->total,
@@ -262,11 +285,36 @@ class FacebookCapiService
                     'email' => $customerEmail,
                     'city' => $city,
                     'external_id' => $externalId,
+                    'fbp' => $fbp,
+                    'fbc' => $fbc,
+                    'client_ip_address' => $clientIp,
+                    'client_user_agent' => $clientUa,
+                    'event_source_url' => $sourceUrl,
+                    'action_source' => 'website',
                 ],
-                $eventId ?: ('purchase_' . ($order->order_id ?? $order->id))
+                $resolvedEventId
             );
+
+            // Record sent timestamp and update history
+            $statusTimestamps['fb_purchase_sent_at'] = now()->toDateTimeString();
+            $order->status_timestamps = $statusTimestamps;
+
+            $history = is_array($order->update_history) ? $order->update_history : [];
+            $history[] = [
+                'action' => 'fb_purchase_sent',
+                'status' => $order->status,
+                'order_source' => $order->order_source ?? 'website',
+                'event_id' => $resolvedEventId,
+                'success' => $result['success'] ?? false,
+                'timestamp' => now()->toDateTimeString(),
+            ];
+            $order->update_history = $history;
+            $order->saveQuietly();
+
+            return (bool) ($result['success'] ?? false);
         } catch (\Throwable $e) {
             Log::warning('CAPI Purchase track error: ' . $e->getMessage());
+            return false;
         }
     }
 

@@ -67,10 +67,12 @@ class OrderController extends Controller
             'customer_name' => 'required|string',
             'shipping_address' => 'required|string',
             'items' => 'required|array|min:1',
-            'is_draft' => 'boolean'
+            'is_draft' => 'boolean',
+            'send_to_meta' => 'nullable|boolean',
         ]);
 
-        $is_draft = $request->is_draft ?? false;
+        $is_draft = $request->boolean('is_draft');
+        $initialStatus = $is_draft ? 'draft' : 'confirmed';
         
         $shipping = [
             'name' => $request->customer_name,
@@ -78,19 +80,24 @@ class OrderController extends Controller
             'address' => $request->shipping_address,
         ];
 
+        $rawSource = strtolower(trim((string)($request->source ?? 'manual')));
+        $allowedSources = ['website', 'facebook', 'whatsapp', 'phone', 'email', 'walk-in', 'instagram', 'manual', 'other'];
+        $orderSource = in_array($rawSource, $allowedSources) ? $rawSource : 'manual';
+
         $order = Order::create([
             'user_id' => $request->user_id ?: null,
             'total' => $request->total ?? 0,
             'subtotal' => $request->subtotal ?? 0,
             'shipping_cost' => $request->delivery_charge ?? 0,
             'discount' => $request->discount ?? 0,
-            'status' => $is_draft ? 'draft' : 'pending',
+            'status' => $initialStatus,
             'payment_method' => 'cod', 
             'payment_status' => 'pending',
             'shipping_address' => $shipping,
             'order_notes' => $request->notes,
-            'order_source' => $request->source ?? 'Manual',
+            'order_source' => $orderSource,
             'ip_address' => $request->ip(),
+            'status_timestamps' => [$initialStatus => now()->toDateTimeString()],
             'guest_info' => $request->visitor_token ? ['visitor_token' => $request->visitor_token] : null,
         ]);
 
@@ -108,15 +115,28 @@ class OrderController extends Controller
             ]);
         }
 
+        // Deduct stock and dispatch Meta CAPI Purchase for confirmed manual orders
+        if ($initialStatus === 'confirmed') {
+            \App\Services\OrderStockService::deductOrderStock($order);
+
+            if ($request->boolean('send_to_meta', true)) {
+                try {
+                    \App\Services\FacebookCapiService::trackPurchase($order);
+                } catch (\Throwable $fbEx) {
+                    \Illuminate\Support\Facades\Log::warning("Meta CAPI Purchase tracking error on manual order: " . $fbEx->getMessage());
+                }
+            }
+        }
+
         \App\Models\Order\OrderLog::create([
             'order_id' => $order->id,
             'user_id' => auth()->id(),
-            'action' => 'Order created via POS ' . ($is_draft ? '(Draft)' : ''),
+            'action' => 'Order created via POS (' . ucfirst($initialStatus) . ')',
             'old_values' => null,
-            'new_values' => ['status' => $is_draft ? 'draft' : 'pending']
+            'new_values' => ['status' => $initialStatus]
         ]);
 
-        session()->flash('success', $is_draft ? 'Draft saved successfully!' : 'Order created successfully!');
+        session()->flash('success', $is_draft ? 'Draft saved successfully!' : 'Order created and confirmed successfully!');
 
         return response()->json([
             'success' => true,
@@ -353,6 +373,18 @@ class OrderController extends Controller
             $order->update_history = $history;
 
             $order->save();
+
+            // Trigger Meta Conversions API (CAPI) Purchase upon first confirmation (filtered, authentic orders only)
+            if (in_array($newStatus, ['confirmed', 'processing', 'shipped', 'delivered'])) {
+                $statusTimestamps = is_array($order->status_timestamps) ? $order->status_timestamps : [];
+                if (empty($statusTimestamps['fb_purchase_sent_at'])) {
+                    try {
+                        \App\Services\FacebookCapiService::trackPurchase($order);
+                    } catch (\Throwable $fbEx) {
+                        \Illuminate\Support\Facades\Log::warning("Meta CAPI Purchase tracking error on confirmation: " . $fbEx->getMessage());
+                    }
+                }
+            }
 
             // Trigger Delivered Email if status changed to 'delivered'
             if ($newStatus === 'delivered' && \App\Services\MailConfigService::isMailEnabled() && \App\Models\Setting::get('email_tpl_order_delivered_active', 1)) {
@@ -894,6 +926,18 @@ class OrderController extends Controller
                 'update_history' => $history,
             ]);
             $order->save();
+
+            // Trigger Meta Conversions API (CAPI) Purchase upon first confirmation (filtered, authentic orders only)
+            if (in_array($data['status'], ['confirmed', 'processing', 'shipped', 'delivered'])) {
+                $statusTimestamps = is_array($order->status_timestamps) ? $order->status_timestamps : [];
+                if (empty($statusTimestamps['fb_purchase_sent_at'])) {
+                    try {
+                        \App\Services\FacebookCapiService::trackPurchase($order);
+                    } catch (\Throwable $fbEx) {
+                        \Illuminate\Support\Facades\Log::warning("Meta CAPI Purchase tracking error on edit confirmation: " . $fbEx->getMessage());
+                    }
+                }
+            }
         });
 
         // Capture after state and log only if there are actual field changes

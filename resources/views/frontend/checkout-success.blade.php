@@ -89,50 +89,10 @@
 </div>
 
 @push('scripts')
-@if(\App\Models\Setting::get('fb_pixel_enabled') && \App\Models\Setting::get('fb_pixel_id') && \App\Models\Setting::get('fb_track_purchase', true))
-@php
-    $buyerPhone = $order->shipping_address['phone'] ?? $order->guest_info['phone'] ?? $order->user?->phone;
-    $buyerName = $order->shipping_address['name'] ?? $order->guest_info['name'] ?? $order->user?->name;
-    $buyerEmail = $order->user?->email ?? null;
-    $buyerAdv = [];
-    if (!empty($buyerPhone)) {
-        $bp = preg_replace('/[^0-9]/', '', (string)$buyerPhone);
-        if (strlen($bp) === 11 && str_starts_with($bp, '01')) {
-            $bp = '88' . $bp;
-        }
-        $buyerAdv['ph'] = $bp;
-    }
-    if (!empty($buyerEmail)) {
-        $buyerAdv['em'] = strtolower(trim((string)$buyerEmail));
-    }
-    if (!empty($buyerName)) {
-        $parts = explode(' ', trim((string)$buyerName), 2);
-        $buyerAdv['fn'] = strtolower(trim($parts[0]));
-        if (!empty($parts[1])) {
-            $buyerAdv['ln'] = strtolower(trim($parts[1]));
-        }
-    }
-    $buyerAdv['external_id'] = $order->user_id ? ('usr_' . $order->user_id) : ('ord_' . ($order->order_id ?? $order->id));
-@endphp
-<script>
-    document.addEventListener('DOMContentLoaded', function () {
-        if (typeof window.fbq === 'function') {
-            @if(!empty($buyerAdv))
-            window.fbq('init', '{{ \App\Models\Setting::get('fb_pixel_id') }}', {!! json_encode($buyerAdv) !!});
-            @endif
-            if (typeof window.trackFbEvent === 'function') {
-                window.trackFbEvent('Purchase', {
-                    value: {{ (float) $order->total }},
-                    currency: 'BDT',
-                    content_type: 'product',
-                    order_id: '{{ $order->order_id }}',
-                    content_ids: {!! json_encode($order->items ? $order->items->pluck('product_id')->map(fn($id) => (string)$id)->values() : []) !!},
-                    num_items: {{ $order->items ? $order->items->count() : 1 }}
-                }, 'purchase_{{ $order->order_id }}');
-            }
-        }
-    });
-</script>
-@endif
+{{-- 
+    Note: Meta 'Purchase' event is strictly fired server-side via Conversions API (CAPI) 
+    when Admin verifies and sets the order status from 'Pending' to 'Confirmed'.
+    This prevents fake / unverified COD orders from polluting Meta ad pixel training.
+--}}
 @endpush
 @endsection

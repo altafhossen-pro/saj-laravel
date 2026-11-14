@@ -264,6 +264,14 @@
                                 <option value="Instagram">Instagram</option>
                                 <option value="Other">Other</option>
                             </select>
+                            <div class="mt-2" x-show="!form.is_draft">
+                                <label class="inline-flex items-center gap-1.5 cursor-pointer">
+                                    <input type="checkbox" x-model="form.send_to_meta" class="rounded text-brand-600 focus:ring-brand-500">
+                                    <span class="text-[11px] text-gray-600 font-medium flex items-center gap-1">
+                                        <i class="ph-bold ph-broadcast text-[#1877F2]"></i> Send to Meta (CAPI)
+                                    </span>
+                                </label>
+                            </div>
                         </div>
 
                         <div class="flex-1">
@@ -399,6 +407,7 @@
                     form: {
                         is_draft: false,
                         source: 'Facebook',
+                        send_to_meta: true,
                         customer_contact: '{{ request('phone', '') }}',
                         customer_name: '{{ addslashes(request('name', '')) }}',
                         shipping_address: '{{ addslashes(request('address', '')) }}',

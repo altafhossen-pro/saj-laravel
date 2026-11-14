@@ -247,19 +247,31 @@ class CheckoutController extends Controller
             $order->order_source = 'website';
             $order->order_type = 'auto';
 
-            // Guest or manual info (we store customer info in guest_info json or dedicated fields)
+            // Guest or manual info + Meta Pixel/CAPI attribution data
+            $metaAttribution = [
+                'fbp' => $request->cookie('_fbp'),
+                'fbc' => $request->cookie('_fbc'),
+                'client_ip_address' => $request->ip(),
+                'client_user_agent' => $request->userAgent(),
+                'event_source_url' => $request->headers->get('referer') ?: url('/checkout'),
+            ];
+
             $customerInfo = [
                 'name' => $data['name'],
                 'phone' => $data['phone'],
-                'address' => $data['address']
+                'address' => $data['address'],
+                'meta_attribution' => $metaAttribution,
             ];
 
-            if ($isGuest) {
-                $order->guest_info = $customerInfo;
-            }
+            // Always store customer & meta attribution in guest_info array
+            $order->guest_info = $customerInfo;
             // For Laravel, the schema has shipping_address JSON
-            $order->shipping_address = $customerInfo;
-            $order->billing_address = $customerInfo;
+            $order->shipping_address = [
+                'name' => $data['name'],
+                'phone' => $data['phone'],
+                'address' => $data['address'],
+            ];
+            $order->billing_address = $order->shipping_address;
 
             $order->status = 'pending';
             $order->is_stock_deducted = false;
@@ -375,12 +387,8 @@ class CheckoutController extends Controller
                 \Illuminate\Support\Facades\Log::warning("CartSession conversion error: " . $cartEx->getMessage());
             }
 
-            // Track Meta Conversions API (CAPI) Purchase Event safely
-            try {
-                \App\Services\FacebookCapiService::trackPurchase($order);
-            } catch (\Throwable $fbEx) {
-                \Illuminate\Support\Facades\Log::warning("Meta CAPI Purchase tracking error: " . $fbEx->getMessage());
-            }
+            // Note: Meta CAPI Purchase is delayed until order confirmation by Admin to filter out fake/cancelled COD orders.
+            // When status is changed to 'confirmed' in Admin Panel, FacebookCapiService::trackPurchase() fires automatically.
 
             return response()->json([
                 'success' => true,
