@@ -12,4 +12,4 @@ Disallow: /logout
 Crawl-delay: 1
 
 # Google Search Console XML Sitemap
-Sitemap: https://sajbd.com/sitemap.xml
+Sitemap: https://saj.bd/sitemap.xml
