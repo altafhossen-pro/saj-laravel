@@ -385,42 +385,7 @@ JSON Structure:
             },
 
             applyToCurrentCreateForm(data) {
-                const titleInput = document.querySelector('input[name="title"]');
-                const topicInput = document.querySelector('input[name="topic"]');
-                const excerptInput = document.querySelector('textarea[name="excerpt"]');
-                const metaTitleInput = document.querySelector('input[name="meta_title"]');
-                const metaDescInput = document.querySelector('textarea[name="meta_description"]');
-                const metaKeywordsInput = document.querySelector('input[name="meta_keywords"]');
-
-                if (titleInput && data.title) {
-                    titleInput.value = data.title;
-                    titleInput.dispatchEvent(new Event('input'));
-                }
-                if (topicInput && data.topic) {
-                    topicInput.value = data.topic;
-                    topicInput.dispatchEvent(new Event('input'));
-                }
-                if (excerptInput && data.excerpt) {
-                    excerptInput.value = data.excerpt;
-                    excerptInput.dispatchEvent(new Event('input'));
-                }
-                if (metaTitleInput && data.meta_title) {
-                    metaTitleInput.value = data.meta_title;
-                }
-                if (metaDescInput && data.meta_description) {
-                    metaDescInput.value = data.meta_description;
-                }
-                if (metaKeywordsInput && data.meta_keywords) {
-                    metaKeywordsInput.value = data.meta_keywords;
-                }
-
-                // Update TinyMCE editor
-                if (window.tinymce && data.content) {
-                    const editor = tinymce.get('guide-tinymce-editor') || tinymce.activeEditor;
-                    if (editor) {
-                        editor.setContent(data.content);
-                    }
-                }
+                window.dispatchEvent(new CustomEvent('guide-autofill', { detail: data }));
                 alert('Form fields populated with AI Guide data!');
             }
         };

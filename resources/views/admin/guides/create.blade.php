@@ -3,64 +3,7 @@
 @section('header_title', 'Create Buying Guide')
 
 @section('content')
-<div x-data="{
-    title: '{{ addslashes(old('title', '')) }}',
-    slug: '{{ addslashes(old('slug', '')) }}',
-    isEditingSlug: false,
-    imagePreview: null,
-    generateSlug(text) {
-        return text.toString().toLowerCase().trim()
-            .replace(/[\s\W-]+/g, '-')
-            .replace(/^-+|-+$/g, '');
-    },
-    handleImagePreview(event) {
-        const file = event.target.files[0];
-        if (file) {
-            this.imagePreview = URL.createObjectURL(file);
-        }
-    },
-    init() {
-        const stored = sessionStorage.getItem('saj_guide_autofill');
-        if (stored) {
-            try {
-                const data = JSON.parse(stored);
-                sessionStorage.removeItem('saj_guide_autofill');
-                this.title = data.title || '';
-                this.slug = this.generateSlug(data.title || '');
-
-                this.$nextTick(() => {
-                    const topicInput = document.querySelector('input[name=\"topic\"]');
-                    const excerptInput = document.querySelector('textarea[name=\"excerpt\"]');
-                    const metaTitleInput = document.querySelector('input[name=\"meta_title\"]');
-                    const metaDescInput = document.querySelector('textarea[name=\"meta_description\"]');
-                    const metaKeywordsInput = document.querySelector('input[name=\"meta_keywords\"]');
-
-                    if (topicInput && data.topic) topicInput.value = data.topic;
-                    if (excerptInput && data.excerpt) excerptInput.value = data.excerpt;
-                    if (metaTitleInput && data.meta_title) metaTitleInput.value = data.meta_title;
-                    if (metaDescInput && data.meta_description) metaDescInput.value = data.meta_description;
-                    if (metaKeywordsInput && data.meta_keywords) metaKeywordsInput.value = data.meta_keywords;
-
-                    const setTinyMce = (attempts = 0) => {
-                        if (window.tinymce) {
-                            const editor = tinymce.get('guide-tinymce-editor') || tinymce.activeEditor;
-                            if (editor && editor.initialized) {
-                                editor.setContent(data.content || '');
-                                return;
-                            }
-                        }
-                        if (attempts < 20) {
-                            setTimeout(() => setTinyMce(attempts + 1), 200);
-                        }
-                    };
-                    setTimeout(() => setTinyMce(0), 400);
-                });
-            } catch (e) {
-                console.error('Failed to parse autofill data', e);
-            }
-        }
-    }
-}" class="max-w-5xl mx-auto space-y-6">
+<div x-data="guideCreateForm()" @guide-autofill.window="applyGuideData($event.detail)" class="max-w-5xl mx-auto space-y-6">
     <!-- Top Action Bar -->
     <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
         <div>
@@ -157,6 +100,90 @@
 
 <!-- Quick Import / Paste Modal -->
 @include('admin.guides.partials._quick_import_modal')
+
+<script>
+function guideCreateForm() {
+    return {
+        title: @json(old('title', '')),
+        slug: @json(old('slug', '')),
+        isEditingSlug: false,
+        imagePreview: null,
+        generateSlug(text) {
+            return (text || '').toString().toLowerCase().trim()
+                .replace(/[\s\W-]+/g, '-')
+                .replace(/^-+|-+$/g, '');
+        },
+        handleImagePreview(event) {
+            const file = event.target.files[0];
+            if (file) {
+                this.imagePreview = URL.createObjectURL(file);
+            }
+        },
+        applyGuideData(data) {
+            if (!data) return;
+            if (data.title) {
+                this.title = data.title;
+                this.slug = this.generateSlug(data.title);
+            }
+
+            this.$nextTick(() => {
+                const topicInput = document.querySelector('input[name="topic"]');
+                const excerptInput = document.querySelector('textarea[name="excerpt"]');
+                const metaTitleInput = document.querySelector('input[name="meta_title"]');
+                const metaDescInput = document.querySelector('textarea[name="meta_description"]');
+                const metaKeywordsInput = document.querySelector('input[name="meta_keywords"]');
+
+                if (topicInput && data.topic) {
+                    topicInput.value = data.topic;
+                    topicInput.dispatchEvent(new Event('input', { bubbles: true }));
+                }
+                if (excerptInput && data.excerpt) {
+                    excerptInput.value = data.excerpt;
+                    excerptInput.dispatchEvent(new Event('input', { bubbles: true }));
+                }
+                if (metaTitleInput && data.meta_title) {
+                    metaTitleInput.value = data.meta_title;
+                    metaTitleInput.dispatchEvent(new Event('input', { bubbles: true }));
+                }
+                if (metaDescInput && data.meta_description) {
+                    metaDescInput.value = data.meta_description;
+                    metaDescInput.dispatchEvent(new Event('input', { bubbles: true }));
+                }
+                if (metaKeywordsInput && data.meta_keywords) {
+                    metaKeywordsInput.value = data.meta_keywords;
+                    metaKeywordsInput.dispatchEvent(new Event('input', { bubbles: true }));
+                }
+
+                const setTinyMce = (attempts = 0) => {
+                    if (window.tinymce) {
+                        const editor = tinymce.get('guide-tinymce-editor') || tinymce.activeEditor;
+                        if (editor && editor.initialized) {
+                            editor.setContent(data.content || '');
+                            return;
+                        }
+                    }
+                    if (attempts < 30) {
+                        setTimeout(() => setTinyMce(attempts + 1), 150);
+                    }
+                };
+                setTimeout(() => setTinyMce(0), 200);
+            });
+        },
+        init() {
+            const stored = sessionStorage.getItem('saj_guide_autofill');
+            if (stored) {
+                try {
+                    const data = JSON.parse(stored);
+                    sessionStorage.removeItem('saj_guide_autofill');
+                    this.applyGuideData(data);
+                } catch (e) {
+                    console.error('Failed to parse autofill data', e);
+                }
+            }
+        }
+    };
+}
+</script>
 
 <x-tinymce-config />
 @endsection

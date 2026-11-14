@@ -3,23 +3,7 @@
 @section('header_title', 'Edit Buying Guide')
 
 @section('content')
-<div x-data="{
-    title: '{{ addslashes(old('title', $guide->title)) }}',
-    slug: '{{ addslashes(old('slug', $guide->slug)) }}',
-    isEditingSlug: false,
-    imagePreview: '{{ $guide->featured_image ? $guide->featured_image_url : '' }}',
-    generateSlug(text) {
-        return text.toString().toLowerCase().trim()
-            .replace(/[\s\W-]+/g, '-')
-            .replace(/^-+|-+$/g, '');
-    },
-    handleImagePreview(event) {
-        const file = event.target.files[0];
-        if (file) {
-            this.imagePreview = URL.createObjectURL(file);
-        }
-    }
-}" class="max-w-5xl mx-auto space-y-6">
+<div x-data="guideEditForm()" class="max-w-5xl mx-auto space-y-6">
     <!-- Top Action Bar -->
     <div class="flex items-center justify-between gap-4 bg-white p-5 rounded-2xl border border-gray-100 shadow-xs">
         <div>
@@ -83,6 +67,28 @@
         </div>
     </form>
 </div>
+
+<script>
+function guideEditForm() {
+    return {
+        title: @json(old('title', $guide->title)),
+        slug: @json(old('slug', $guide->slug)),
+        isEditingSlug: false,
+        imagePreview: @json($guide->featured_image ? $guide->featured_image_url : ''),
+        generateSlug(text) {
+            return (text || '').toString().toLowerCase().trim()
+                .replace(/[\s\W-]+/g, '-')
+                .replace(/^-+|-+$/g, '');
+        },
+        handleImagePreview(event) {
+            const file = event.target.files[0];
+            if (file) {
+                this.imagePreview = URL.createObjectURL(file);
+            }
+        }
+    };
+}
+</script>
 
 <x-tinymce-config />
 @endsection

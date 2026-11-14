@@ -3,32 +3,7 @@
 @section('header_title', 'AI Pending Guides')
 
 @section('content')
-<div class="space-y-6" x-data="{
-    async publishGuide(url, title) {
-        if (!confirm('Are you sure you want to publish \"' + title + '\"? Once published, it will be live to public shoppers and permanently locked from further AI edits.')) {
-            return;
-        }
-
-        try {
-            const res = await fetch(url, {
-                method: 'POST',
-                headers: {
-                    'X-CSRF-TOKEN': '{{ csrf_token() }}',
-                    'Accept': 'application/json'
-                }
-            });
-            const data = await res.json();
-            if (data.success) {
-                alert(data.message || 'Guide published successfully!');
-                window.location.reload();
-            } else {
-                alert(data.message || 'Failed to publish guide.');
-            }
-        } catch (e) {
-            alert('Network error occurred: ' + e.message);
-        }
-    }
-}">
+<div class="space-y-6" x-data="aiPendingPage()">
     <!-- Top Action Banner -->
     <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-white p-5 rounded-2xl border border-gray-100 shadow-xs">
         <div>
@@ -230,4 +205,35 @@
         @endif
     </div>
 </div>
+
+<script>
+function aiPendingPage() {
+    return {
+        async publishGuide(url, title) {
+            if (!confirm(`Are you sure you want to publish "${title}"? Once published, it will be live to public shoppers and permanently locked from further AI edits.`)) {
+                return;
+            }
+
+            try {
+                const res = await fetch(url, {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                        'Accept': 'application/json'
+                    }
+                });
+                const data = await res.json();
+                if (data.success) {
+                    alert(data.message || 'Guide published successfully!');
+                    window.location.reload();
+                } else {
+                    alert(data.message || 'Failed to publish guide.');
+                }
+            } catch (e) {
+                alert('Network error occurred: ' + e.message);
+            }
+        }
+    };
+}
+</script>
 @endsection
