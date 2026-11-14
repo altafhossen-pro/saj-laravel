@@ -331,6 +331,12 @@ Route::middleware(['auth', 'admin_access'])->prefix('admin/dashboard')->group(fu
         Route::post('/settings/email-templates/{key}/send-test', [\App\Http\Controllers\Admin\EmailTemplateController::class, 'sendTest'])->name('admin.settings.email-templates.send-test');
         Route::post('/settings/email-templates-send-custom', [\App\Http\Controllers\Admin\EmailTemplateController::class, 'sendCustom'])->name('admin.settings.email-templates.send-custom');
 
+        // Purge Cache / Cache Manager Routes
+        Route::get('/settings/cache', [\App\Http\Controllers\Admin\CacheManagerController::class, 'index'])->name('admin.settings.cache');
+        Route::post('/settings/cache/purge-sitemap', [\App\Http\Controllers\Admin\CacheManagerController::class, 'purgeSitemap'])->name('admin.settings.cache.purge-sitemap');
+        Route::post('/settings/cache/purge-views', [\App\Http\Controllers\Admin\CacheManagerController::class, 'purgeViews'])->name('admin.settings.cache.purge-views');
+        Route::post('/settings/cache/purge-all', [\App\Http\Controllers\Admin\CacheManagerController::class, 'purgeAll'])->name('admin.settings.cache.purge-all');
+
         // Security & Blacklist Routes
         Route::prefix('security/blacklist')->name('admin.blacklist.')->group(function () {
             Route::get('/', [\App\Http\Controllers\Admin\BlacklistController::class, 'index'])->name('index');

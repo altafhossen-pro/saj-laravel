@@ -327,8 +327,12 @@ class BuyingGuideController extends Controller
      */
     private function clearSitemapCache(): void
     {
+        $host = request()->getHost() ?: 'default';
         Cache::forget('sitemap_index_xml');
         Cache::forget('sitemap_pages_xml');
         Cache::forget('sitemap_guides_xml');
+        Cache::forget("sitemap_index_xml_{$host}");
+        Cache::forget("sitemap_pages_xml_{$host}");
+        Cache::forget("sitemap_guides_xml_{$host}");
     }
 }

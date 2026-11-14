@@ -133,6 +133,15 @@
             <p class="text-xs text-gray-500">Zip export, vault & restore</p>
         </a>
 
+        <!-- Purge Cache / Cache Manager -->
+        <a href="{{ route('admin.settings.cache') }}" class="group bg-white p-6 rounded-2xl shadow-sm border border-gray-100 hover:border-amber-300 hover:shadow-md transition-all duration-300 flex flex-col items-center text-center">
+            <div class="w-14 h-14 bg-amber-50 text-amber-600 rounded-xl flex items-center justify-center mb-4 group-hover:bg-amber-600 group-hover:text-white transition-colors duration-300">
+                <i class="ph-bold ph-broom text-2xl"></i>
+            </div>
+            <h3 class="text-sm font-bold text-gray-800 mb-1">Purge Cache</h3>
+            <p class="text-xs text-gray-500">Sitemap & system cache</p>
+        </a>
+
         <!-- AI Visual Search Settings -->
         <a href="{{ route('admin.settings.visual-search') }}" class="group bg-white p-6 rounded-2xl shadow-sm border border-gray-100 hover:border-amber-300 hover:shadow-md transition-all duration-300 flex flex-col items-center text-center">
             <div class="w-14 h-14 bg-amber-50 text-amber-600 rounded-xl flex items-center justify-center mb-4 group-hover:bg-amber-600 group-hover:text-white transition-colors duration-300">
