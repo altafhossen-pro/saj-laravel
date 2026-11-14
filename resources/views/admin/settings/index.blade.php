@@ -151,6 +151,16 @@
             <p class="text-xs text-gray-500">Cloudflare Workers AI & Keys</p>
         </a>
 
+        <!-- Multi-Provider AI Settings -->
+        <a href="{{ route('admin.settings.ai') }}" class="group bg-white p-6 rounded-2xl shadow-sm border border-gray-100 hover:border-purple-300 hover:shadow-md transition-all duration-300 flex flex-col items-center text-center relative overflow-hidden">
+            <span class="absolute top-3 right-3 px-2 py-0.5 text-[10px] font-bold rounded-full bg-purple-100 text-purple-700 uppercase tracking-wider">Multi AI</span>
+            <div class="w-14 h-14 bg-purple-50 text-purple-600 rounded-xl flex items-center justify-center mb-4 group-hover:bg-purple-600 group-hover:text-white transition-colors duration-300">
+                <i class="ph-bold ph-sparkle text-2xl"></i>
+            </div>
+            <h3 class="text-sm font-bold text-gray-800 mb-1">AI Configuration</h3>
+            <p class="text-xs text-gray-500">Gemini, OpenAI, Groq, Claude</p>
+        </a>
+
     </div>
 </div>
 @endsection

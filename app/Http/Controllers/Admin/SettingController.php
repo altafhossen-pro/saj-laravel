@@ -654,6 +654,79 @@ class SettingController extends Controller
             'message' => "Successfully generated AI embeddings for {$count} image(s). Remaining: {$remaining}."
         ]);
     }
+
+    public function aiSettings()
+    {
+        $settings = [
+            'default_provider' => Setting::get('default_ai_provider', 'gemini'),
+
+            // Gemini
+            'gemini_api_key' => Setting::get('gemini_api_key', env('GEMINI_API_KEY', '')),
+            'gemini_model' => Setting::get('gemini_model', 'gemini-2.0-flash'),
+
+            // OpenAI
+            'openai_api_key' => Setting::get('openai_api_key', env('OPENAI_API_KEY', '')),
+            'openai_model' => Setting::get('openai_model', 'gpt-4o-mini'),
+
+            // Groq
+            'groq_api_key' => Setting::get('groq_api_key', env('GROQ_API_KEY', '')),
+            'groq_model' => Setting::get('groq_model', 'llama-3.3-70b-versatile'),
+
+            // Claude
+            'claude_api_key' => Setting::get('claude_api_key', env('ANTHROPIC_API_KEY', '')),
+            'claude_model' => Setting::get('claude_model', 'claude-3-5-sonnet-20241022'),
+        ];
+
+        return view('admin.settings.ai', compact('settings'));
+    }
+
+    public function updateAiSettings(Request $request)
+    {
+        $request->validate([
+            'default_provider' => 'required|in:gemini,openai,groq,claude',
+            'gemini_api_key' => 'nullable|string',
+            'gemini_model' => 'nullable|string',
+            'openai_api_key' => 'nullable|string',
+            'openai_model' => 'nullable|string',
+            'groq_api_key' => 'nullable|string',
+            'groq_model' => 'nullable|string',
+            'claude_api_key' => 'nullable|string',
+            'claude_model' => 'nullable|string',
+        ]);
+
+        Setting::set('default_ai_provider', $request->input('default_provider', 'gemini'));
+
+        Setting::set('gemini_api_key', trim($request->input('gemini_api_key', '')));
+        Setting::set('gemini_model', trim($request->input('gemini_model', 'gemini-2.0-flash')));
+
+        Setting::set('openai_api_key', trim($request->input('openai_api_key', '')));
+        Setting::set('openai_model', trim($request->input('openai_model', 'gpt-4o-mini')));
+
+        Setting::set('groq_api_key', trim($request->input('groq_api_key', '')));
+        Setting::set('groq_model', trim($request->input('groq_model', 'llama-3.3-70b-versatile')));
+
+        Setting::set('claude_api_key', trim($request->input('claude_api_key', '')));
+        Setting::set('claude_model', trim($request->input('claude_model', 'claude-3-5-sonnet-20241022')));
+
+        return redirect()->back()->with('success', 'AI settings and API keys updated successfully!');
+    }
+
+    public function testAiConnection(Request $request)
+    {
+        $request->validate([
+            'provider' => 'required|in:gemini,openai,groq,claude',
+            'api_key' => 'nullable|string',
+            'model' => 'nullable|string',
+        ]);
+
+        $provider = $request->input('provider');
+        $apiKey = $request->input('api_key');
+        $model = $request->input('model');
+
+        $result = \App\Services\AiService::testConnection($provider, $apiKey, $model);
+
+        return response()->json($result);
+    }
 }
 
 

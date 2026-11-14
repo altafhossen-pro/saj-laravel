@@ -321,6 +321,11 @@ Route::middleware(['auth', 'admin_access'])->prefix('admin/dashboard')->group(fu
         Route::post('/settings/visual-search', [\App\Http\Controllers\Admin\SettingController::class, 'updateVisualSearch'])->name('admin.settings.visual-search.update');
         Route::post('/settings/visual-search/test', [\App\Http\Controllers\Admin\SettingController::class, 'testVisualSearchAi'])->name('admin.settings.visual-search.test');
         Route::post('/settings/visual-search/sync', [\App\Http\Controllers\Admin\SettingController::class, 'syncVisualSearchAi'])->name('admin.settings.visual-search.sync');
+
+        // Multi-Provider AI Settings
+        Route::get('/settings/ai', [\App\Http\Controllers\Admin\SettingController::class, 'aiSettings'])->name('admin.settings.ai');
+        Route::post('/settings/ai', [\App\Http\Controllers\Admin\SettingController::class, 'updateAiSettings'])->name('admin.settings.ai.update');
+        Route::post('/settings/ai/test', [\App\Http\Controllers\Admin\SettingController::class, 'testAiConnection'])->name('admin.settings.ai.test');
         Route::get('/settings/smtp', [\App\Http\Controllers\Admin\SmtpSettingsController::class, 'index'])->name('admin.settings.smtp');
         Route::post('/settings/smtp', [\App\Http\Controllers\Admin\SmtpSettingsController::class, 'update'])->name('admin.settings.smtp.update');
         Route::post('/settings/smtp/reachability', [\App\Http\Controllers\Admin\SmtpSettingsController::class, 'testReachability'])->name('admin.settings.smtp.reachability');
