@@ -67,11 +67,18 @@
         }
         $formattedDate = $item['formatted_date'] ?? ($dateObj ? $dateObj->format('d M Y') : 'Recent');
         $formattedTime = $item['formatted_time'] ?? ($dateObj ? $dateObj->format('h:i a') : '');
-        $note = $item['note'] ?? ($item['raw_note'] ?? ($item['message'] ?? ''));
-        if (empty($note) && !empty($item['status'])) {
-            $note = 'Consignment status: ' . ucfirst(str_replace(['_', '-'], ' ', $item['status']));
+        $note = $item['text'] ?? ($item['note'] ?? ($item['raw_note'] ?? ($item['message'] ?? '')));
+        $statusVal = $item['status'] ?? null;
+        if (empty($note)) {
+            if (!empty($statusVal) && $statusVal !== 'undefined') {
+                $note = 'Consignment status: ' . ucfirst(str_replace(['_', '-'], ' ', $statusVal));
+            } else {
+                $note = 'Consignment created by Sender(API).';
+                $statusVal = 'in_review';
+            }
         }
         $trackingList[] = array_merge($item, [
+            'status'         => $statusVal ?: 'in_review',
             'timestamp'      => $dateObj ? $dateObj->toDateTimeString() : ($ts ?: now()->toDateTimeString()),
             'formatted_date' => $formattedDate,
             'formatted_time' => $formattedTime,

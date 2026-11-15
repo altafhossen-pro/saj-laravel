@@ -529,7 +529,10 @@ class OrderController extends Controller
 
         // 1. Fetch detailed trackings milestone trail if available
         $apiTrackingsRes = $steadfastService->getTrackingsByInvoice($order->order_id);
-        $fetchedTrackings = $apiTrackingsRes['data']['trackings'] ?? ($apiTrackingsRes['trackings'] ?? []);
+        $fetchedTrackings = $apiTrackingsRes['data']['tracking'] 
+            ?? ($apiTrackingsRes['data']['trackings'] 
+            ?? ($apiTrackingsRes['tracking'] 
+            ?? ($apiTrackingsRes['trackings'] ?? [])));
 
         // 2. Fetch current status & delivery charge
         $statusRes = $order->steadfast_consignment_id 
@@ -541,13 +544,31 @@ class OrderController extends Controller
         $apiDeliveryCharge = $statusData['delivery_charge'] ?? null;
         $apiCodAmount = $statusData['cod_amount'] ?? null;
 
+        // Heal existing legacy tracking items missing note/status
+        foreach ($trackingHistory as &$existing) {
+            if (($existing['courier'] ?? '') === 'Steadfast' && empty($existing['note'])) {
+                $existing['note'] = 'Consignment created by Sender(API).';
+                $existing['status'] = $existing['status'] ?? 'in_review';
+                if (empty($existing['formatted_date']) && !empty($existing['created_at'])) {
+                    try {
+                        $cDate = \Carbon\Carbon::parse($existing['created_at'])->setTimezone('Asia/Dhaka');
+                        $existing['formatted_date'] = $cDate->format('d M Y');
+                        $existing['formatted_time'] = $cDate->format('h:i a');
+                        $existing['timezone'] = 'BDT';
+                    } catch (\Throwable $e) {}
+                }
+            }
+        }
+        unset($existing);
+
         // If Steadfast API returned tracking milestones, merge them
         if (!empty($fetchedTrackings) && is_array($fetchedTrackings)) {
             foreach ($fetchedTrackings as $step) {
                 $stepTime = $step['updated_at'] ?? $step['created_at'] ?? null;
                 $stepBdt = $stepTime ? \Carbon\Carbon::parse($stepTime)->setTimezone('Asia/Dhaka') : $nowBdt;
-                $stepNote = $step['note'] ?? $step['message'] ?? null;
-                $stepStatus = $step['status'] ?? 'update';
+                $stepNote = $step['text'] ?? ($step['note'] ?? ($step['message'] ?? null));
+                $rawStepStatus = $step['delivery_status'] ?? ($step['status_name'] ?? ($step['status'] ?? null));
+                $stepStatus = (is_string($rawStepStatus) && !is_numeric($rawStepStatus)) ? $rawStepStatus : ($deliveryStatus ?: 'in_review');
 
                 if (empty($stepNote)) {
                     $stepNote = "Consignment status: " . ucfirst(str_replace(['_', '-'], ' ', $stepStatus));
@@ -817,6 +838,8 @@ class OrderController extends Controller
             'gift_message' => 'nullable|string',
             'steadfast_consignment_id' => 'nullable|string|max:255',
             'steadfast_tracking_code' => 'nullable|string|max:255',
+            'steadfast_delivery_charge' => 'nullable|numeric|min:0',
+            'steadfast_collected_amount' => 'nullable|numeric|min:0',
         ], [
             'items.required' => 'An order needs at least one item.',
             'items.min' => 'An order needs at least one item.',
@@ -935,6 +958,26 @@ class OrderController extends Controller
                 'update_history' => $history,
             ]);
             $order->save();
+
+            // Re-calculate financial settlement if order is booked into Steadfast or courier consignment exists
+            if ($order->is_added_into_steadfast || !empty($data['steadfast_consignment_id']) || !empty($data['steadfast_tracking_code'])) {
+                $courierDeliveryCharge = isset($data['steadfast_delivery_charge']) && $data['steadfast_delivery_charge'] !== ''
+                    ? (float) $data['steadfast_delivery_charge']
+                    : ($order->steadfast_delivery_charge > 0 ? (float) $order->steadfast_delivery_charge : (float) $shippingCost);
+
+                $collectedCod = isset($data['steadfast_collected_amount']) && $data['steadfast_collected_amount'] !== ''
+                    ? (float) $data['steadfast_collected_amount']
+                    : ($data['payment_status'] === 'paid' ? 0.0 : (float) $total);
+
+                $payout = \App\Http\Controllers\Api\SteadfastWebhookController::calculatePayout($collectedCod, $courierDeliveryCharge);
+
+                $order->update([
+                    'steadfast_collected_amount' => $payout['cod_amount'],
+                    'steadfast_delivery_charge' => $payout['delivery_charge'],
+                    'steadfast_cod_charge' => $payout['cod_charge'],
+                    'steadfast_receivable_amount' => $payout['net_receivable'],
+                ]);
+            }
 
             // Trigger Meta Conversions API (CAPI) Purchase upon first confirmation (filtered, authentic orders only)
             if (in_array($data['status'], ['confirmed', 'processing', 'shipped', 'delivered'])) {

@@ -95,6 +95,8 @@
             'gift_message' => $order->gift_message,
             'steadfast_consignment_id' => $order->steadfast_consignment_id,
             'steadfast_tracking_code' => $order->steadfast_tracking_code,
+            'steadfast_delivery_charge' => (float) ($order->steadfast_delivery_charge ?: 0),
+            'steadfast_collected_amount' => (float) ($order->steadfast_collected_amount ?: 0),
         ],
     ];
 
@@ -458,6 +460,18 @@
                     <div>
                         <label class="{{ $labelClass }}" for="steadfast_tracking_code">Steadfast tracking code</label>
                         <input id="steadfast_tracking_code" type="text" x-model="form.steadfast_tracking_code" :disabled="saving" class="{{ $inputClass }}">
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
+                    <div>
+                        <label class="{{ $labelClass }}" for="steadfast_delivery_charge">Steadfast Courier Delivery Fee (৳)</label>
+                        <input id="steadfast_delivery_charge" type="text" inputmode="decimal" oninput="this.value = this.value.replace(/[^0-9.]/g, '').replace(/(\..*)\./g, '$1')" x-model.number="form.steadfast_delivery_charge" :disabled="saving" class="{{ $inputClass }}" placeholder="e.g. 150">
+                        <p class="mt-1 text-[11px] text-gray-400">Actual courier delivery charge deducted by Steadfast (updates our financial settlement).</p>
+                    </div>
+                    <div>
+                        <label class="{{ $labelClass }}" for="steadfast_collected_amount">Steadfast COD Amount (৳)</label>
+                        <input id="steadfast_collected_amount" type="text" inputmode="decimal" oninput="this.value = this.value.replace(/[^0-9.]/g, '').replace(/(\..*)\./g, '$1')" x-model.number="form.steadfast_collected_amount" :disabled="saving" class="{{ $inputClass }}" placeholder="Defaults to Order Total">
+                        <p class="mt-1 text-[11px] text-gray-400">Cash collection amount booked with courier.</p>
                     </div>
                 </div>
             </div>

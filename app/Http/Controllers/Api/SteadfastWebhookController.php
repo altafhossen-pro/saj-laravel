@@ -80,7 +80,13 @@ class SteadfastWebhookController extends Controller
             $rawStatus = (string) ($request->input('status') ?? $request->input('delivery_status') ?? $request->input('event') ?? '');
             $codAmountInput = $request->input('cod_amount') ?? $request->input('collected_amount');
             $deliveryChargeInput = $request->input('delivery_charge') ?? $request->input('delivery_fee') ?? $request->input('delivery_cost');
-            $note = $request->input('note') ?? $request->input('comment') ?? $request->input('comments') ?? $request->input('rider_note') ?? $request->input('message');
+            $note = $request->input('note') 
+                ?? $request->input('text') 
+                ?? $request->input('tracking_message') 
+                ?? $request->input('comment') 
+                ?? $request->input('comments') 
+                ?? $request->input('rider_note') 
+                ?? $request->input('message');
             $rawTimestamp = $request->input('updated_at') ?? $request->input('created_at') ?? $request->input('timestamp');
 
             if (empty($consignmentId) && empty($invoice) && empty($trackingCode)) {
@@ -250,8 +256,12 @@ class SteadfastWebhookController extends Controller
 
             $displayNote = $note;
             if (empty($displayNote)) {
-                $statusName = ucfirst(str_replace(['_', '-'], ' ', $rawStatus ?: 'Update'));
-                $displayNote = "Parcel status updated to {$statusName}";
+                if (!empty($rawStatus) && !in_array(strtolower($rawStatus), ['update', 'consignment_update', 'tracking_update'])) {
+                    $statusName = ucfirst(str_replace(['_', '-'], ' ', $rawStatus));
+                    $displayNote = "Parcel status updated to {$statusName}";
+                } else {
+                    $displayNote = "Parcel details updated via Steadfast";
+                }
             }
 
             // 9. Update Tracking History Array
@@ -260,7 +270,7 @@ class SteadfastWebhookController extends Controller
                 'id' => uniqid('trk_'),
                 'courier' => 'Steadfast',
                 'source' => 'webhook',
-                'status' => $rawStatus ?: 'update',
+                'status' => (!empty($rawStatus) && !in_array(strtolower($rawStatus), ['update', 'consignment_update'])) ? $rawStatus : ($order->status ?: 'in_review'),
                 'note' => $displayNote,
                 'raw_note' => $note,
                 'cod_amount' => $payout['cod_amount'],

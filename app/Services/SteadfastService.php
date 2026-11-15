@@ -255,12 +255,22 @@ class SteadfastService
 
                 // Update order model
                 $existingTracking = is_array($order->tracking) ? $order->tracking : [];
+                $nowBdt = now()->setTimezone('Asia/Dhaka');
                 $existingTracking[] = [
+                    'id' => uniqid('trk_'),
                     'courier' => 'Steadfast',
+                    'source' => 'api_booking',
+                    'status' => 'in_review',
+                    'note' => 'Consignment created by Sender(API).',
                     'consignment_id' => $consignmentId,
                     'tracking_code' => $trackingCode,
                     'tracking_link' => $trackingLink,
-                    'created_at' => now()->toDateTimeString(),
+                    'cod_amount' => $codAmount,
+                    'timestamp' => $nowBdt->toDateTimeString(),
+                    'formatted_date' => $nowBdt->format('d M Y'),
+                    'formatted_time' => $nowBdt->format('h:i a'),
+                    'timezone' => 'BDT',
+                    'created_at' => $nowBdt->toDateTimeString(),
                 ];
 
                 $order->update([

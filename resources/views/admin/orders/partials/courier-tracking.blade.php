@@ -108,10 +108,10 @@
                         <!-- Right: Event Description Box -->
                         <div class="flex-1 pl-4 sm:pl-5 pb-5">
                             <div class="bg-slate-50/80 group-hover:bg-white border border-slate-200/80 group-hover:border-slate-300 rounded-2xl p-4 shadow-xs transition-all duration-200">
-                                <div class="text-sm font-semibold text-gray-800 leading-relaxed" x-text="log.note || ('Status: ' + log.status)"></div>
+                                <div class="text-sm font-semibold text-gray-800 leading-relaxed" x-text="log.note || ('Status: ' + (log.status || 'In Review'))"></div>
                                 
-                                <div class="mt-2.5 flex flex-wrap items-center gap-2 pt-2 border-t border-slate-200/50" x-show="log.status || log.receivable_amount > 0 || log.source || log.dispatched_by">
-                                    <template x-if="log.status">
+                                <div class="mt-2.5 flex flex-wrap items-center gap-2 pt-2 border-t border-slate-200/50" x-show="(log.status && log.status !== 'undefined') || log.receivable_amount > 0 || log.source || log.dispatched_by">
+                                    <template x-if="log.status && log.status !== 'undefined'">
                                         <span class="inline-flex items-center px-2.5 py-0.5 rounded-md text-[11px] font-semibold border"
                                               :class="courierStatusBadgeClass(log.status)"
                                               x-text="getStatusLabel(log.status)"></span>

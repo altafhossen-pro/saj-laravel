@@ -328,16 +328,27 @@
                         <span class="font-medium text-gray-900" x-text="'৳' + money(subtotal)"></span>
                     </div>
 
-                    <div class="flex justify-between items-center text-sm">
+                    <div class="flex justify-between items-center text-sm flex-wrap gap-2">
                         <span class="text-gray-600">Delivery Charge <span class="text-red-500">*</span></span>
-                        <div class="flex gap-2">
+                        <div class="flex items-center gap-1.5 flex-wrap">
                             <template x-for="fee in deliveryOptions" :key="fee">
                                 <button @click="form.delivery_charge = fee" type="button"
-                                    class="px-2 py-1 rounded text-xs font-medium transition-colors border cursor-pointer"
-                                    :class="form.delivery_charge === fee ? 'bg-brand-50 border-brand-200 text-brand-700' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'">
-                                    ৳ <span x-text="fee"></span>
+                                    class="px-2.5 py-1 rounded-lg text-xs font-medium transition-colors border cursor-pointer"
+                                    :class="Number(form.delivery_charge) === Number(fee) ? 'bg-brand-50 border-brand-300 text-brand-700 font-bold shadow-2xs' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'">
+                                    ৳<span x-text="fee"></span>
                                 </button>
                             </template>
+                            <!-- Custom Delivery Charge Input -->
+                            <div class="relative flex items-center">
+                                <span class="absolute left-2 text-xs text-gray-400 font-medium select-none pointer-events-none">৳</span>
+                                <input type="text"
+                                       inputmode="decimal"
+                                       placeholder="Custom"
+                                       :value="deliveryOptions.includes(Number(form.delivery_charge)) ? '' : form.delivery_charge"
+                                       @input="form.delivery_charge = $event.target.value.replace(/[^0-9.]/g, '')"
+                                       class="w-20 pl-5 pr-2 py-1 text-xs border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 transition-colors"
+                                       :class="!deliveryOptions.includes(Number(form.delivery_charge)) && form.delivery_charge !== '' ? 'bg-brand-50/40 border-brand-300 font-bold text-brand-700' : 'bg-white border-gray-200 text-gray-700'">
+                            </div>
                         </div>
                     </div>
 
