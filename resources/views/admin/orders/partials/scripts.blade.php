@@ -64,6 +64,11 @@
                         this.checkFraudScore(false);
                     }
                 }
+
+                // Auto-fetch Steadfast live tracking milestones on order page load (identical to forpink-version-2)
+                if (this.isSteadfastBooked || this.steadfastCid || this.steadfastTracking) {
+                    this.syncTracking(true);
+                }
             },
 
             handleStatusSelect(status) {
@@ -449,7 +454,7 @@
                 }
             },
 
-            async syncTracking() {
+            async syncTracking(silent = false) {
                 if (this.syncingTracking) return;
                 this.syncingTracking = true;
                 try {
@@ -478,9 +483,15 @@
                         this.codCharge = data.payout.cod_charge;
                         this.receivableAmount = data.payout.net_receivable;
                     }
-                    this.showToast(data.message || 'Tracking logs synced successfully!');
+                    if (!silent) {
+                        this.showToast(data.message || 'Tracking logs synced successfully!');
+                    }
                 } catch (error) {
-                    this.showToast(error.message, 'error');
+                    if (!silent) {
+                        this.showToast(error.message, 'error');
+                    } else {
+                        console.warn('Auto-sync Steadfast tracking:', error.message);
+                    }
                 } finally {
                     this.syncingTracking = false;
                 }
