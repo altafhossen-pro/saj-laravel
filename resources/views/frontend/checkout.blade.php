@@ -729,6 +729,18 @@
                         const payload = {
                             ...this.form,
                             visitor_token: localStorage.getItem('fb_vid') || '',
+                            fbp: (function() {
+                                var match = document.cookie.match(/(?:^|;\s*)_fbp=([^;]*)/);
+                                return match ? decodeURIComponent(match[1]) : '';
+                            })(),
+                            fbc: (function() {
+                                var match = document.cookie.match(/(?:^|;\s*)_fbc=([^;]*)/);
+                                return match ? decodeURIComponent(match[1]) : (localStorage.getItem('_fbc') || '');
+                            })(),
+                            fbclid: (function() {
+                                var urlP = new URLSearchParams(window.location.search);
+                                return urlP.get('fbclid') || localStorage.getItem('fbclid') || '';
+                            })(),
                             items: cartItems
                         };
 

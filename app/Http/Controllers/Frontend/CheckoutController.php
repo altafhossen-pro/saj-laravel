@@ -248,9 +248,19 @@ class CheckoutController extends Controller
             $order->order_type = 'auto';
 
             // Guest or manual info + Meta Pixel/CAPI attribution data
+            $fbp = $request->input('fbp') ?: $request->cookie('_fbp');
+            $fbc = $request->input('fbc') ?: $request->cookie('_fbc');
+            $fbclid = $request->input('fbclid') ?: $request->query('fbclid');
+            
+            // If fbc is empty but fbclid is present, construct official Meta fbc format: fb.1.<timestamp>.<fbclid>
+            if (empty($fbc) && !empty($fbclid)) {
+                $fbc = 'fb.1.' . (int) (microtime(true) * 1000) . '.' . trim((string)$fbclid);
+            }
+
             $metaAttribution = [
-                'fbp' => $request->cookie('_fbp'),
-                'fbc' => $request->cookie('_fbc'),
+                'fbp' => $fbp,
+                'fbc' => $fbc,
+                'fbclid' => $fbclid,
                 'client_ip_address' => $request->ip(),
                 'client_user_agent' => $request->userAgent(),
                 'event_source_url' => $request->headers->get('referer') ?: url('/checkout'),

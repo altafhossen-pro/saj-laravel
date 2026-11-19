@@ -30,6 +30,28 @@
 @if($fbPixelEnabled && !empty($fbPixelId))
 <!-- Meta Pixel Code -->
 <script>
+    // Capture & persist fbclid and _fbc for Meta CAPI attribution
+    (function() {
+        try {
+            var urlParams = new URLSearchParams(window.location.search);
+            var fbclid = urlParams.get('fbclid');
+            if (fbclid) {
+                var creationTime = Date.now();
+                var fbcVal = 'fb.1.' + creationTime + '.' + fbclid;
+                var cookieDomain = window.location.hostname.replace(/^www\./, '');
+                var isSecure = window.location.protocol === 'https:' ? '; Secure' : '';
+                var maxAge = 60 * 60 * 24 * 90; // 90 days per Meta recommendation
+                document.cookie = '_fbc=' + encodeURIComponent(fbcVal) + '; path=/; domain=.' + cookieDomain + '; max-age=' + maxAge + '; SameSite=Lax' + isSecure;
+                // Also set without leading dot domain as fallback for localhost / strict subdomains
+                document.cookie = '_fbc=' + encodeURIComponent(fbcVal) + '; path=/; max-age=' + maxAge + '; SameSite=Lax' + isSecure;
+                try {
+                    localStorage.setItem('_fbc', fbcVal);
+                    localStorage.setItem('fbclid', fbclid);
+                } catch(e) {}
+            }
+        } catch(e) {}
+    })();
+
     !function(f,b,e,v,n,t,s)
     {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
     n.callMethod.apply(n,arguments):n.queue.push(arguments)};
