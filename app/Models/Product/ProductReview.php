@@ -10,7 +10,27 @@ class ProductReview extends Model
 
     protected $casts = [
         'attachments' => 'array',
+        'is_custom' => 'boolean',
     ];
+
+    public function getReviewerNameAttribute(): string
+    {
+        if (!empty($this->customer_name)) {
+            return $this->customer_name;
+        }
+        return $this->user?->name ?? 'Customer';
+    }
+
+    public function getReviewerAvatarAttribute(): ?string
+    {
+        if (!empty($this->customer_avatar)) {
+            return \Illuminate\Support\Facades\Storage::url($this->customer_avatar);
+        }
+        if (!empty($this->user?->avatar)) {
+            return \Illuminate\Support\Facades\Storage::url($this->user->avatar);
+        }
+        return null;
+    }
 
     public function product()
     {

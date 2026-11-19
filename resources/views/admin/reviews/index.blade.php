@@ -7,32 +7,38 @@
     <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-8">
         <div>
             <h1 class="text-2xl font-bold text-gray-900">Product Reviews</h1>
-            <p class="text-sm text-gray-500 mt-1">Manage and moderate customer reviews for your products.</p>
+            <p class="text-sm text-gray-500 mt-1">Manage, moderate and create customer reviews for your products.</p>
         </div>
         
-        <form method="GET" action="{{ route('admin.reviews.index') }}" class="flex flex-wrap items-center gap-3">
-            <div class="relative">
-                <i class="ph ph-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"></i>
-                <input type="text" name="search" value="{{ request('search') }}" placeholder="Search reviews..." class="w-full sm:w-64 pl-9 pr-4 py-2 bg-white border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 transition-all outline-none">
-            </div>
-            
-            <select name="status" class="px-4 py-2 bg-white border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 transition-all outline-none">
-                <option value="">All Statuses</option>
-                <option value="pending" {{ request('status') == 'pending' ? 'selected' : '' }}>Pending</option>
-                <option value="approved" {{ request('status') == 'approved' ? 'selected' : '' }}>Approved</option>
-                <option value="rejected" {{ request('status') == 'rejected' ? 'selected' : '' }}>Rejected</option>
-            </select>
-            
-            <button type="submit" class="px-4 py-2 bg-brand-600 text-white rounded-xl text-sm font-bold hover:bg-brand-700 transition-colors shadow-sm">
-                Filter
+        <div class="flex flex-wrap items-center gap-3">
+            <button type="button" @click="openCreateModal()" class="px-4 py-2 bg-brand-600 text-white rounded-xl text-sm font-bold hover:bg-brand-700 transition-colors shadow-sm flex items-center gap-2">
+                <i class="ph ph-plus-circle text-lg"></i> Add Custom Review
             </button>
-            
-            @if(request()->hasAny(['search', 'status']))
-                <a href="{{ route('admin.reviews.index') }}" class="px-4 py-2 bg-white border border-gray-200 text-gray-600 rounded-xl text-sm font-bold hover:bg-gray-50 transition-colors">
-                    Clear
-                </a>
-            @endif
-        </form>
+
+            <form method="GET" action="{{ route('admin.reviews.index') }}" class="flex flex-wrap items-center gap-3">
+                <div class="relative">
+                    <i class="ph ph-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"></i>
+                    <input type="text" name="search" value="{{ request('search') }}" placeholder="Search reviews..." class="w-full sm:w-56 pl-9 pr-4 py-2 bg-white border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 transition-all outline-none">
+                </div>
+                
+                <select name="status" class="px-4 py-2 bg-white border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 transition-all outline-none">
+                    <option value="">All Statuses</option>
+                    <option value="pending" {{ request('status') == 'pending' ? 'selected' : '' }}>Pending</option>
+                    <option value="approved" {{ request('status') == 'approved' ? 'selected' : '' }}>Approved</option>
+                    <option value="rejected" {{ request('status') == 'rejected' ? 'selected' : '' }}>Rejected</option>
+                </select>
+                
+                <button type="submit" class="px-4 py-2 bg-gray-900 text-white rounded-xl text-sm font-bold hover:bg-gray-800 transition-colors shadow-sm">
+                    Filter
+                </button>
+                
+                @if(request()->hasAny(['search', 'status']))
+                    <a href="{{ route('admin.reviews.index') }}" class="px-4 py-2 bg-white border border-gray-200 text-gray-600 rounded-xl text-sm font-bold hover:bg-gray-50 transition-colors">
+                        Clear
+                    </a>
+                @endif
+            </form>
+        </div>
     </div>
 
     @if(session('success'))
@@ -81,12 +87,28 @@
                             }
                         }
                         $reviewData['product_title'] = $review->product->title;
-                        $reviewData['user_name'] = $review->user->name;
+                        $reviewData['reviewer_name'] = $review->reviewer_name;
+                        $reviewData['reviewer_avatar'] = $review->reviewer_avatar;
+                        $reviewData['is_custom'] = (bool) $review->is_custom;
+                        $reviewData['user_email'] = $review->user?->email;
                     @endphp
                     <tr class="hover:bg-gray-50 transition-colors" x-data="{ rowData: {{ json_encode($reviewData) }}, isDeleted: false }" x-show="!isDeleted" @review-updated.window="if($event.detail.id === rowData.id) { rowData = {...rowData, ...$event.detail}; }">
                         <td class="px-6 py-4">
-                            <div class="font-medium text-gray-900" x-text="rowData.user_name"></div>
-                            <div class="text-xs text-gray-500">{{ $review->user->email }}</div>
+                            <div class="flex items-center gap-3">
+                                <template x-if="rowData.reviewer_avatar">
+                                    <img :src="rowData.reviewer_avatar" class="w-9 h-9 rounded-full object-cover border border-gray-200">
+                                </template>
+                                <template x-if="!rowData.reviewer_avatar">
+                                    <div class="w-9 h-9 rounded-full bg-brand-100 text-brand-700 flex items-center justify-center font-bold text-sm" x-text="rowData.reviewer_name ? rowData.reviewer_name.charAt(0).toUpperCase() : 'C'"></div>
+                                </template>
+                                <div>
+                                    <div class="font-medium text-gray-900 flex items-center gap-1.5">
+                                        <span x-text="rowData.reviewer_name"></span>
+                                        <span x-show="rowData.is_custom" class="bg-purple-100 text-purple-700 text-[10px] px-1.5 py-0.2 rounded font-semibold" title="Added by Admin">Custom</span>
+                                    </div>
+                                    <div class="text-xs text-gray-500" x-text="rowData.user_email || 'Manual Reviewer'"></div>
+                                </div>
+                            </div>
                         </td>
                         <td class="px-6 py-4">
                             <a href="{{ route('product.show', $review->product->slug) }}" target="_blank" class="font-medium text-brand-600 hover:underline line-clamp-1" x-text="rowData.product_title"></a>
@@ -167,7 +189,7 @@
                 
                 <div class="sm:flex sm:items-start mb-6 border-b border-gray-100 pb-4">
                     <div class="mt-3 text-center sm:mt-0 sm:text-left w-full">
-                        <h3 class="text-lg font-bold leading-6 text-gray-900" x-text="'Review by ' + (activeReview ? activeReview.user_name : '')"></h3>
+                        <h3 class="text-lg font-bold leading-6 text-gray-900" x-text="'Review by ' + (activeReview ? activeReview.reviewer_name : '')"></h3>
                         <p class="text-sm text-gray-500 mt-1" x-text="'Product: ' + (activeReview ? activeReview.product_title : '')"></p>
                     </div>
                 </div>
@@ -175,6 +197,23 @@
                 <template x-if="activeReview">
                     <form @submit.prevent="submitEdit" enctype="multipart/form-data" id="edit-review-form">
                         <input type="hidden" name="remove_attachments" :value="JSON.stringify(removedAttachments)">
+
+                        <!-- Customer Name (Editable) -->
+                        <div class="mb-4">
+                            <label class="block text-sm font-bold text-gray-700 mb-1">Customer / Reviewer Name</label>
+                            <input type="text" name="customer_name" x-model="reviewerName" class="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-1 focus:ring-brand-500 focus:border-brand-500 text-sm">
+                        </div>
+
+                        <!-- Customer Avatar Update -->
+                        <div class="mb-4">
+                            <label class="block text-sm font-bold text-gray-700 mb-1">Customer Avatar / Profile Picture</label>
+                            <div class="flex items-center gap-3">
+                                <template x-if="activeReview.reviewer_avatar">
+                                    <img :src="activeReview.reviewer_avatar" class="w-10 h-10 rounded-full object-cover border border-gray-200">
+                                </template>
+                                <input type="file" name="customer_avatar" accept="image/*" class="block w-full text-sm text-gray-500 file:mr-4 file:py-1.5 file:px-3 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-brand-50 file:text-brand-700 hover:file:bg-brand-100 border border-gray-200 rounded-lg p-1 cursor-pointer">
+                            </div>
+                        </div>
 
                         <!-- Rating -->
                         <div class="mb-4">
@@ -240,6 +279,112 @@
         </div>
     </div>
 
+    <!-- Create Custom Review Modal -->
+    <div x-show="createModalOpen" class="fixed inset-0 z-50 overflow-y-auto" style="display: none;">
+        <div class="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:p-0">
+            <div x-show="createModalOpen" x-transition.opacity class="fixed inset-0 transition-opacity bg-gray-900/40 backdrop-blur-sm" @click="createModalOpen = false"></div>
+
+            <div x-show="createModalOpen" x-transition.scale.origin.bottom class="relative inline-block w-full max-w-2xl px-4 pt-5 pb-4 overflow-hidden text-left align-bottom transition-all transform bg-white rounded-2xl shadow-xl sm:my-8 sm:align-middle sm:p-6">
+                <div class="absolute top-0 right-0 hidden pt-4 pr-4 sm:block">
+                    <button type="button" @click="createModalOpen = false" class="text-gray-400 bg-white rounded-md hover:text-gray-500 focus:outline-none">
+                        <i class="ph ph-x text-xl"></i>
+                    </button>
+                </div>
+                
+                <div class="sm:flex sm:items-start mb-6 border-b border-gray-100 pb-4">
+                    <div class="mt-3 text-center sm:mt-0 sm:text-left w-full">
+                        <h3 class="text-lg font-bold leading-6 text-gray-900 flex items-center gap-2">
+                            <i class="ph ph-plus-circle text-brand-600 text-xl"></i> Add Custom Product Review
+                        </h3>
+                        <p class="text-sm text-gray-500 mt-1">Create a verified-looking review with custom customer name, avatar, and photos.</p>
+                    </div>
+                </div>
+                
+                <form action="{{ route('admin.reviews.store') }}" method="POST" enctype="multipart/form-data">
+                    @csrf
+
+                    <!-- Product Select -->
+                    <div class="mb-4">
+                        <label class="block text-sm font-bold text-gray-700 mb-1">Target Product <span class="text-red-500">*</span></label>
+                        <select name="product_id" required class="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-1 focus:ring-brand-500 focus:border-brand-500">
+                            <option value="">Select a Product</option>
+                            @foreach($allProducts ?? [] as $prod)
+                                <option value="{{ $prod->id }}">{{ $prod->title }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+                        <!-- Customer Name -->
+                        <div>
+                            <label class="block text-sm font-bold text-gray-700 mb-1">Customer / Reviewer Name <span class="text-red-500">*</span></label>
+                            <input type="text" name="customer_name" required placeholder="e.g. Sadia Islam" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-1 focus:ring-brand-500 focus:border-brand-500">
+                        </div>
+
+                        <!-- Review Date (Optional) -->
+                        <div>
+                            <label class="block text-sm font-bold text-gray-700 mb-1">Review Date (Optional)</label>
+                            <input type="datetime-local" name="created_at" value="{{ now()->format('Y-m-d\TH:i') }}" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-1 focus:ring-brand-500 focus:border-brand-500 text-gray-700">
+                        </div>
+                    </div>
+
+                    <!-- Customer Profile Avatar -->
+                    <div class="mb-4">
+                        <label class="block text-sm font-bold text-gray-700 mb-1">Customer Profile Picture / Avatar (Optional)</label>
+                        <input type="file" name="customer_avatar" accept="image/*" class="block w-full text-sm text-gray-500 file:mr-4 file:py-1.5 file:px-3 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-brand-50 file:text-brand-700 hover:file:bg-brand-100 border border-gray-200 rounded-lg p-1 cursor-pointer">
+                        <p class="text-xs text-gray-500 mt-1">If left empty, a stylish letter avatar with initial will be generated automatically.</p>
+                    </div>
+
+                    <!-- Rating -->
+                    <div class="mb-4" x-data="{ newRating: 5 }">
+                        <label class="block text-sm font-bold text-gray-700 mb-1">Rating <span class="text-red-500">*</span></label>
+                        <div class="flex items-center gap-1 text-2xl">
+                            <template x-for="i in 5">
+                                <i class="ph-fill ph-star cursor-pointer transition-colors" 
+                                   :class="i <= newRating ? 'text-amber-400' : 'text-gray-200'"
+                                   @click="newRating = i"></i>
+                            </template>
+                            <span class="text-sm font-semibold text-gray-600 ml-2" x-text="newRating + ' Star' + (newRating > 1 ? 's' : '')"></span>
+                        </div>
+                        <input type="hidden" name="rating" :value="newRating">
+                    </div>
+
+                    <!-- Review Text -->
+                    <div class="mb-4">
+                        <label class="block text-sm font-bold text-gray-700 mb-1">Review Description <span class="text-red-500">*</span></label>
+                        <textarea name="review" required rows="3" placeholder="Write the customer's positive experience..." class="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-1 focus:ring-brand-500 focus:border-brand-500 text-sm"></textarea>
+                    </div>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
+                        <!-- Status -->
+                        <div>
+                            <label class="block text-sm font-bold text-gray-700 mb-1">Publication Status</label>
+                            <select name="status" class="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-1 focus:ring-brand-500 focus:border-brand-500 text-sm">
+                                <option value="approved" selected>Approved (Publish Immediately)</option>
+                                <option value="pending">Pending</option>
+                            </select>
+                        </div>
+
+                        <!-- Review Photos Attachments -->
+                        <div>
+                            <label class="block text-sm font-bold text-gray-700 mb-1">Product In-hand Photos (Optional)</label>
+                            <input type="file" name="attachments[]" multiple accept="image/*" class="block w-full text-sm text-gray-500 file:mr-4 file:py-1.5 file:px-3 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-brand-50 file:text-brand-700 hover:file:bg-brand-100 border border-gray-200 rounded-lg p-1 cursor-pointer">
+                        </div>
+                    </div>
+
+                    <div class="mt-5 sm:mt-4 sm:flex sm:flex-row-reverse border-t border-gray-100 pt-4">
+                        <button type="submit" class="w-full inline-flex justify-center items-center gap-2 rounded-xl border border-transparent shadow-sm px-5 py-2.5 bg-brand-600 text-sm font-bold text-white hover:bg-brand-700 focus:outline-none sm:ml-3 sm:w-auto">
+                            <i class="ph ph-check-circle"></i> Create & Publish Review
+                        </button>
+                        <button type="button" @click="createModalOpen = false" class="mt-3 w-full inline-flex justify-center rounded-xl border border-gray-300 shadow-sm px-4 py-2 bg-white text-sm font-bold text-gray-700 hover:bg-gray-50 focus:outline-none sm:mt-0 sm:w-auto">
+                            Cancel
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
     <!-- Delete Confirmation Modal -->
     <div x-show="deleteModalOpen" class="fixed inset-0 z-50 overflow-y-auto" style="display: none;">
         <div class="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:p-0">
@@ -300,11 +445,13 @@
 <script>
     document.addEventListener('alpine:init', () => {
         Alpine.data('reviewManager', () => ({
+            createModalOpen: false,
             viewModalOpen: false,
             deleteModalOpen: false,
             activeReview: null,
             rating: 5,
             reviewText: '',
+            reviewerName: '',
             status: 'pending',
             removedAttachments: [],
             
@@ -316,10 +463,15 @@
             isDeleting: false,
             isSaving: false,
 
+            openCreateModal() {
+                this.createModalOpen = true;
+            },
+
             openViewModal(review) {
                 this.activeReview = review;
                 this.rating = review.rating;
                 this.reviewText = review.review || '';
+                this.reviewerName = review.reviewer_name || review.user_name || '';
                 this.status = review.status;
                 this.removedAttachments = [];
                 this.viewModalOpen = true;

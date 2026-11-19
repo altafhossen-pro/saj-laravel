@@ -147,7 +147,7 @@
                                         },
                                         "author": {
                                             "@@type": "Person",
-                                            "name": "{!! addslashes($review->user->name ?? 'Customer') !!}"
+                                            "name": "{!! addslashes($review->reviewer_name ?? 'Customer') !!}"
                                         },
                                         "reviewBody": "{!! addslashes(str_replace(["\r", "\n", '"'], [' ', ' ', '\"'], $review->review ?? '')) !!}"
                                     }{{ !$loop->last ? ',' : '' }}
@@ -957,11 +957,20 @@
                     @forelse($productReviews as $review)
                     <div class="mb-6 pb-6 border-b border-gray-100 last:border-0 last:mb-0 last:pb-0">
                         <div class="flex items-center gap-4 mb-3">
+                            @if(!empty($review->reviewer_avatar))
+                            <img src="{{ $review->reviewer_avatar }}" class="w-10 h-10 rounded-full object-cover border border-gray-100 shrink-0" alt="{{ $review->reviewer_name }}">
+                            @else
                             <div class="w-10 h-10 rounded-full bg-brand-100 flex items-center justify-center text-brand-600 font-bold shrink-0">
-                                {{ strtoupper(substr($review->user->name, 0, 1)) }}
+                                {{ strtoupper(substr($review->reviewer_name, 0, 1)) }}
                             </div>
+                            @endif
                             <div>
-                                <h4 class="font-bold text-gray-900 text-sm">{{ $review->user->name }}</h4>
+                                <h4 class="font-bold text-gray-900 text-sm flex items-center gap-1.5">
+                                    {{ $review->reviewer_name }}
+                                    <span class="inline-flex items-center gap-0.5 text-[11px] font-normal text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded-full">
+                                        <i class="ph-fill ph-check-circle"></i> Verified Purchase
+                                    </span>
+                                </h4>
                                 <div class="flex items-center gap-2 mt-0.5">
                                     <div class="flex text-amber-400 text-xs">
                                         @for($i=1; $i<=5; $i++)

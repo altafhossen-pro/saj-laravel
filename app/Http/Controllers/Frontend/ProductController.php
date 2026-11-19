@@ -115,7 +115,10 @@ class ProductController extends Controller
                 return $q;
             });
             
-            $answeredQuery->where('user_id', '!=', auth()->id());
+            // Allow guest-submitted answered questions (user_id IS NULL) + other users' questions
+            $answeredQuery->where(function($q) {
+                $q->whereNull('user_id')->orWhere('user_id', '!=', auth()->id());
+            });
         }
 
         $answeredQuestionsCount = (clone $answeredQuery)->count();
@@ -154,7 +157,9 @@ class ProductController extends Controller
         } else {
             $query = $product->questions()->where('status', 'answered');
             if (auth()->check()) {
-                $query->where('user_id', '!=', auth()->id());
+                $query->where(function($q) {
+                    $q->whereNull('user_id')->orWhere('user_id', '!=', auth()->id());
+                });
             }
             $questions = $query->latest()->paginate(5);
         }

@@ -180,6 +180,7 @@ Route::middleware(['auth', 'admin_access'])->prefix('admin/dashboard')->group(fu
         Route::get('/product-questions', [\App\Http\Controllers\Admin\ProductQuestionController::class, 'index'])->name('admin.questions.index');
         Route::put('/product-questions/{question}', [\App\Http\Controllers\Admin\ProductQuestionController::class, 'update'])->name('admin.questions.update');
         Route::get('/reviews', [\App\Http\Controllers\Admin\ProductReviewController::class, 'index'])->name('admin.reviews.index');
+        Route::post('/reviews', [\App\Http\Controllers\Admin\ProductReviewController::class, 'store'])->name('admin.reviews.store');
         Route::post('/reviews/{review}/status', [\App\Http\Controllers\Admin\ProductReviewController::class, 'updateStatus'])->name('admin.reviews.status.update');
         Route::put('/reviews/{review}', [\App\Http\Controllers\Admin\ProductReviewController::class, 'update'])->name('admin.reviews.update');
         Route::delete('/reviews/{review}', [\App\Http\Controllers\Admin\ProductReviewController::class, 'destroy'])->name('admin.reviews.destroy');
