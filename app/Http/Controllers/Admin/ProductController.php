@@ -325,7 +325,24 @@ class ProductController extends Controller
         }
 
         // Handle Gallery Update (Optimized only if Convert & Optimize toggle is ON)
-        $galleryPaths = $product->gallery ?? [];
+        $previousGallery = is_array($product->gallery) ? $product->gallery : [];
+        if ($request->has('existing_gallery_present')) {
+            $submittedExisting = $request->input('existing_gallery', []);
+            $submittedExisting = is_array($submittedExisting) ? array_values($submittedExisting) : [];
+            // Keep only existing images that the user did not remove
+            $galleryPaths = array_values(array_intersect($previousGallery, $submittedExisting));
+            
+            // Delete removed files from physical storage to keep storage clean
+            $removedFiles = array_diff($previousGallery, $galleryPaths);
+            foreach ($removedFiles as $removedFile) {
+                if (!empty($removedFile) && \Illuminate\Support\Facades\Storage::disk('public')->exists($removedFile)) {
+                    \Illuminate\Support\Facades\Storage::disk('public')->delete($removedFile);
+                }
+            }
+        } else {
+            $galleryPaths = $previousGallery;
+        }
+
         if ($request->hasFile('gallery')) {
             foreach ($request->file('gallery') as $file) {
                 if ($request->has('auto_convert_gallery')) {

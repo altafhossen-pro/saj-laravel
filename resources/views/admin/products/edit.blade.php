@@ -260,9 +260,14 @@
                     return {
                         thumbPreview: "{{ $product->featured_image ? Storage::url($product->featured_image) : '' }}" || null,
                         thumbError: "",
+                        existingGallery: {!! json_encode(array_values($product->gallery ?? [])) !!},
+                        existingPreviews: {!! json_encode(array_map(fn($path) => Storage::url($path), array_values($product->gallery ?? []))) !!},
                         galleryFiles: [], // new files
-                        galleryPreviews: {!! json_encode(array_map(fn($path) => Storage::url($path), $product->gallery ?? [])) !!},
+                        newPreviews: [],
                         galleryError: "",
+                        get totalGalleryCount() {
+                            return this.existingPreviews.length + this.newPreviews.length;
+                        },
                         handleThumb(e) {
                             this.thumbError = '';
                             const file = e.target.files[0];
@@ -298,13 +303,17 @@
                             }
                             
                             e.target.value = ''; // Reset input so same files can be re-selected if needed
-                            this.updateGalleryPreviews();
+                            this.updateNewPreviews();
                         },
-                        removeGalleryImage(index) {
+                        removeExistingImage(index) {
+                            this.existingGallery.splice(index, 1);
+                            this.existingPreviews.splice(index, 1);
+                        },
+                        removeNewImage(index) {
                             this.galleryFiles.splice(index, 1);
-                            this.updateGalleryPreviews();
+                            this.updateNewPreviews();
                         },
-                        replaceGalleryImage(index, file) {
+                        replaceNewImage(index, file) {
                             if (!file) return;
                             if (file.size > 2 * 1024 * 1024) {
                                 this.galleryError = 'Replacement image must be less than 2MB.';
@@ -312,15 +321,15 @@
                             }
                             this.galleryError = '';
                             this.galleryFiles[index] = file;
-                            this.updateGalleryPreviews();
+                            this.updateNewPreviews();
                         },
-                        updateGalleryPreviews() {
+                        updateNewPreviews() {
                             const dt = new DataTransfer();
-                            const newPreviews = new Array(this.galleryFiles.length);
+                            const previews = new Array(this.galleryFiles.length);
                             let loadedCount = 0;
                             
                             if (this.galleryFiles.length === 0) {
-                                this.galleryPreviews = [];
+                                this.newPreviews = [];
                                 document.getElementById('galleryInput').files = dt.files;
                                 return;
                             }
@@ -329,10 +338,10 @@
                                 dt.items.add(file);
                                 const reader = new FileReader();
                                 reader.onload = (event) => {
-                                    newPreviews[index] = event.target.result;
+                                    previews[index] = event.target.result;
                                     loadedCount++;
                                     if (loadedCount === this.galleryFiles.length) {
-                                        this.galleryPreviews = newPreviews;
+                                        this.newPreviews = previews;
                                     }
                                 };
                                 reader.readAsDataURL(file);
@@ -399,30 +408,52 @@
                         </div>
                         
                         <label class="border-2 border-dashed rounded-xl p-8 flex flex-col items-center justify-center bg-gray-50 hover:bg-gray-100 transition-colors cursor-pointer group" 
-                               :class="[galleryError ? 'border-red-300 bg-red-50 hover:bg-red-50' : 'border-gray-300 hover:border-brand-400', galleryPreviews.length && !galleryError ? 'border-brand-300 bg-brand-50' : '']">
+                               :class="[galleryError ? 'border-red-300 bg-red-50 hover:bg-red-50' : 'border-gray-300 hover:border-brand-400', totalGalleryCount && !galleryError ? 'border-brand-300 bg-brand-50' : '']">
                             <input type="file" id="galleryInput" name="gallery[]" multiple accept="image/*" class="hidden" @change="handleGallery">
                             <div class="w-16 h-16 bg-white rounded-full flex items-center justify-center shadow-sm mb-3 group-hover:scale-105 transition-transform">
-                                <i class="ph text-2xl" :class="[galleryError ? 'ph-warning-circle text-red-500' : '', galleryPreviews.length && !galleryError ? 'ph-images text-brand-600' : 'ph-images text-brand-600']"></i>
+                                <i class="ph text-2xl" :class="[galleryError ? 'ph-warning-circle text-red-500' : '', totalGalleryCount && !galleryError ? 'ph-images text-brand-600' : 'ph-images text-brand-600']"></i>
                             </div>
-                            <p class="text-sm font-medium" :class="galleryError ? 'text-red-700' : (galleryPreviews.length ? 'text-brand-700' : 'text-gray-900')" x-text="galleryPreviews.length ? galleryPreviews.length + ' image(s) selected (Click to add more)' : 'Add multiple images for gallery'"></p>
+                            <p class="text-sm font-medium" :class="galleryError ? 'text-red-700' : (totalGalleryCount ? 'text-brand-700' : 'text-gray-900')" x-text="totalGalleryCount ? totalGalleryCount + ' image(s) in gallery (Click to add more)' : 'Add multiple images for gallery'"></p>
                         </label>
                         <p class="text-sm font-medium text-red-600 mt-2 flex items-center gap-1.5" x-show="galleryError" style="display: none;">
                             <i class="ph-fill ph-warning-circle text-lg"></i> <span x-text="galleryError"></span>
                         </p>
 
+                        <!-- Hidden Inputs for Existing Gallery Persistence -->
+                        <input type="hidden" name="existing_gallery_present" value="1">
+                        <template x-for="(path, index) in existingGallery" :key="'exist-input-' + index">
+                            <input type="hidden" name="existing_gallery[]" :value="path">
+                        </template>
+
                         <!-- Gallery Previews Grid -->
-                        <div x-show="galleryPreviews.length > 0" class="mt-4 grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-3" style="display: none;">
-                            <template x-for="(preview, index) in galleryPreviews" :key="index">
+                        <div x-show="totalGalleryCount > 0" class="mt-4 grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-3" style="display: none;">
+                            <!-- Existing Saved Gallery Images -->
+                            <template x-for="(preview, index) in existingPreviews" :key="'exist-' + index">
                                 <div class="aspect-square rounded-lg border border-gray-200 overflow-hidden bg-white shadow-sm relative group">
                                     <img :src="preview" class="w-full h-full object-cover">
+                                    <span class="absolute top-1 left-1 bg-black/60 text-[10px] text-white px-1.5 py-0.5 rounded font-mono">Saved</span>
                                     <div class="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-2">
-                                        <!-- Replace -->
+                                        <!-- Remove Existing -->
+                                        <button type="button" @click.prevent="removeExistingImage(index)" class="text-white hover:text-red-400 p-1 cursor-pointer flex items-center justify-center w-8 h-8 rounded-full hover:bg-white/20 transition-colors" title="Remove Image from Gallery">
+                                            <i class="ph ph-trash text-xl"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            </template>
+
+                            <!-- Newly Selected Gallery Images -->
+                            <template x-for="(preview, index) in newPreviews" :key="'new-' + index">
+                                <div class="aspect-square rounded-lg border border-brand-300 overflow-hidden bg-white shadow-sm relative group">
+                                    <img :src="preview" class="w-full h-full object-cover">
+                                    <span class="absolute top-1 left-1 bg-brand-600 text-[10px] text-white px-1.5 py-0.5 rounded font-mono">New</span>
+                                    <div class="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-2">
+                                        <!-- Replace New -->
                                         <label class="cursor-pointer text-white hover:text-brand-400 p-1 flex items-center justify-center w-8 h-8 rounded-full hover:bg-white/20 transition-colors" title="Replace Image">
-                                            <input type="file" class="hidden" accept="image/*" @change="replaceGalleryImage(index, $event.target.files[0])">
+                                            <input type="file" class="hidden" accept="image/*" @change="replaceNewImage(index, $event.target.files[0])">
                                             <i class="ph ph-swap text-xl"></i>
                                         </label>
-                                        <!-- Remove -->
-                                        <button type="button" @click.prevent="removeGalleryImage(index)" class="text-white hover:text-red-400 p-1 cursor-pointer flex items-center justify-center w-8 h-8 rounded-full hover:bg-white/20 transition-colors" title="Remove Image">
+                                        <!-- Remove New -->
+                                        <button type="button" @click.prevent="removeNewImage(index)" class="text-white hover:text-red-400 p-1 cursor-pointer flex items-center justify-center w-8 h-8 rounded-full hover:bg-white/20 transition-colors" title="Remove New Image">
                                             <i class="ph ph-trash text-xl"></i>
                                         </button>
                                     </div>
