@@ -898,13 +898,9 @@
         <div class="mt-8 flex flex-col gap-8 w-full lg:w-8/12">
             <!-- Reviews -->
             @php
-                $ratingCounts = \App\Models\Product\ProductReview::where('product_id', $product->id)
-                    ->where('status', 'approved')
-                    ->selectRaw('rating, count(*) as count')
-                    ->groupBy('rating')
-                    ->pluck('count', 'rating')
-                    ->toArray();
-                $totalApprovedReviews = array_sum($ratingCounts);
+                $distData = $product->getRatingDistribution();
+                $ratingCounts = $distData['counts'];
+                $totalApprovedReviews = $distData['total'];
             @endphp
             <div id="reviews-section" class="bg-white p-6 lg:p-8 rounded-2xl shadow-sm border border-gray-100" x-data="productReviews()">
                 <h2

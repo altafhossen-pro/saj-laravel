@@ -355,6 +355,69 @@ class Product extends Model
         return round($blendedAvg, 2);
     }
 
+    public function getRatingDistribution(): array
+    {
+        $realRatings = \App\Models\Product\ProductReview::where('product_id', $this->id)
+            ->where('status', 'approved')
+            ->selectRaw('rating, count(*) as count')
+            ->groupBy('rating')
+            ->pluck('count', 'rating')
+            ->toArray();
+
+        $totalReviews = (int) $this->total_reviews;
+        $realTotal = (int) array_sum($realRatings);
+
+        // If only real reviews exist or optimized is off
+        if ($totalReviews <= $realTotal) {
+            $counts = [];
+            foreach ([5, 4, 3, 2, 1] as $s) {
+                $counts[$s] = (int) ($realRatings[$s] ?? 0);
+            }
+            return [
+                'counts' => $counts,
+                'total' => $realTotal,
+            ];
+        }
+
+        $diff = max(0, $totalReviews - $realTotal);
+        $avg = (float) $this->average_rating;
+
+        // Realistic proportion based on product's actual average rating
+        if ($avg >= 4.9) {
+            $p5 = 0.90; $p4 = 0.10; $p3 = 0.00; $p2 = 0.00; $p1 = 0.00;
+        } elseif ($avg >= 4.7) {
+            $p5 = 0.82; $p4 = 0.15; $p3 = 0.03; $p2 = 0.00; $p1 = 0.00;
+        } elseif ($avg >= 4.5) {
+            $p5 = 0.72; $p4 = 0.22; $p3 = 0.05; $p2 = 0.01; $p1 = 0.00;
+        } elseif ($avg >= 4.0) {
+            $p5 = 0.60; $p4 = 0.25; $p3 = 0.10; $p2 = 0.03; $p1 = 0.02;
+        } else {
+            $p5 = 0.40; $p4 = 0.30; $p3 = 0.15; $p2 = 0.10; $p1 = 0.05;
+        }
+
+        $simulated = [
+            5 => (int) round($diff * $p5),
+            4 => (int) round($diff * $p4),
+            3 => (int) round($diff * $p3),
+            2 => (int) round($diff * $p2),
+            1 => (int) round($diff * $p1),
+        ];
+
+        // Ensure sum equals diff exactly, remainder adjusted into top rating
+        $sumSim = array_sum($simulated);
+        $simulated[5] += ($diff - $sumSim);
+
+        $finalCounts = [];
+        foreach ([5, 4, 3, 2, 1] as $star) {
+            $finalCounts[$star] = (int) (($realRatings[$star] ?? 0) + ($simulated[$star] ?? 0));
+        }
+
+        return [
+            'counts' => $finalCounts,
+            'total' => $totalReviews,
+        ];
+    }
+
     /**
      * Get the variants for the product.
      */
