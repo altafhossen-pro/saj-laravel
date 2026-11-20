@@ -110,6 +110,23 @@
                                 </label>
                             </div>
                         </template>
+
+                        <!-- Send Purchase Event to Meta (CAPI) Checkbox Option (Default ON) -->
+                        <template x-if="!fbPurchaseSentAt && ['confirmed', 'processing', 'shipped', 'delivered'].includes(nextStatus)">
+                            <div class="mt-3 p-3.5 rounded-xl border bg-blue-50/60 border-blue-200 text-left">
+                                <label class="flex items-start gap-3 cursor-pointer select-none">
+                                    <input type="checkbox" x-model="sendToMeta" class="mt-0.5 w-4 h-4 rounded text-blue-600 focus:ring-blue-500 border-gray-300 cursor-pointer">
+                                    <div class="flex-1">
+                                        <span class="text-sm font-bold text-gray-900 flex items-center gap-1.5">
+                                            <i class="ph-bold ph-share-network text-blue-600"></i> Send Purchase Event to Meta (Facebook)
+                                        </span>
+                                        <p class="text-xs text-gray-600 mt-0.5 leading-normal">
+                                            Dispatches server-side CAPI purchase with conversion value and attribution. (Uncheck if you do not want to send now).
+                                        </p>
+                                    </div>
+                                </label>
+                            </div>
+                        </template>
                     </div>
                 </div>
             </div>
@@ -121,6 +138,90 @@
                 </button>
                 <button @click="openConfirmModal = false" :disabled="loading" type="button" class="mt-3 w-full inline-flex justify-center rounded-lg border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm cursor-pointer transition-colors disabled:opacity-60 disabled:cursor-not-allowed">
                     Cancel
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Manual Meta CAPI Purchase Confirmation Modal with Math Captcha -->
+<div x-show="showMetaPurchaseModal" 
+     style="display: none;" 
+     class="fixed inset-0 z-[125] overflow-y-auto" 
+     aria-labelledby="meta-modal-title" 
+     role="dialog" 
+     aria-modal="true"
+     @keydown.escape.window="if (!sendingMetaPurchase) showMetaPurchaseModal = false">
+    <div class="flex items-center justify-center min-h-screen p-4 text-center sm:p-0">
+        <!-- Backdrop -->
+        <div x-show="showMetaPurchaseModal" 
+             x-transition.opacity.duration.300ms
+             class="fixed inset-0 bg-gray-900/60 backdrop-blur-xs transition-opacity cursor-pointer" 
+             @click="if (!sendingMetaPurchase) showMetaPurchaseModal = false"></div>
+
+        <!-- Modal Card -->
+        <div x-show="showMetaPurchaseModal" 
+             x-transition.scale.duration.250ms
+             class="relative transform overflow-hidden rounded-2xl bg-white text-left shadow-2xl transition-all sm:my-8 sm:w-full sm:max-w-md border border-gray-100 p-6 z-10">
+            
+            <div class="flex items-start gap-4">
+                <div class="w-12 h-12 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center text-2xl shrink-0 border border-blue-100">
+                    <i class="ph-bold ph-share-network"></i>
+                </div>
+                <div>
+                    <h3 class="text-base font-bold text-gray-900" id="meta-modal-title">
+                        Send Purchase Event to Meta?
+                    </h3>
+                    <p class="text-xs text-gray-600 mt-1 leading-relaxed">
+                        This will send a server-side <strong>Purchase</strong> event to Meta Conversions API (CAPI) with customer details, attribution, and total value (৳{{ number_format($order->total, 0) }}).
+                    </p>
+                </div>
+            </div>
+
+            <!-- 1-Digit Math Captcha Challenge Box -->
+            <div class="mt-5 p-4 rounded-xl bg-blue-50/50 border border-blue-200/80 space-y-3">
+                <div class="flex items-center justify-between">
+                    <label for="metaCaptchaInput" class="text-xs font-bold text-gray-700 uppercase tracking-wider flex items-center gap-1.5">
+                        <i class="ph-bold ph-calculator text-blue-600"></i>
+                        Security Verification
+                    </label>
+                    <button type="button" 
+                            @click="refreshMetaCaptcha()" 
+                            class="text-xs text-blue-600 hover:text-blue-800 font-medium inline-flex items-center gap-1 cursor-pointer">
+                        <i class="ph ph-arrows-clockwise"></i> New Problem
+                    </button>
+                </div>
+
+                <div class="flex items-center gap-3">
+                    <div class="px-4 py-2 bg-white rounded-lg border border-gray-300 font-mono text-base font-bold text-gray-800 shadow-2xs tracking-wider select-none shrink-0">
+                        <span x-text="metaCaptchaDigit1"></span> + <span x-text="metaCaptchaDigit2"></span> = ?
+                    </div>
+                    <input type="number" 
+                           id="metaCaptchaInput" 
+                           x-model="metaCaptchaAnswer" 
+                           @keydown.enter.prevent="confirmSendMetaPurchase()" 
+                           placeholder="Answer" 
+                           class="w-full px-3 py-2 text-sm font-bold font-mono bg-white border border-gray-300 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 text-gray-900">
+                </div>
+
+                <p x-show="metaCaptchaError" x-text="metaCaptchaError" class="text-xs text-red-600 font-semibold" style="display: none;"></p>
+                <p class="text-[11px] text-gray-500">Solve this simple math problem to manually dispatch to Facebook.</p>
+            </div>
+
+            <!-- Modal Actions -->
+            <div class="mt-6 flex items-center justify-end gap-3 pt-4 border-t border-gray-100">
+                <button type="button" 
+                        @click="showMetaPurchaseModal = false" 
+                        :disabled="sendingMetaPurchase"
+                        class="px-4 py-2 rounded-xl text-xs font-semibold text-gray-700 hover:bg-gray-100 border border-gray-200 transition-colors cursor-pointer disabled:opacity-50">
+                    Cancel
+                </button>
+                <button type="button" 
+                        @click="confirmSendMetaPurchase()" 
+                        :disabled="sendingMetaPurchase"
+                        class="px-5 py-2 rounded-xl text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 shadow-xs transition-colors inline-flex items-center gap-1.5 cursor-pointer disabled:opacity-60">
+                    <i class="ph" :class="sendingMetaPurchase ? 'ph-spinner animate-spin' : 'ph-bold ph-paper-plane-tilt'"></i>
+                    <span x-text="sendingMetaPurchase ? 'Sending to Meta...' : 'Confirm & Send'"></span>
                 </button>
             </div>
         </div>
@@ -279,9 +380,9 @@
              x-transition:leave-end="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95" 
              class="relative transform overflow-hidden rounded-2xl bg-white text-left shadow-2xl transition-all sm:my-8 sm:w-full sm:max-w-xl border border-gray-100 z-10">
             
-            <div class="bg-gray-50/90 px-6 py-4 border-b border-gray-100 flex items-center justify-between no-print">
+            <div class="bg-gray-50/90 px-6 py-3.5 border-b border-gray-100 flex flex-wrap items-center justify-between gap-3 no-print">
                 <div class="flex items-center gap-3">
-                    <div class="w-10 h-10 rounded-xl bg-brand-50 text-brand-600 flex items-center justify-center text-xl font-bold border border-brand-100">
+                    <div class="w-10 h-10 rounded-xl bg-brand-50 text-brand-600 flex items-center justify-center text-xl font-bold border border-brand-100 shrink-0">
                         <i class="ph-bold ph-printer"></i>
                     </div>
                     <div>
@@ -291,123 +392,163 @@
                         <p class="text-xs text-gray-500">Steadfast Courier Delivery Sticker</p>
                     </div>
                 </div>
-                <button type="button" 
-                        @click="closePrintLabelModal()" 
-                        class="w-8 h-8 rounded-lg bg-white border border-gray-200 hover:bg-gray-100 text-gray-500 flex items-center justify-center transition-colors cursor-pointer"
-                        title="Close">
-                    <i class="ph-bold ph-x text-base"></i>
-                </button>
+
+                <div class="flex items-center gap-3">
+                    <!-- Size Selector Toggle (3x3 vs 2x3) -->
+                    <div class="inline-flex items-center bg-gray-200/80 p-0.5 rounded-lg text-xs font-semibold">
+                        <button type="button" 
+                                @click="labelSize = '3x3'" 
+                                class="px-2.5 py-1 rounded-md transition-all flex items-center gap-1 cursor-pointer"
+                                :class="labelSize === '3x3' ? 'bg-white text-gray-900 shadow-xs font-bold' : 'text-gray-600 hover:text-gray-900'">
+                            <span>3" × 3"</span>
+                            <span class="text-[9px] text-gray-400 font-normal">(Square)</span>
+                        </button>
+                        <button type="button" 
+                                @click="labelSize = '2x3'" 
+                                class="px-2.5 py-1 rounded-md transition-all flex items-center gap-1 cursor-pointer"
+                                :class="labelSize === '2x3' ? 'bg-white text-gray-900 shadow-xs font-bold' : 'text-gray-600 hover:text-gray-900'">
+                            <span>2" × 3"</span>
+                            <span class="text-[9px] text-gray-400 font-normal">(Compact)</span>
+                        </button>
+                    </div>
+
+                    <!-- Notes Toggle Button -->
+                    <button type="button"
+                            @click="includeLabelNotes = !includeLabelNotes"
+                            class="px-2.5 py-1 rounded-lg border text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer"
+                            :class="includeLabelNotes ? 'bg-amber-50 border-amber-300 text-amber-800' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'"
+                            title="Toggle customer order note visibility on label">
+                        <i class="ph text-xs" :class="includeLabelNotes ? 'ph-check-square font-bold text-amber-600' : 'ph-square text-gray-400'"></i>
+                        <span>Add Notes</span>
+                    </button>
+
+                    <button type="button" 
+                            @click="closePrintLabelModal()" 
+                            class="w-8 h-8 rounded-lg bg-white border border-gray-200 hover:bg-gray-100 text-gray-500 flex items-center justify-center transition-colors cursor-pointer"
+                            title="Close">
+                        <i class="ph-bold ph-x text-base"></i>
+                    </button>
+                </div>
             </div>
 
             <div class="p-6 bg-gray-100/70 max-h-[72vh] overflow-y-auto flex justify-center">
-                <div id="printable-shipping-label" class="bg-white border-2 border-black rounded-lg p-5 w-full max-w-[440px] shadow-sm text-gray-900 font-sans print:shadow-none print:m-0 print:p-4 print:border-black print:rounded-none">
+                <!-- Printable Label Container with Dynamic Sizing -->
+                <div id="printable-shipping-label" 
+                     :class="labelSize === '3x3' ? 'size-3x3' : 'size-2x3'"
+                     class="bg-white border-2 border-black rounded-lg shadow-sm text-gray-900 print:shadow-none print:m-0 print:border-black print:rounded-none transition-all duration-200">
                     
-                    <div class="flex justify-between items-start pb-3 border-b-2 border-black">
-                        <div>
-                            <div class="flex items-center gap-1.5">
-                                <span class="text-2xl font-black tracking-tight text-black uppercase">SAJ</span>
-                                <span class="text-xs font-bold text-gray-700 uppercase tracking-widest pl-1 border-l border-gray-400">BD</span>
+                    <!-- Header: Logo, Store Info & Steadfast Consignment -->
+                    <div class="flex justify-between items-center border-b-2 border-black pb-1.5 shrink-0">
+                        <div class="flex flex-col items-start">
+                            @php
+                                $siteLogo = \App\Models\Setting::get('site_logo');
+                            @endphp
+                            @if($siteLogo)
+                                <img src="{{ url($siteLogo) }}" alt="Logo" class="object-contain h-5.5 max-w-[90px]">
+                            @else
+                                <span class="font-black tracking-tight text-black uppercase text-base">SAJ BD</span>
+                            @endif
+                            <div class="mt-0.5">
+                                <p class="font-bold text-gray-800 tracking-wider uppercase leading-tight text-[8px]">JEWELRY & COSMETICS</p>
+                                <p class="text-gray-700 font-mono leading-tight mt-0.5 text-[8px]">
+                                    Hotline: <span class="font-bold text-black">{{ \App\Models\Setting::get('site_phone') ?: '01840209060' }}</span>
+                                </p>
                             </div>
-                            <p class="text-[11px] font-bold text-gray-700 tracking-wide mt-0.5">JEWELRY & COSMETICS</p>
-                            <p class="text-[10px] text-gray-700 mt-0.5">Hotline: <span class="font-bold text-black font-mono">{{ \App\Models\Setting::get('site_phone') ?: '+8801840209060' }}</span></p>
-                            <p class="text-[9px] text-gray-500 font-medium">https://saj.bd</p>
                         </div>
-                        <div class="text-right">
-                            <div class="inline-block bg-black text-white px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider mb-1">
+                        <div class="text-right flex flex-col items-end">
+                            <div class="inline-block bg-black text-white px-2 py-0.5 rounded font-black uppercase tracking-wider text-[8px]">
                                 STEADFAST COURIER
                             </div>
-                            <div class="text-[10px] text-gray-700 font-bold">
-                                Merchant ID: <span class="font-mono font-black text-black text-xs">{{ \App\Models\Setting::get('steadfast_merchant_id') ?: '1006943' }}</span>
+                            <div class="text-gray-700 font-bold mt-0.5 text-[8px]">
+                                Merchant ID: <span class="font-mono font-black text-black">{{ \App\Models\Setting::get('steadfast_merchant_id') ?: '1006943' }}</span>
                             </div>
-                            <div class="text-[10px] text-gray-600 font-medium mt-0.5">Consignment ID:</div>
-                            <div class="font-mono font-black text-base text-black tracking-wider" x-text="'#' + (steadfastCid || '{{ $order->steadfast_consignment_id ?: 'PENDING' }}')"></div>
-                            <template x-if="steadfastTracking || '{{ $order->steadfast_tracking_code }}'">
-                                <div class="text-[10px] font-mono font-semibold text-gray-700">
-                                    TRK: <span x-text="steadfastTracking || '{{ $order->steadfast_tracking_code }}'"></span>
-                                </div>
-                            </template>
                         </div>
                     </div>
 
-                    <div class="py-2.5 border-b-2 border-black flex flex-col items-center justify-center">
-                        <svg class="w-64 h-12" viewBox="0 0 240 45" xmlns="http://www.w3.org/2000/svg">
-                            <rect x="0" y="0" width="3" height="35" fill="#000"/>
-                            <rect x="5" y="0" width="2" height="35" fill="#000"/>
-                            <rect x="9" y="0" width="4" height="35" fill="#000"/>
-                            <rect x="16" y="0" width="1" height="35" fill="#000"/>
-                            <rect x="20" y="0" width="3" height="35" fill="#000"/>
-                            <rect x="25" y="0" width="5" height="35" fill="#000"/>
-                            <rect x="33" y="0" width="2" height="35" fill="#000"/>
-                            <rect x="38" y="0" width="4" height="35" fill="#000"/>
-                            <rect x="45" y="0" width="1" height="35" fill="#000"/>
-                            <rect x="48" y="0" width="3" height="35" fill="#000"/>
-                            <rect x="54" y="0" width="2" height="35" fill="#000"/>
-                            <rect x="59" y="0" width="5" height="35" fill="#000"/>
-                            <rect x="67" y="0" width="2" height="35" fill="#000"/>
-                            <rect x="72" y="0" width="4" height="35" fill="#000"/>
-                            <rect x="79" y="0" width="1" height="35" fill="#000"/>
-                            <rect x="83" y="0" width="3" height="35" fill="#000"/>
-                            <rect x="89" y="0" width="5" height="35" fill="#000"/>
-                            <rect x="97" y="0" width="2" height="35" fill="#000"/>
-                            <rect x="102" y="0" width="3" height="35" fill="#000"/>
-                            <rect x="108" y="0" width="1" height="35" fill="#000"/>
-                            <rect x="112" y="0" width="4" height="35" fill="#000"/>
-                            <rect x="119" y="0" width="3" height="35" fill="#000"/>
-                            <rect x="125" y="0" width="5" height="35" fill="#000"/>
-                            <rect x="133" y="0" width="2" height="35" fill="#000"/>
-                            <rect x="138" y="0" width="4" height="35" fill="#000"/>
-                            <rect x="145" y="0" width="1" height="35" fill="#000"/>
-                            <rect x="149" y="0" width="3" height="35" fill="#000"/>
-                            <rect x="155" y="0" width="2" height="35" fill="#000"/>
-                            <rect x="160" y="0" width="5" height="35" fill="#000"/>
-                            <rect x="168" y="0" width="2" height="35" fill="#000"/>
-                            <rect x="173" y="0" width="4" height="35" fill="#000"/>
-                            <rect x="180" y="0" width="1" height="35" fill="#000"/>
-                            <rect x="184" y="0" width="3" height="35" fill="#000"/>
-                            <rect x="190" y="0" width="4" height="35" fill="#000"/>
-                            <rect x="197" y="0" width="2" height="35" fill="#000"/>
-                            <rect x="202" y="0" width="3" height="35" fill="#000"/>
-                            <rect x="208" y="0" width="5" height="35" fill="#000"/>
-                            <rect x="216" y="0" width="2" height="35" fill="#000"/>
-                            <rect x="221" y="0" width="4" height="35" fill="#000"/>
-                            <rect x="228" y="0" width="2" height="35" fill="#000"/>
-                            <rect x="233" y="0" width="4" height="35" fill="#000"/>
+                    <!-- Clean Barcode Section (CID aligned directly under Barcode) -->
+                    <div class="border-b-2 border-black flex flex-col items-center justify-center py-1 shrink-0">
+                        <svg class="w-full h-7 max-w-[200px]" viewBox="0 0 240 38" xmlns="http://www.w3.org/2000/svg">
+                            <rect x="0" y="0" width="3" height="30" fill="#000"/>
+                            <rect x="5" y="0" width="2" height="30" fill="#000"/>
+                            <rect x="9" y="0" width="4" height="30" fill="#000"/>
+                            <rect x="16" y="0" width="1" height="30" fill="#000"/>
+                            <rect x="20" y="0" width="3" height="30" fill="#000"/>
+                            <rect x="25" y="0" width="5" height="30" fill="#000"/>
+                            <rect x="33" y="0" width="2" height="30" fill="#000"/>
+                            <rect x="38" y="0" width="4" height="30" fill="#000"/>
+                            <rect x="45" y="0" width="1" height="30" fill="#000"/>
+                            <rect x="48" y="0" width="3" height="30" fill="#000"/>
+                            <rect x="54" y="0" width="2" height="30" fill="#000"/>
+                            <rect x="59" y="0" width="5" height="30" fill="#000"/>
+                            <rect x="67" y="0" width="2" height="30" fill="#000"/>
+                            <rect x="72" y="0" width="4" height="30" fill="#000"/>
+                            <rect x="79" y="0" width="1" height="30" fill="#000"/>
+                            <rect x="83" y="0" width="3" height="30" fill="#000"/>
+                            <rect x="89" y="0" width="5" height="30" fill="#000"/>
+                            <rect x="97" y="0" width="2" height="30" fill="#000"/>
+                            <rect x="102" y="0" width="3" height="30" fill="#000"/>
+                            <rect x="108" y="0" width="1" height="30" fill="#000"/>
+                            <rect x="112" y="0" width="4" height="30" fill="#000"/>
+                            <rect x="119" y="0" width="3" height="30" fill="#000"/>
+                            <rect x="125" y="0" width="5" height="30" fill="#000"/>
+                            <rect x="133" y="0" width="2" height="30" fill="#000"/>
+                            <rect x="138" y="0" width="4" height="30" fill="#000"/>
+                            <rect x="145" y="0" width="1" height="30" fill="#000"/>
+                            <rect x="149" y="0" width="3" height="30" fill="#000"/>
+                            <rect x="155" y="0" width="2" height="30" fill="#000"/>
+                            <rect x="160" y="0" width="5" height="30" fill="#000"/>
+                            <rect x="168" y="0" width="2" height="30" fill="#000"/>
+                            <rect x="173" y="0" width="4" height="30" fill="#000"/>
+                            <rect x="180" y="0" width="1" height="30" fill="#000"/>
+                            <rect x="184" y="0" width="3" height="30" fill="#000"/>
+                            <rect x="190" y="0" width="4" height="30" fill="#000"/>
+                            <rect x="197" y="0" width="2" height="30" fill="#000"/>
+                            <rect x="202" y="0" width="3" height="30" fill="#000"/>
+                            <rect x="208" y="0" width="5" height="30" fill="#000"/>
+                            <rect x="216" y="0" width="2" height="30" fill="#000"/>
+                            <rect x="221" y="0" width="4" height="30" fill="#000"/>
+                            <rect x="228" y="0" width="2" height="30" fill="#000"/>
+                            <rect x="233" y="0" width="4" height="30" fill="#000"/>
                         </svg>
-                        <span class="font-mono text-xs font-bold text-black tracking-widest mt-1" x-text="(steadfastCid || '{{ $order->steadfast_consignment_id }}') ? ('CID: #' + (steadfastCid || '{{ $order->steadfast_consignment_id }}')) : 'ORDER: #{{ $order->order_id }}'"></span>
+                        <div class="font-mono font-black text-black tracking-widest text-center text-[10px] mt-0.5">
+                            <span x-text="(steadfastCid || '{{ $order->steadfast_consignment_id }}') ? ('CID: #' + (steadfastCid || '{{ $order->steadfast_consignment_id }}')) : 'INV: #{{ $order->order_id }}'"></span>
+                        </div>
                     </div>
 
-                    <div class="grid grid-cols-2 divide-x-2 divide-black border-b-2 border-black">
-                        <div class="p-2.5">
-                            <div class="text-[10px] text-gray-500 font-bold uppercase tracking-wider">Order Reference:</div>
-                            <div class="font-mono font-bold text-base text-black">#{{ $order->order_id }}</div>
-                            <div class="text-[10px] text-gray-600 mt-0.5">Date: {{ $order->created_at ? $order->created_at->format('d M Y') : 'N/A' }}</div>
+                    <!-- Order Reference & COD Amount -->
+                    <div class="grid grid-cols-2 divide-x-2 divide-black border-b-2 border-black shrink-0">
+                        <div class="p-1">
+                            <div class="text-gray-500 font-bold uppercase tracking-wider text-[7.5px]">Order Ref:</div>
+                            <div class="font-mono font-black text-black text-[11px] leading-tight">#{{ $order->order_id }}</div>
+                            <div class="text-gray-600 text-[7.5px] mt-0.5">Date: {{ $order->created_at ? $order->created_at->format('d M Y') : 'N/A' }}</div>
                         </div>
-                        <div class="p-2.5 flex flex-col justify-center items-center text-center">
+                        <div class="flex flex-col justify-center items-center text-center p-1">
                             @if($order->payment_status === 'paid')
-                                <div class="w-full bg-black text-white py-1.5 px-2 font-black text-xs uppercase tracking-wider rounded-xs">
+                                <div class="w-full bg-black text-white py-0.5 px-1 font-black uppercase tracking-wider rounded-xs text-[8.5px]">
                                     PAID - NO COD
                                 </div>
-                                <div class="text-[9px] font-bold text-gray-700 mt-0.5">Do NOT collect cash</div>
+                                <div class="text-[7px] font-bold text-gray-700 mt-0.5">Do NOT collect cash</div>
                             @else
-                                <div class="text-[10px] font-black uppercase text-gray-700 tracking-wider">CASH ON DELIVERY (COD)</div>
-                                <div class="text-xl font-black text-black tracking-tight mt-0.5 font-mono">
+                                <div class="font-black uppercase text-gray-700 tracking-wider text-[7.5px]">CASH ON DELIVERY</div>
+                                <div class="font-black text-black tracking-tight font-mono leading-none mt-0.5 text-sm">
                                     ৳{{ number_format($order->total, 0) }}
                                 </div>
                             @endif
                         </div>
                     </div>
 
-                    <div class="p-3 bg-gray-50/50">
-                        <div class="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1">
+                    <!-- Customer Recipient Section -->
+                    <div class="bg-gray-50/50 p-1.5 grow flex flex-col justify-center">
+                        <div class="font-black text-gray-500 uppercase tracking-wider text-[7.5px] mb-0.5">
                             DELIVER TO (RECIPIENT):
                         </div>
-                        <div class="text-base font-black text-black leading-tight">
+                        <div class="font-black text-black leading-tight font-bn text-[13px] font-bold">
                             {{ $shippingInfo['name'] ?? optional($order->user)->name ?? 'Customer' }}
                         </div>
-                        <div class="text-sm font-black text-black font-mono tracking-wide my-1">
-                            Phone: <span class="text-base font-bold">{{ $shippingInfo['phone'] ?? optional($order->user)->phone ?? 'N/A' }}</span>
+                        <div class="font-black text-black font-mono tracking-wide text-[11px] my-0.5">
+                            Phone: <span class="font-black">{{ $shippingInfo['phone'] ?? optional($order->user)->phone ?? 'N/A' }}</span>
                         </div>
-                        <div class="text-xs font-semibold text-gray-900 leading-snug mt-1">
+                        <div class="font-medium text-gray-900 leading-tight font-bn text-[10px]">
                             {{ $shippingInfo['address'] ?? '' }}
                             @if(!empty($shippingInfo['city']))
                                 , {{ $shippingInfo['city'] }}
@@ -416,29 +557,34 @@
                                 , {{ $shippingInfo['zone'] }}
                             @endif
                         </div>
-                        @if(!empty($order->note))
-                            <div class="mt-2 p-1.5 bg-yellow-50 border border-yellow-300 rounded text-[11px] text-gray-800">
-                                <span class="font-bold">Note:</span> {{ $order->note }}
+                        <!-- Order Note (Shown ONLY if user toggles 'Add Notes') -->
+                        @if(!empty($order->order_notes ?? $order->note))
+                            <div x-show="includeLabelNotes" x-transition class="mt-1 p-0.5 px-1 bg-yellow-50 border border-yellow-300 rounded text-gray-800 leading-tight font-bn text-[8.5px]">
+                                <span class="font-bold">Note:</span> {{ $order->order_notes ?? $order->note }}
                             </div>
                         @endif
                     </div>
 
-                    <div class="pt-2 border-t-2 border-black text-center">
-                        <div class="text-[10px] font-black text-black tracking-wider uppercase">
+                    <!-- Footer: Brand Greeting & Support -->
+                    <div class="border-t-2 border-black text-center"
+                         :class="labelSize === '3x3' ? 'pt-1.5' : 'pt-1'">
+                        <div class="font-black text-black tracking-wider uppercase"
+                             :class="labelSize === '3x3' ? 'text-[8.5px]' : 'text-[7.5px]'">
                             THANK YOU FOR SHOPPING WITH SAJ BD
                         </div>
-                        <div class="text-[9px] text-gray-600 mt-0.5">
-                            Customer Support: {{ \App\Models\Setting::get('site_phone') ?: '+8801840209060' }} | https://saj.bd
+                        <div class="text-gray-600 font-mono"
+                             :class="labelSize === '3x3' ? 'text-[7.5px] mt-0.2' : 'text-[6.5px]'">
+                            Support: {{ \App\Models\Setting::get('site_phone') ?: '01840209060' }} | saj.bd
                         </div>
                     </div>
 
                 </div>
             </div>
 
-            <div class="bg-gray-50 px-6 py-4 border-t border-gray-100 flex flex-wrap items-center justify-between gap-3 no-print">
+            <div class="bg-gray-50 px-6 py-3.5 border-t border-gray-100 flex flex-wrap items-center justify-between gap-3 no-print">
                 <div class="text-xs text-gray-500 flex items-center gap-1.5">
                     <i class="ph ph-info text-base text-gray-400"></i>
-                    <span>Optimized for standard 4" x 6" thermal label printers and standard A4 paper.</span>
+                    <span>Selected Size: <strong class="text-gray-800" x-text="labelSize === '3x3' ? '3\" × 3\" (Square)' : '2\" × 3\" (Compact)'"></strong> • Works on Epson L3210 (A4/Sticker) or Thermal Printer.</span>
                 </div>
                 <div class="flex items-center gap-2">
                     <button type="button" 

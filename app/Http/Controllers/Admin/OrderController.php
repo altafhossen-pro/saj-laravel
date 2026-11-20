@@ -374,8 +374,10 @@ class OrderController extends Controller
 
             $order->save();
 
+            $sendToMeta = $request->boolean('send_to_meta', true);
+
             // Trigger Meta Conversions API (CAPI) Purchase upon first confirmation (filtered, authentic orders only)
-            if (in_array($newStatus, ['confirmed', 'processing', 'shipped', 'delivered'])) {
+            if ($sendToMeta && in_array($newStatus, ['confirmed', 'processing', 'shipped', 'delivered'])) {
                 $statusTimestamps = is_array($order->status_timestamps) ? $order->status_timestamps : [];
                 if (empty($statusTimestamps['fb_purchase_sent_at'])) {
                     try {
@@ -679,6 +681,48 @@ class OrderController extends Controller
                 'receivable_amount' => $order->steadfast_receivable_amount,
             ]
         ]);
+    }
+
+    public function sendMetaPurchase(Request $request, $order_id)
+    {
+        if (!auth()->user()->hasRole('super_admin') && !auth()->user()->can('manage_orders')) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized action.'], 403);
+        }
+
+        $order = Order::where('order_id', $order_id)->orWhere('id', $order_id)->firstOrFail();
+
+        $statusTimestamps = is_array($order->status_timestamps) ? $order->status_timestamps : [];
+        if (!empty($statusTimestamps['fb_purchase_sent_at'])) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Purchase event already sent to Meta on ' . $statusTimestamps['fb_purchase_sent_at'],
+                'already_sent' => true,
+                'sent_at' => $statusTimestamps['fb_purchase_sent_at'],
+            ], 422);
+        }
+
+        try {
+            $sent = \App\Services\FacebookCapiService::trackPurchase($order);
+            if ($sent) {
+                $order->refresh();
+                $ts = is_array($order->status_timestamps) ? $order->status_timestamps : [];
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Purchase event sent to Meta successfully! 🎉',
+                    'sent_at' => $ts['fb_purchase_sent_at'] ?? now()->toDateTimeString(),
+                ]);
+            }
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Meta CAPI could not send the event. Check Meta credentials/token.',
+            ], 500);
+        } catch (\Throwable $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Error sending Purchase event: ' . $e->getMessage(),
+            ], 500);
+        }
     }
 
     public function checkSteadfastFraud(Request $request, SteadfastService $steadfastService)

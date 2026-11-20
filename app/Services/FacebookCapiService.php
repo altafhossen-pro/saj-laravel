@@ -192,8 +192,9 @@ class FacebookCapiService
 
     /**
      * Track Purchase Event upon Order Confirmation (Web & Manual/Omnichannel)
+     * Accepts either \App\Models\Order or \App\Models\Order\Order
      */
-    public static function trackPurchase(Order $order, ?string $eventId = null): bool
+    public static function trackPurchase($order, ?string $eventId = null): bool
     {
         try {
             if (!self::isConfigured() || !Setting::get('fb_track_purchase', true)) {
@@ -365,12 +366,44 @@ class FacebookCapiService
                 return;
             }
 
+            $uData = $userData ?: [];
+            $request = request();
+
+            // Enrich search user data with logged-in user profile or cookies if available
+            if (auth()->check()) {
+                $u = auth()->user();
+                if (empty($uData['email']) && !empty($u->email)) {
+                    $uData['email'] = $u->email;
+                }
+                if (empty($uData['phone']) && !empty($u->phone)) {
+                    $uData['phone'] = $u->phone;
+                }
+                if (empty($uData['name']) && !empty($u->name)) {
+                    $uData['name'] = $u->name;
+                }
+                if (empty($uData['external_id'])) {
+                    $uData['external_id'] = 'usr_' . $u->id;
+                }
+            }
+
+            // Capture _fbc and _fbp from cookie or query param
+            if (empty($uData['fbc']) && $request) {
+                if ($request->hasCookie('_fbc')) {
+                    $uData['fbc'] = $request->cookie('_fbc');
+                } elseif ($request->filled('fbclid')) {
+                    $uData['fbc'] = 'fb.1.' . time() . '.' . $request->input('fbclid');
+                }
+            }
+            if (empty($uData['fbp']) && $request && $request->hasCookie('_fbp')) {
+                $uData['fbp'] = $request->cookie('_fbp');
+            }
+
             self::sendEvent(
                 'Search',
                 [
                     'search_string' => trim($query),
                 ],
-                $userData ?: [],
+                $uData,
                 $eventId ?: ('search_' . md5($query) . '_' . time())
             );
         } catch (\Throwable $e) {

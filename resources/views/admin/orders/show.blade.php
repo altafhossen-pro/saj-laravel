@@ -3,39 +3,99 @@
 @section('header_title', 'Order Details')
 
 @push('styles')
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@500;600;700;800;900&display=swap" rel="stylesheet">
 <style>
+/* Label Typography */
+#printable-shipping-label {
+    font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    letter-spacing: -0.01em;
+}
+#printable-shipping-label .font-bn {
+    font-family: 'Hind Siliguri', 'Segoe UI', Arial, sans-serif !important;
+}
+
+/* Modal Preview Dimensions - Real 3x3 Aspect Ratio */
+#printable-shipping-label.size-3x3 {
+    width: 330px !important;
+    height: 330px !important;
+    max-width: 330px !important;
+    max-height: 330px !important;
+    aspect-ratio: 1 / 1 !important;
+    padding: 10px !important;
+    box-sizing: border-box !important;
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: space-between !important;
+}
+
+#printable-shipping-label.size-2x3 {
+    width: 330px !important;
+    height: 220px !important;
+    max-width: 330px !important;
+    max-height: 220px !important;
+    aspect-ratio: 3 / 2 !important;
+    padding: 8px !important;
+    box-sizing: border-box !important;
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: space-between !important;
+}
+
 @media print {
-    body {
+    html, body {
         visibility: hidden !important;
+        margin: 0 !important;
+        padding: 0 !important;
         background: #ffffff !important;
+        width: 100% !important;
+        height: 100% !important;
     }
     #printable-shipping-label,
     #printable-shipping-label * {
         visibility: visible !important;
     }
     #printable-shipping-label {
-        position: absolute !important;
-        left: 0 !important;
-        top: 0 !important;
-        width: 100mm !important;
-        max-width: 100mm !important;
+        position: fixed !important;
+        left: 50% !important;
+        top: 20px !important;
+        transform: translateX(-50%) !important;
         margin: 0 !important;
-        padding: 4mm !important;
         border: 2px solid #000000 !important;
-        border-radius: 0 !important;
+        border-radius: 4px !important;
         box-shadow: none !important;
         background: #ffffff !important;
         color: #000000 !important;
         -webkit-print-color-adjust: exact !important;
         print-color-adjust: exact !important;
         z-index: 9999999 !important;
+        box-sizing: border-box !important;
+        display: flex !important;
+        flex-direction: column !important;
+        justify-content: space-between !important;
+    }
+    /* Exact Physical Dimensions for Print */
+    #printable-shipping-label.size-3x3 {
+        width: 76.2mm !important;
+        height: 76.2mm !important;
+        max-width: 76.2mm !important;
+        max-height: 76.2mm !important;
+        padding: 3mm !important;
+    }
+    #printable-shipping-label.size-2x3 {
+        width: 76.2mm !important;
+        height: 50.8mm !important;
+        max-width: 76.2mm !important;
+        max-height: 50.8mm !important;
+        padding: 2mm !important;
     }
     .no-print {
         display: none !important;
     }
     @page {
         size: auto;
-        margin: 4mm;
+        margin: 0;
     }
 }
 </style>
@@ -139,6 +199,8 @@
         $shipping['city']    ?? null,
         $shipping['zone']    ?? null,
     ])->filter()->implode(', ');
+    $statusTimestampsArray = is_array($order->status_timestamps) ? $order->status_timestamps : [];
+    $initialFbPurchaseSentAt = $statusTimestampsArray['fb_purchase_sent_at'] ?? null;
 @endphp
 
 @section('content')
@@ -152,7 +214,8 @@
     {{ json_encode($initialFraudData) }},
     {{ $isOrderOlderThan10Days ? 'true' : 'false' }},
     {{ $order->is_stock_deducted ? 'true' : 'false' }},
-    {{ json_encode($orderItemsJson) }}
+    {{ json_encode($orderItemsJson) }},
+    '{{ $initialFbPurchaseSentAt }}'
 )">
 
     {{-- ─── Page Header ─── --}}
@@ -187,6 +250,24 @@
         </div>
 
         <div class="flex items-center gap-2">
+            <!-- Manual Send Purchase Event to Meta (Shows ONLY if not sent yet) -->
+            <template x-if="!fbPurchaseSentAt">
+                <button type="button"
+                        @click="openMetaPurchaseModal()"
+                        class="px-4 py-2 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 rounded-lg text-sm font-semibold cursor-pointer transition-colors flex items-center gap-1.5 shadow-2xs"
+                        title="Manually send Purchase event to Meta Conversions API">
+                    <i class="ph-bold ph-share-network text-base text-blue-600"></i>
+                    <span>Send Purchase Event (Meta)</span>
+                </button>
+            </template>
+            <template x-if="fbPurchaseSentAt">
+                <span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-blue-50 text-blue-700 border border-blue-200"
+                      :title="'Purchase event sent to Meta on ' + fbPurchaseSentAt">
+                    <i class="ph-bold ph-check-circle text-blue-600 text-sm"></i>
+                    <span>Meta Purchase Sent</span>
+                </span>
+            </template>
+
             <template x-if="isSteadfastBooked">
                 <button type="button"
                         @click="openPrintLabelModal()"

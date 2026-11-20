@@ -1,6 +1,6 @@
 <script>
     document.addEventListener('alpine:init', () => {
-        Alpine.data('orderActions', (orderId, currentStatus, isBooked, cid, trackingCode, customerPhone, initialFraudData, isOrderOlderThan10Days, isStockDeducted, orderItems) => ({
+        Alpine.data('orderActions', (orderId, currentStatus, isBooked, cid, trackingCode, customerPhone, initialFraudData, isOrderOlderThan10Days, isStockDeducted, orderItems, initialFbSentAt) => ({
             orderId: orderId,
             currentStatus: currentStatus,
             selectedStatus: currentStatus,
@@ -9,6 +9,15 @@
             steadfastTracking: trackingCode || '',
             customerPhone: customerPhone || '',
             sendToSteadfast: false,
+            sendToMeta: true, // Default ON when confirming order
+            fbPurchaseSentAt: initialFbSentAt || null,
+            showMetaPurchaseModal: false,
+            sendingMetaPurchase: false,
+            metaCaptchaDigit1: 0,
+            metaCaptchaDigit2: 0,
+            metaCaptchaExpected: 0,
+            metaCaptchaAnswer: '',
+            metaCaptchaError: '',
             steadfastLoading: false,
             liveStatus: null,
             checkingLiveStatus: false,
@@ -43,6 +52,8 @@
             openDeleteModal: false,
             deletingOrder: false,
             showPrintLabelModal: false,
+            labelSize: '3x3', // '3x3' (Square: 76.2mm x 76.2mm) or '2x3' (Compact: 50.8mm x 76.2mm)
+            includeLabelNotes: false, // Default: No notes in label
             loading: false,
             nextStatus: null,
             steps: ['pending', 'confirmed', 'processing', 'shipped', 'delivered'],
@@ -270,7 +281,8 @@
                     const shouldSendToSteadfast = (this.currentStatus === 'processing' && newStatus === 'shipped' && this.sendToSteadfast && !this.isSteadfastBooked);
                     const payload = { 
                         status: newStatus,
-                        send_to_steadfast: shouldSendToSteadfast
+                        send_to_steadfast: shouldSendToSteadfast,
+                        send_to_meta: this.sendToMeta
                     };
 
                     if (restockPayload) {
@@ -388,6 +400,61 @@
                     this.showToast(error.message, 'error');
                 } finally {
                     this.checkingLiveStatus = false;
+                }
+            },
+
+            openMetaPurchaseModal() {
+                if (this.fbPurchaseSentAt) return;
+                this.refreshMetaCaptcha();
+                this.metaCaptchaAnswer = '';
+                this.metaCaptchaError = '';
+                this.showMetaPurchaseModal = true;
+                this.$nextTick(() => {
+                    const el = document.getElementById('metaCaptchaInput');
+                    if (el) el.focus();
+                });
+            },
+
+            refreshMetaCaptcha() {
+                this.metaCaptchaDigit1 = Math.floor(Math.random() * 9) + 1;
+                this.metaCaptchaDigit2 = Math.floor(Math.random() * 9) + 1;
+                this.metaCaptchaExpected = this.metaCaptchaDigit1 + this.metaCaptchaDigit2;
+                this.metaCaptchaAnswer = '';
+                this.metaCaptchaError = '';
+            },
+
+            async confirmSendMetaPurchase() {
+                const answer = parseInt(this.metaCaptchaAnswer, 10);
+                if (isNaN(answer) || answer !== this.metaCaptchaExpected) {
+                    this.metaCaptchaError = 'Incorrect calculation. Please try again.';
+                    this.refreshMetaCaptcha();
+                    return;
+                }
+
+                this.sendingMetaPurchase = true;
+                try {
+                    const response = await fetch(`/admin/dashboard/api/orders/${this.orderId}/send-meta-purchase`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
+                            'Accept': 'application/json'
+                        }
+                    });
+                    const data = await response.json().catch(() => ({}));
+
+                    if (!response.ok || !data.success) {
+                        throw new Error(data.message || 'Failed to send Purchase event to Meta.');
+                    }
+
+                    this.fbPurchaseSentAt = data.sent_at || 'Just now';
+                    this.showMetaPurchaseModal = false;
+                    this.showToast(data.message || 'Purchase event sent to Meta successfully! 🎉');
+                } catch (error) {
+                    this.metaCaptchaError = error.message;
+                    this.showToast(error.message, 'error');
+                } finally {
+                    this.sendingMetaPurchase = false;
                 }
             },
 

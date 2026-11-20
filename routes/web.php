@@ -114,6 +114,7 @@ Route::middleware(['auth', 'admin_access'])->prefix('admin/dashboard')->group(fu
     // Orders - Status Management & Cancel
     Route::middleware('check_permission:manage_order_status|cancel_orders|manage_orders')->group(function () {
         Route::post('/api/orders/{order_id}/status', [\App\Http\Controllers\Admin\OrderController::class, 'updateStatus'])->name('admin.orders.update-status');
+        Route::post('/api/orders/{order_id}/send-meta-purchase', [\App\Http\Controllers\Admin\OrderController::class, 'sendMetaPurchase'])->name('admin.orders.send-meta-purchase');
     });
 
     // Orders - Soft Deletion
