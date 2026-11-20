@@ -465,53 +465,20 @@
                         </div>
                     </div>
 
-                    <!-- Clean Barcode Section (CID aligned directly under Barcode) -->
-                    <div class="border-b-2 border-black flex flex-col items-center justify-center py-1 shrink-0">
-                        <svg class="w-full h-7 max-w-[200px]" viewBox="0 0 240 38" xmlns="http://www.w3.org/2000/svg">
-                            <rect x="0" y="0" width="3" height="30" fill="#000"/>
-                            <rect x="5" y="0" width="2" height="30" fill="#000"/>
-                            <rect x="9" y="0" width="4" height="30" fill="#000"/>
-                            <rect x="16" y="0" width="1" height="30" fill="#000"/>
-                            <rect x="20" y="0" width="3" height="30" fill="#000"/>
-                            <rect x="25" y="0" width="5" height="30" fill="#000"/>
-                            <rect x="33" y="0" width="2" height="30" fill="#000"/>
-                            <rect x="38" y="0" width="4" height="30" fill="#000"/>
-                            <rect x="45" y="0" width="1" height="30" fill="#000"/>
-                            <rect x="48" y="0" width="3" height="30" fill="#000"/>
-                            <rect x="54" y="0" width="2" height="30" fill="#000"/>
-                            <rect x="59" y="0" width="5" height="30" fill="#000"/>
-                            <rect x="67" y="0" width="2" height="30" fill="#000"/>
-                            <rect x="72" y="0" width="4" height="30" fill="#000"/>
-                            <rect x="79" y="0" width="1" height="30" fill="#000"/>
-                            <rect x="83" y="0" width="3" height="30" fill="#000"/>
-                            <rect x="89" y="0" width="5" height="30" fill="#000"/>
-                            <rect x="97" y="0" width="2" height="30" fill="#000"/>
-                            <rect x="102" y="0" width="3" height="30" fill="#000"/>
-                            <rect x="108" y="0" width="1" height="30" fill="#000"/>
-                            <rect x="112" y="0" width="4" height="30" fill="#000"/>
-                            <rect x="119" y="0" width="3" height="30" fill="#000"/>
-                            <rect x="125" y="0" width="5" height="30" fill="#000"/>
-                            <rect x="133" y="0" width="2" height="30" fill="#000"/>
-                            <rect x="138" y="0" width="4" height="30" fill="#000"/>
-                            <rect x="145" y="0" width="1" height="30" fill="#000"/>
-                            <rect x="149" y="0" width="3" height="30" fill="#000"/>
-                            <rect x="155" y="0" width="2" height="30" fill="#000"/>
-                            <rect x="160" y="0" width="5" height="30" fill="#000"/>
-                            <rect x="168" y="0" width="2" height="30" fill="#000"/>
-                            <rect x="173" y="0" width="4" height="30" fill="#000"/>
-                            <rect x="180" y="0" width="1" height="30" fill="#000"/>
-                            <rect x="184" y="0" width="3" height="30" fill="#000"/>
-                            <rect x="190" y="0" width="4" height="30" fill="#000"/>
-                            <rect x="197" y="0" width="2" height="30" fill="#000"/>
-                            <rect x="202" y="0" width="3" height="30" fill="#000"/>
-                            <rect x="208" y="0" width="5" height="30" fill="#000"/>
-                            <rect x="216" y="0" width="2" height="30" fill="#000"/>
-                            <rect x="221" y="0" width="4" height="30" fill="#000"/>
-                            <rect x="228" y="0" width="2" height="30" fill="#000"/>
-                            <rect x="233" y="0" width="4" height="30" fill="#000"/>
-                        </svg>
-                        <div class="font-mono font-black text-black tracking-widest text-center text-[10px] mt-0.5">
-                            <span x-text="(steadfastCid || '{{ $order->steadfast_consignment_id }}') ? ('CID: #' + (steadfastCid || '{{ $order->steadfast_consignment_id }}')) : 'INV: #{{ $order->order_id }}'"></span>
+                    <!-- Barcode & QR Code Section (Consignment ID) -->
+                    <div class="border-b-2 border-black flex items-center justify-between px-2 py-1 shrink-0 gap-2">
+                        <!-- Left: Real Scannable QR Code -->
+                        <div class="flex flex-col items-center justify-center shrink-0">
+                            <div id="label-qrcode-container" class="w-11 h-11 bg-white p-0.5 border border-black/20 rounded-xs flex items-center justify-center"></div>
+                            <span class="text-[7px] font-bold text-gray-500 uppercase tracking-wider mt-0.5">Scan CID</span>
+                        </div>
+
+                        <!-- Right: Real Scannable Barcode (CODE128) -->
+                        <div class="flex flex-col items-center justify-center grow min-w-0">
+                            <svg id="label-barcode-svg" class="w-full max-h-8"></svg>
+                            <div class="font-mono font-black text-black tracking-widest text-center text-[10px] mt-0.5 leading-none">
+                                <span x-text="(steadfastCid || '{{ $order->steadfast_consignment_id }}') ? ('CID: #' + (steadfastCid || '{{ $order->steadfast_consignment_id }}')) : 'NO CID GENERATED'"></span>
+                            </div>
                         </div>
                     </div>
 

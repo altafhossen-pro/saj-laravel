@@ -251,6 +251,48 @@
 
             openPrintLabelModal() {
                 this.showPrintLabelModal = true;
+                this.$nextTick(() => {
+                    this.renderLabelBarcodes();
+                });
+            },
+
+            renderLabelBarcodes() {
+                const rawCid = this.steadfastCid || '{{ $order->steadfast_consignment_id }}';
+                const codeValue = rawCid ? String(rawCid).trim() : '{{ $order->order_id }}';
+
+                // Render Barcode via JsBarcode
+                if (window.JsBarcode && document.getElementById('label-barcode-svg')) {
+                    try {
+                        window.JsBarcode('#label-barcode-svg', codeValue, {
+                            format: 'CODE128',
+                            lineColor: '#000000',
+                            width: 1.6,
+                            height: 28,
+                            displayValue: false,
+                            margin: 2
+                        });
+                    } catch (e) {
+                        console.error('Barcode generation error:', e);
+                    }
+                }
+
+                // Render QR Code via QRCode.js
+                const qrContainer = document.getElementById('label-qrcode-container');
+                if (window.QRCode && qrContainer) {
+                    qrContainer.innerHTML = '';
+                    try {
+                        new window.QRCode(qrContainer, {
+                            text: codeValue,
+                            width: 40,
+                            height: 40,
+                            colorDark: '#000000',
+                            colorLight: '#ffffff',
+                            correctLevel: window.QRCode.CorrectLevel.M
+                        });
+                    } catch (e) {
+                        console.error('QR code generation error:', e);
+                    }
+                }
             },
 
             closePrintLabelModal() {
