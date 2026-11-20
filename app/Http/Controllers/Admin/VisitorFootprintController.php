@@ -132,14 +132,15 @@ class VisitorFootprintController extends Controller
         $filter = $request->input('filter', 'all'); // 'all', 'returning', 'with_cart', 'checkout', 'identified'
         $search = trim($request->input('search', ''));
 
-        $sort = $request->input('sort', 'serial'); // 'serial' (#1, #2...) or 'recent'
+        $sort = $request->input('sort', 'recent'); // 'recent' (latest first) or 'serial' (#1, #2...)
         $query = VisitorSession::with(['user', 'cartSession', 'customOffers'])
             ->whereDate('session_date', $date);
 
-        if ($sort === 'recent') {
-            $query->latest('last_seen_at');
-        } else {
+        if ($sort === 'serial') {
             $query->orderByRaw('CASE WHEN daily_serial > 0 THEN daily_serial ELSE id END ASC');
+        } else {
+            // Default: Latest active visitor first
+            $query->orderByRaw('COALESCE(last_seen_at, first_seen_at, created_at) DESC');
         }
 
         if ($filter === 'returning') {

@@ -32,10 +32,8 @@
                 <div class="relative">
                     <select name="sort" onchange="this.form.submit()"
                         class="px-3.5 py-2 bg-white border border-gray-200 rounded-xl text-sm font-medium text-gray-700 shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 cursor-pointer">
-                        <option value="serial" {{ ($sort ?? 'serial') === 'serial' ? 'selected' : '' }}>Sort: Visitor ID (#1,
-                            #2...)</option>
-                        <option value="recent" {{ ($sort ?? '') === 'recent' ? 'selected' : '' }}>Sort: Most Recent Active
-                        </option>
+                        <option value="recent" {{ ($sort ?? 'recent') === 'recent' ? 'selected' : '' }}>Sort: Most Recent Active (Latest)</option>
+                        <option value="serial" {{ ($sort ?? '') === 'serial' ? 'selected' : '' }}>Sort: Visitor ID (#1, #2...)</option>
                     </select>
                 </div>
 
@@ -50,7 +48,7 @@
                     Filter
                 </button>
 
-                @if($search || $date !== date('Y-m-d') || $filter !== 'all' || ($sort ?? 'serial') !== 'serial')
+                @if($search || $date !== date('Y-m-d') || $filter !== 'all' || ($sort ?? 'recent') !== 'recent')
                     <a href="{{ route('admin.visitors.footprint') }}"
                         class="px-3 py-2 text-gray-500 hover:text-gray-800 text-sm font-medium">
                         Reset

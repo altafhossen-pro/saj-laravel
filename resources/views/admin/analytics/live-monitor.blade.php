@@ -200,7 +200,12 @@
                                                 <span class="font-mono text-gray-700 font-medium" x-text="v.phone"></span>
                                             </template>
                                             <template x-if="v.ip">
-                                                <span class="font-mono text-[11px] text-gray-400" x-text="'IP: ' + v.ip"></span>
+                                                <a :href="'https://ipinfo.io/' + encodeURIComponent(v.ip)" target="_blank" rel="noopener noreferrer"
+                                                   class="font-mono text-[11px] text-gray-400 hover:text-indigo-600 hover:underline inline-flex items-center gap-1"
+                                                   title="Lookup IP on ipinfo.io">
+                                                    <span x-text="'IP: ' + v.ip"></span>
+                                                    <i class="ph ph-arrow-square-out text-[10px]"></i>
+                                                </a>
                                             </template>
                                         </div>
 
