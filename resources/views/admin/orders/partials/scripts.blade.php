@@ -322,7 +322,7 @@
                 const is3x3 = this.labelSize === '3x3';
                 const labelWidth = '76.2mm';
                 const labelHeight = is3x3 ? '76.2mm' : '50.8mm';
-                const labelPadding = is3x3 ? '3.5mm' : '2.5mm';
+                const labelPadding = is3x3 ? '2.5mm' : '2mm';
                 const labelContent = labelEl.innerHTML;
 
                 const frameDoc = printFrame.contentWindow.document;

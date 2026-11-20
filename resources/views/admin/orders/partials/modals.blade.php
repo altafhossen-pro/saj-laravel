@@ -438,45 +438,45 @@
                      class="bg-white border-2 border-black rounded-lg shadow-sm text-gray-900 print:shadow-none print:m-0 print:border-black print:rounded-none transition-all duration-200">
                     
                     <!-- Header: Logo, Store Info & Steadfast Consignment -->
-                    <div class="flex justify-between items-center border-b-2 border-black pb-1.5 shrink-0">
+                    <div class="flex justify-between items-center border-b-2 border-black pb-1 shrink-0">
                         <div class="flex flex-col items-start">
                             @php
                                 $siteLogo = \App\Models\Setting::get('site_logo');
                             @endphp
                             @if($siteLogo)
-                                <img src="{{ url($siteLogo) }}" alt="Logo" class="object-contain h-5.5 max-w-[90px]">
+                                <img src="{{ url($siteLogo) }}" alt="Logo" class="object-contain h-5 max-w-[85px]">
                             @else
-                                <span class="font-black tracking-tight text-black uppercase text-base">SAJ BD</span>
+                                <span class="font-black tracking-tight text-black uppercase text-sm">SAJ BD</span>
                             @endif
                             <div class="mt-0.5">
-                                <p class="font-bold text-gray-800 tracking-wider uppercase leading-tight text-[8px]">JEWELRY & COSMETICS</p>
-                                <p class="text-gray-700 font-mono leading-tight mt-0.5 text-[8px]">
+                                <p class="font-bold text-gray-800 tracking-wider uppercase leading-tight text-[7.5px]">JEWELRY & COSMETICS</p>
+                                <p class="text-gray-700 font-mono leading-tight text-[7.5px]">
                                     Hotline: <span class="font-bold text-black">{{ \App\Models\Setting::get('site_phone') ?: '01840209060' }}</span>
                                 </p>
                             </div>
                         </div>
                         <div class="text-right flex flex-col items-end">
-                            <div class="inline-block bg-black text-white px-2 py-0.5 rounded font-black uppercase tracking-wider text-[8px]">
+                            <div class="inline-block bg-black text-white px-1.5 py-0.5 rounded font-black uppercase tracking-wider text-[7.5px]">
                                 STEADFAST COURIER
                             </div>
-                            <div class="text-gray-700 font-bold mt-0.5 text-[8px]">
+                            <div class="text-gray-700 font-bold mt-0.5 text-[7.5px]">
                                 Merchant ID: <span class="font-mono font-black text-black">{{ \App\Models\Setting::get('steadfast_merchant_id') ?: '1006943' }}</span>
                             </div>
                         </div>
                     </div>
 
                     <!-- Barcode & QR Code Section (Consignment ID) -->
-                    <div class="border-b-2 border-black flex items-center justify-between px-2 py-1 shrink-0 gap-2">
+                    <div class="border-b-2 border-black flex items-center justify-between px-1 py-1 shrink-0 gap-1.5">
                         <!-- Left: Real Scannable QR Code -->
                         <div class="flex flex-col items-center justify-center shrink-0">
-                            <div id="label-qrcode-container" class="w-11 h-11 bg-white p-0.5 border border-black/20 rounded-xs flex items-center justify-center"></div>
-                            <span class="text-[7px] font-bold text-gray-500 uppercase tracking-wider mt-0.5">Scan CID</span>
+                            <div id="label-qrcode-container" class="w-9 h-9 bg-white p-0.5 border border-black/20 rounded-xs flex items-center justify-center"></div>
+                            <span class="text-[6.5px] font-bold text-gray-500 uppercase tracking-wider mt-0.5">Scan CID</span>
                         </div>
 
                         <!-- Right: Real Scannable Barcode (CODE128) -->
                         <div class="flex flex-col items-center justify-center grow min-w-0">
-                            <svg id="label-barcode-svg" class="w-full max-h-8"></svg>
-                            <div class="font-mono font-black text-black tracking-widest text-center text-[10px] mt-0.5 leading-none">
+                            <svg id="label-barcode-svg" class="w-full max-h-6.5"></svg>
+                            <div class="font-mono font-black text-black tracking-widest text-center text-[9px] mt-0.5 leading-none">
                                 <span x-text="(steadfastCid || '{{ $order->steadfast_consignment_id }}') ? ('CID: #' + (steadfastCid || '{{ $order->steadfast_consignment_id }}')) : 'NO CID GENERATED'"></span>
                             </div>
                         </div>
@@ -485,18 +485,18 @@
                     <!-- Order Reference & COD Amount -->
                     <div class="grid grid-cols-2 divide-x-2 divide-black border-b-2 border-black shrink-0">
                         <div class="p-1">
-                            <div class="text-gray-500 font-bold uppercase tracking-wider text-[7.5px]">Order Ref:</div>
-                            <div class="font-mono font-black text-black text-[11px] leading-tight">#{{ $order->order_id }}</div>
-                            <div class="text-gray-600 text-[7.5px] mt-0.5">Date: {{ $order->created_at ? $order->created_at->format('d M Y') : 'N/A' }}</div>
+                            <div class="text-gray-500 font-bold uppercase tracking-wider text-[7px]">Order Ref:</div>
+                            <div class="font-mono font-black text-black text-[10.5px] leading-tight">#{{ $order->order_id }}</div>
+                            <div class="text-gray-600 text-[7px] mt-0.5">Date: {{ $order->created_at ? $order->created_at->format('d M Y') : 'N/A' }}</div>
                         </div>
                         <div class="flex flex-col justify-center items-center text-center p-1">
                             @if($order->payment_status === 'paid')
-                                <div class="w-full bg-black text-white py-0.5 px-1 font-black uppercase tracking-wider rounded-xs text-[8.5px]">
+                                <div class="w-full bg-black text-white py-0.5 px-1 font-black uppercase tracking-wider rounded-xs text-[8px]">
                                     PAID - NO COD
                                 </div>
-                                <div class="text-[7px] font-bold text-gray-700 mt-0.5">Do NOT collect cash</div>
+                                <div class="text-[6.5px] font-bold text-gray-700 mt-0.5">Do NOT collect cash</div>
                             @else
-                                <div class="font-black uppercase text-gray-700 tracking-wider text-[7.5px]">CASH ON DELIVERY</div>
+                                <div class="font-black uppercase text-gray-700 tracking-wider text-[7px]">CASH ON DELIVERY</div>
                                 <div class="font-black text-black tracking-tight font-mono leading-none mt-0.5 text-sm">
                                     ৳{{ number_format($order->total, 0) }}
                                 </div>
@@ -505,17 +505,17 @@
                     </div>
 
                     <!-- Customer Recipient Section -->
-                    <div class="bg-gray-50/50 p-1.5 grow flex flex-col justify-center">
-                        <div class="font-black text-gray-500 uppercase tracking-wider text-[7.5px] mb-0.5">
+                    <div class="bg-gray-50/50 p-1 grow flex flex-col justify-center min-h-0">
+                        <div class="font-black text-gray-500 uppercase tracking-wider text-[7px] mb-0.5">
                             DELIVER TO (RECIPIENT):
                         </div>
-                        <div class="font-black text-black leading-tight font-bn text-[13px] font-bold">
+                        <div class="font-black text-black leading-tight font-bn text-[12px] font-bold">
                             {{ $shippingInfo['name'] ?? optional($order->user)->name ?? 'Customer' }}
                         </div>
-                        <div class="font-black text-black font-mono tracking-wide text-[11px] my-0.5">
+                        <div class="font-black text-black font-mono tracking-wide text-[10.5px] my-0.5">
                             Phone: <span class="font-black">{{ $shippingInfo['phone'] ?? optional($order->user)->phone ?? 'N/A' }}</span>
                         </div>
-                        <div class="font-medium text-gray-900 leading-tight font-bn text-[10px]">
+                        <div class="font-medium text-gray-900 leading-tight font-bn text-[9.5px]">
                             {{ $shippingInfo['address'] ?? '' }}
                             @if(!empty($shippingInfo['city']))
                                 , {{ $shippingInfo['city'] }}
@@ -526,21 +526,18 @@
                         </div>
                         <!-- Order Note (Shown ONLY if user toggles 'Add Notes') -->
                         @if(!empty($order->order_notes ?? $order->note))
-                            <div x-show="includeLabelNotes" x-transition class="mt-1 p-0.5 px-1 bg-yellow-50 border border-yellow-300 rounded text-gray-800 leading-tight font-bn text-[8.5px]">
+                            <div x-show="includeLabelNotes" x-transition class="mt-0.5 p-0.5 px-1 bg-yellow-50 border border-yellow-300 rounded text-gray-800 leading-tight font-bn text-[8px]">
                                 <span class="font-bold">Note:</span> {{ $order->order_notes ?? $order->note }}
                             </div>
                         @endif
                     </div>
 
                     <!-- Footer: Brand Greeting & Support -->
-                    <div class="border-t-2 border-black text-center"
-                         :class="labelSize === '3x3' ? 'pt-1.5' : 'pt-1'">
-                        <div class="font-black text-black tracking-wider uppercase"
-                             :class="labelSize === '3x3' ? 'text-[8.5px]' : 'text-[7.5px]'">
+                    <div class="border-t-2 border-black text-center pt-1 shrink-0 pb-0.5">
+                        <div class="font-black text-black tracking-wider uppercase text-[7.5px] leading-tight">
                             THANK YOU FOR SHOPPING WITH SAJ BD
                         </div>
-                        <div class="text-gray-600 font-mono"
-                             :class="labelSize === '3x3' ? 'text-[7.5px] mt-0.2' : 'text-[6.5px]'">
+                        <div class="text-gray-600 font-mono text-[6.5px] leading-tight mt-0.5">
                             Support: {{ \App\Models\Setting::get('site_phone') ?: '01840209060' }} | saj.bd
                         </div>
                     </div>
