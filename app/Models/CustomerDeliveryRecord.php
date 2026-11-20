@@ -47,6 +47,8 @@ class CustomerDeliveryRecord extends Model
      */
     public function toDisplayArray(): array
     {
+        $raw = is_array($this->raw_response) ? $this->raw_response : [];
+
         return [
             'phone' => $this->phone,
             'delivery_ratio' => $this->delivery_ratio !== null ? (float) $this->delivery_ratio : null,
@@ -55,6 +57,9 @@ class CustomerDeliveryRecord extends Model
             'volume_range' => $this->volume_range,
             'total_reports' => (int) $this->total_reports,
             'fraud_categories' => $this->fraud_categories ?? [],
+            'delivered_count' => isset($raw['delivered_count']) && $raw['delivered_count'] !== null ? (int)$raw['delivered_count'] : null,
+            'cancelled_count' => isset($raw['cancelled_count']) && $raw['cancelled_count'] !== null ? (int)$raw['cancelled_count'] : null,
+            'return_ratio' => isset($raw['return_ratio']) && $raw['return_ratio'] !== null ? (float)$raw['return_ratio'] : null,
             'checked_at' => $this->checked_at ? $this->checked_at->setTimezone('Asia/Dhaka')->format('d M Y, h:i a') : null,
             'is_fresh' => $this->isFresh(),
         ];

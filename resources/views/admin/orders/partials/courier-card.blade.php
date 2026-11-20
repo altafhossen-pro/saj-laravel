@@ -127,25 +127,83 @@
             </button>
         </div>
 
-        <div x-show="fraudCheckData" x-transition class="p-3 bg-gray-50 rounded-xl border border-gray-200 text-xs space-y-1.5 mt-2">
-            <div class="flex justify-between items-center">
-                <span class="text-gray-500">Delivery Success:</span>
-                <span class="font-bold text-emerald-600" x-text="(fraudCheckData?.delivery_ratio ?? 'N/A') + (fraudCheckData?.delivery_ratio !== null ? '%' : '')"></span>
+        <div x-show="fraudCheckData" x-transition class="p-3 bg-gradient-to-br from-gray-50 to-white rounded-xl border border-gray-200 shadow-2xs text-xs space-y-2.5 mt-2">
+            <!-- 100% Dual Progress Bar (Delivery Success vs Cancellation) -->
+            <div>
+                <div class="flex justify-between items-baseline mb-1">
+                    <span class="text-[11px] font-semibold text-gray-700">Delivery Ratio</span>
+                    <span class="text-xs font-bold font-mono">
+                        <span class="text-emerald-600" x-text="(fraudCheckData?.delivery_ratio ?? 0) + '%'"></span>
+                        <span class="text-gray-300 mx-0.5">/</span>
+                        <span class="text-rose-600" x-text="(fraudCheckData?.cancellation_ratio ?? 0) + '%'"></span>
+                    </span>
+                </div>
+                <!-- Dual Color Ratio Bar -->
+                <div class="w-full h-2.5 bg-gray-200 rounded-full overflow-hidden flex shadow-inner">
+                    <div class="bg-gradient-to-r from-emerald-500 to-emerald-600 h-full transition-all duration-500 rounded-l-full"
+                         :style="'width: ' + Math.min(100, Math.max(0, fraudCheckData?.delivery_ratio ?? 0)) + '%'"
+                         :title="'Success: ' + (fraudCheckData?.delivery_ratio ?? 0) + '%'"></div>
+                    <div class="bg-gradient-to-r from-rose-500 to-rose-600 h-full transition-all duration-500 rounded-r-full"
+                         :style="'width: ' + Math.min(100, Math.max(0, fraudCheckData?.cancellation_ratio ?? 0)) + '%'"
+                         :title="'Cancelled: ' + (fraudCheckData?.cancellation_ratio ?? 0) + '%'"></div>
+                </div>
+                <div class="flex justify-between text-[10px] text-gray-400 mt-1">
+                    <span class="flex items-center gap-1 font-medium text-emerald-700">
+                        <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block"></span>
+                        <span x-text="'Success: ' + (fraudCheckData?.delivery_ratio ?? 'N/A') + '%'"></span>
+                        <template x-if="fraudCheckData?.delivered_count !== null && fraudCheckData?.delivered_count !== undefined">
+                            <span class="text-gray-500 font-mono" x-text="'(' + fraudCheckData.delivered_count + ')'"></span>
+                        </template>
+                    </span>
+                    <span class="flex items-center gap-1 font-medium text-rose-700">
+                        <span class="w-1.5 h-1.5 rounded-full bg-rose-500 inline-block"></span>
+                        <span x-text="'Cancel: ' + (fraudCheckData?.cancellation_ratio ?? 'N/A') + '%'"></span>
+                        <template x-if="fraudCheckData?.cancelled_count !== null && fraudCheckData?.cancelled_count !== undefined">
+                            <span class="text-gray-500 font-mono" x-text="'(' + fraudCheckData.cancelled_count + ')'"></span>
+                        </template>
+                    </span>
+                </div>
             </div>
-            <div class="flex justify-between items-center">
-                <span class="text-gray-500">Cancellation Rate:</span>
-                <span class="font-bold text-red-600" x-text="(fraudCheckData?.cancellation_ratio ?? 'N/A') + (fraudCheckData?.cancellation_ratio !== null ? '%' : '')"></span>
+
+            <!-- Focused Metric Highlights: Parcel Volume & Merchant Reports -->
+            <div class="grid grid-cols-2 gap-2 pt-1 border-t border-gray-100">
+                <!-- Parcel Volume Highlight -->
+                <div class="p-2 bg-indigo-50/70 border border-indigo-100 rounded-lg flex flex-col">
+                    <span class="text-[10px] uppercase font-semibold text-indigo-700 tracking-wider">Parcel Volume</span>
+                    <div class="flex items-baseline gap-1 mt-0.5">
+                        <span class="text-base font-extrabold text-indigo-900 font-mono"
+                              x-text="fraudCheckData?.volume_range ? (fraudCheckData.volume_range + ' Parcels') : (fraudCheckData?.volume_band || 'Unknown')"></span>
+                    </div>
+                    <span class="text-[10px] text-indigo-600/90 font-medium capitalize mt-0.5"
+                          x-show="fraudCheckData?.volume_range && fraudCheckData?.volume_band"
+                          x-text="'Band: ' + fraudCheckData.volume_band"></span>
+                </div>
+
+                <!-- Merchant Reports Alert Badge -->
+                <div class="p-2 rounded-lg flex flex-col border transition-colors"
+                     :class="(fraudCheckData?.total_reports > 0) ? 'bg-amber-50/80 border-amber-200 text-amber-900' : 'bg-gray-50 border-gray-200/80 text-gray-700'">
+                    <span class="text-[10px] uppercase font-semibold tracking-wider"
+                          :class="(fraudCheckData?.total_reports > 0) ? 'text-amber-700' : 'text-gray-500'">Merchant Reports</span>
+                    <div class="flex items-center gap-1.5 mt-0.5">
+                        <i class="ph text-base"
+                           :class="(fraudCheckData?.total_reports > 0) ? 'ph-warning-circle text-amber-600 font-bold' : 'ph-check-circle text-emerald-600'"></i>
+                        <span class="text-base font-extrabold font-mono"
+                              :class="(fraudCheckData?.total_reports > 0) ? 'text-amber-800' : 'text-gray-700'"
+                              x-text="fraudCheckData?.total_reports || 0"></span>
+                    </div>
+                    <span class="text-[10px] font-medium mt-0.5"
+                          :class="(fraudCheckData?.total_reports > 0) ? 'text-amber-700' : 'text-gray-400'"
+                          x-text="(fraudCheckData?.total_reports > 0) ? 'Reported by seller' : 'Clean record'"></span>
+                </div>
             </div>
-            <div class="flex justify-between items-center">
-                <span class="text-gray-500">Order Volume:</span>
-                <span class="font-semibold text-gray-800 uppercase text-[10px]" x-text="fraudCheckData?.volume_band || 'Unknown'"></span>
-            </div>
-            <div class="flex justify-between items-center" x-show="fraudCheckData?.total_reports">
-                <span class="text-gray-500">Merchant Reports:</span>
-                <span class="font-bold text-amber-600" x-text="fraudCheckData?.total_reports || 0"></span>
-            </div>
-            <div class="flex justify-between items-center pt-1 text-[10px] text-gray-400 font-mono border-t border-gray-200/60 mt-1">
-                <span x-text="fraudCheckData?.is_cached ? '24h DB Cache' : 'Live Data'"></span>
+
+            <!-- Timestamp & Source Footer -->
+            <div class="flex justify-between items-center pt-1.5 text-[10px] text-gray-400 font-mono border-t border-gray-200/60">
+                <span class="inline-flex items-center gap-1">
+                    <span class="w-1.5 h-1.5 rounded-full"
+                          :class="fraudCheckData?.is_cached ? 'bg-gray-400' : 'bg-emerald-500 animate-pulse'"></span>
+                    <span x-text="fraudCheckData?.is_cached ? '24h DB Cache' : 'Live Steadfast Data'"></span>
+                </span>
                 <span x-show="fraudCheckData?.checked_at" x-text="fraudCheckData?.checked_at"></span>
             </div>
         </div>
