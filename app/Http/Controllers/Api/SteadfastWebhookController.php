@@ -73,7 +73,17 @@ class SteadfastWebhookController extends Controller
                 }
             }
 
-            // 2. Extract Identifier & Payload Data
+            // 2. Check for Non-Order Webhook Events (pickup_request, payment_request, etc.)
+            $notificationType = (string) ($request->input('notification_type') ?? '');
+            if ($notificationType === 'pickup_request' || $request->has('pickup_request_id')) {
+                return $this->handlePickupRequestWebhook($request, $payload);
+            }
+
+            if ($notificationType === 'payment_request' || $request->has('payment_request_id')) {
+                return $this->handlePaymentRequestWebhook($request, $payload);
+            }
+
+            // 3. Extract Parcel / Order Identifier & Payload Data
             $consignmentId = $request->input('consignment_id') ?? $request->input('consignmentId');
             $invoice = $request->input('invoice') ?? $request->input('order_id') ?? $request->input('invoice_id');
             $trackingCode = $request->input('tracking_code') ?? $request->input('trackingCode');
@@ -90,6 +100,7 @@ class SteadfastWebhookController extends Controller
             $rawTimestamp = $request->input('updated_at') ?? $request->input('created_at') ?? $request->input('timestamp');
 
             if (empty($consignmentId) && empty($invoice) && empty($trackingCode)) {
+                // If neither order identifier nor known non-order event, reject gracefully
                 SteadfastLogger::warning('Webhook rejected: Missing order identifier (consignment_id, invoice, or tracking_code)', [
                     'payload' => $payload,
                 ]);
@@ -100,7 +111,7 @@ class SteadfastWebhookController extends Controller
                 ], 422);
             }
 
-            // 3. Find Order in Database
+            // 4. Find Order in Database
             $order = null;
             if (!empty($consignmentId)) {
                 $order = Order::where('steadfast_consignment_id', (string) $consignmentId)->first();
@@ -489,5 +500,89 @@ class SteadfastWebhookController extends Controller
             'cod_charge' => (float) $codCharge,
             'net_receivable' => (float) max(0.0, $netReceivable),
         ];
+    }
+
+    /**
+     * Handle pickup_request notifications from Steadfast gracefully.
+     */
+    protected function handlePickupRequestWebhook(Request $request, array $payload): JsonResponse
+    {
+        $pickupId = $request->input('pickup_request_id') ?? 'N/A';
+        $location = htmlspecialchars($request->input('pickup_location') ?? 'Default Hub', ENT_QUOTES, 'UTF-8');
+        $qty = $request->input('estimated_qty') ?? '1';
+        $note = $request->input('note');
+        $noteSafe = !empty($note) ? htmlspecialchars($note, ENT_QUOTES, 'UTF-8') : 'None';
+        $status = ucfirst($request->input('status') ?: 'Scheduled');
+        $updatedAt = $request->input('updated_at') ?: now()->toDateTimeString();
+
+        Log::info("Steadfast Webhook: Pickup Request #{$pickupId} received", $payload);
+
+        // Send Telegram alert if enabled
+        try {
+            $isPickupAlertEnabled = (bool) Setting::get('telegram_notify_steadfast_pickup', true);
+            $telegram = app(TelegramService::class);
+            if ($isPickupAlertEnabled && $telegram->isConfigured()) {
+                $msg = "🚚 <b>Steadfast Pickup Request Update</b>\n" .
+                       "━━━━━━━━━━━━━━━━━━\n" .
+                       "📌 <b>Pickup ID:</b> <code>#{$pickupId}</code>\n" .
+                       "📦 <b>Estimated Parcels:</b> {$qty}\n" .
+                       "📍 <b>Location:</b> {$location}\n" .
+                       "📊 <b>Status:</b> <b>{$status}</b>\n" .
+                       "📝 <b>Note:</b> {$noteSafe}\n" .
+                       "🕒 <b>Time:</b> {$updatedAt}";
+
+                $telegram->sendMessage($msg, null, 'HTML');
+            }
+        } catch (Throwable $e) {
+            SteadfastLogger::warning("Telegram pickup alert failed: " . $e->getMessage());
+        }
+
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Steadfast pickup request webhook processed successfully.',
+            'pickup_request_id' => $pickupId,
+        ]);
+    }
+
+    /**
+     * Handle payment_request / payout notifications from Steadfast gracefully.
+     */
+    protected function handlePaymentRequestWebhook(Request $request, array $payload): JsonResponse
+    {
+        $paymentId = $request->input('payment_request_id') ?? 'N/A';
+        $amount = number_format((float) ($request->input('amount') ?? 0), 2);
+        $method = $request->input('method') == 1 ? 'Bank Transfer' : ($request->input('method') ?: 'Cash/Bkash');
+        $status = ucfirst($request->input('status') ?: 'Initiated');
+        $note = $request->input('note');
+        $noteSafe = !empty($note) ? htmlspecialchars($note, ENT_QUOTES, 'UTF-8') : 'None';
+        $updatedAt = $request->input('updated_at') ?: now()->toDateTimeString();
+
+        Log::info("Steadfast Webhook: Payment Request #{$paymentId} received", $payload);
+
+        // Send Telegram alert if enabled
+        try {
+            $isPaymentAlertEnabled = (bool) Setting::get('telegram_notify_steadfast_payment', true);
+            $telegram = app(TelegramService::class);
+            if ($isPaymentAlertEnabled && $telegram->isConfigured()) {
+                $msg = "💰 <b>Steadfast Payment Request Update</b>\n" .
+                       "━━━━━━━━━━━━━━━━━━\n" .
+                       "💳 <b>Payment ID:</b> <code>#{$paymentId}</code>\n" .
+                       "💵 <b>Amount:</b> <b>৳{$amount}</b>\n" .
+                       "🏦 <b>Method:</b> {$method}\n" .
+                       "📊 <b>Status:</b> <b>{$status}</b>\n" .
+                       "📝 <b>Note:</b> {$noteSafe}\n" .
+                       "🕒 <b>Time:</b> {$updatedAt}";
+
+                $telegram->sendMessage($msg, null, 'HTML');
+            }
+        } catch (Throwable $e) {
+            SteadfastLogger::warning("Telegram payment request alert failed: " . $e->getMessage());
+        }
+
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Steadfast payment request webhook processed successfully.',
+            'payment_request_id' => $paymentId,
+        ]);
     }
 }

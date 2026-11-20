@@ -268,6 +268,40 @@
                                     <div class="w-9 h-5 bg-gray-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-amber-600"></div>
                                 </label>
                             </div>
+
+                            <!-- Toggle 5: Steadfast Pickup Request Callback -->
+                            <div class="p-3.5 rounded-xl border border-gray-100 bg-gray-50/70 hover:bg-white hover:border-gray-200 transition-all flex items-center justify-between">
+                                <div class="pr-3">
+                                    <div class="text-xs font-bold text-gray-800 flex items-center gap-1.5">
+                                        <i class="ph-bold ph-truck text-indigo-600"></i>
+                                        Steadfast Pickup Request
+                                    </div>
+                                    <p class="text-[11px] text-gray-500 mt-0.5">
+                                        Alerts when rider pickup requests are scheduled or updated by courier.
+                                    </p>
+                                </div>
+                                <label class="relative inline-flex items-center cursor-pointer shrink-0">
+                                    <input type="checkbox" name="telegram_notify_steadfast_pickup" x-model="notifySteadfastPickup" class="sr-only peer">
+                                    <div class="w-9 h-5 bg-gray-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-indigo-600"></div>
+                                </label>
+                            </div>
+
+                            <!-- Toggle 6: Steadfast Payment Request / Invoice Callback -->
+                            <div class="p-3.5 rounded-xl border border-gray-100 bg-gray-50/70 hover:bg-white hover:border-gray-200 transition-all flex items-center justify-between">
+                                <div class="pr-3">
+                                    <div class="text-xs font-bold text-gray-800 flex items-center gap-1.5">
+                                        <i class="ph-bold ph-money text-rose-600"></i>
+                                        Steadfast Payment Request
+                                    </div>
+                                    <p class="text-[11px] text-gray-500 mt-0.5">
+                                        Alerts when courier processes merchant payout or payment settlement requests.
+                                    </p>
+                                </div>
+                                <label class="relative inline-flex items-center cursor-pointer shrink-0">
+                                    <input type="checkbox" name="telegram_notify_steadfast_payment" x-model="notifySteadfastPayment" class="sr-only peer">
+                                    <div class="w-9 h-5 bg-gray-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-rose-600"></div>
+                                </label>
+                            </div>
                         </div>
                     </div>
 
@@ -401,6 +435,8 @@
                 notifyNewUser: @json($notifyNewUser),
                 notifySteadfastDelivery: @json($notifySteadfastDelivery),
                 notifySteadfastTracking: @json($notifySteadfastTracking),
+                notifySteadfastPickup: @json($notifySteadfastPickup),
+                notifySteadfastPayment: @json($notifySteadfastPayment),
                 showToken: false,
                 saving: false,
                 testingMessage: false,

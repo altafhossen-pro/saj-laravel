@@ -349,6 +349,8 @@ class SettingController extends Controller
         $notifyNewUser = (bool) Setting::get('telegram_notify_new_user', true);
         $notifySteadfastDelivery = (bool) Setting::get('telegram_notify_steadfast_delivery', true);
         $notifySteadfastTracking = (bool) Setting::get('telegram_notify_steadfast_tracking', true);
+        $notifySteadfastPickup = (bool) Setting::get('telegram_notify_steadfast_pickup', true);
+        $notifySteadfastPayment = (bool) Setting::get('telegram_notify_steadfast_payment', true);
 
         return view('admin.settings.telegram', compact(
             'botToken', 
@@ -356,7 +358,9 @@ class SettingController extends Controller
             'notifyNewOrder', 
             'notifyNewUser', 
             'notifySteadfastDelivery', 
-            'notifySteadfastTracking'
+            'notifySteadfastTracking',
+            'notifySteadfastPickup',
+            'notifySteadfastPayment'
         ));
     }
 
@@ -369,6 +373,8 @@ class SettingController extends Controller
             'telegram_notify_new_user' => 'nullable|boolean',
             'telegram_notify_steadfast_delivery' => 'nullable|boolean',
             'telegram_notify_steadfast_tracking' => 'nullable|boolean',
+            'telegram_notify_steadfast_pickup' => 'nullable|boolean',
+            'telegram_notify_steadfast_payment' => 'nullable|boolean',
         ]);
 
         Setting::set('telegram_bot_token', trim($request->input('telegram_bot_token', '')), 'string', 'telegram');
@@ -378,6 +384,8 @@ class SettingController extends Controller
         Setting::set('telegram_notify_new_user', $request->boolean('telegram_notify_new_user', true), 'boolean', 'telegram');
         Setting::set('telegram_notify_steadfast_delivery', $request->boolean('telegram_notify_steadfast_delivery', true), 'boolean', 'telegram');
         Setting::set('telegram_notify_steadfast_tracking', $request->boolean('telegram_notify_steadfast_tracking', true), 'boolean', 'telegram');
+        Setting::set('telegram_notify_steadfast_pickup', $request->boolean('telegram_notify_steadfast_pickup', true), 'boolean', 'telegram');
+        Setting::set('telegram_notify_steadfast_payment', $request->boolean('telegram_notify_steadfast_payment', true), 'boolean', 'telegram');
 
         if ($request->wantsJson() || $request->ajax()) {
             return response()->json([
