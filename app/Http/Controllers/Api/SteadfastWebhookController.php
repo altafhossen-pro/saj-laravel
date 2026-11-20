@@ -342,8 +342,9 @@ class SteadfastWebhookController extends Controller
                 }
             }
 
-            // 12. Send Telegram Notification on Delivery (No SMS or Mail to customer as requested!)
-            if ($isDelivered && $oldStatus !== 'delivered') {
+            // 12. Send Telegram Notification on Delivery (if enabled)
+            $isDeliveryAlertEnabled = (bool) Setting::get('telegram_notify_steadfast_delivery', true);
+            if ($isDeliveryAlertEnabled && $isDelivered && $oldStatus !== 'delivered') {
                 try {
                     $telegramService = app(TelegramService::class);
                     if ($telegramService->isConfigured()) {
@@ -379,6 +380,37 @@ class SteadfastWebhookController extends Controller
                     }
                 } catch (Throwable $teleEx) {
                     SteadfastLogger::warning('Telegram delivery alert failed: ' . $teleEx->getMessage());
+                }
+            }
+
+            // 13. Send Telegram Notification on Transit / Tracking Milestones (if enabled & not delivered alert)
+            $isTrackingAlertEnabled = (bool) Setting::get('telegram_notify_steadfast_tracking', true);
+            if ($isTrackingAlertEnabled && !$isDelivered && !empty($displayNote)) {
+                try {
+                    $telegramService = app(TelegramService::class);
+                    if ($telegramService->isConfigured()) {
+                        $shipping = is_array($order->shipping_address) ? $order->shipping_address : json_decode($order->shipping_address ?? '[]', true);
+                        $cName = htmlspecialchars($shipping['name'] ?? optional($order->user)->name ?? 'Customer', ENT_QUOTES, 'UTF-8');
+                        $cPhone = htmlspecialchars($shipping['phone'] ?? optional($order->user)->phone ?? 'N/A', ENT_QUOTES, 'UTF-8');
+                        $cidFormatted = htmlspecialchars((string)($order->steadfast_consignment_id ?: $consignmentId ?: 'N/A'), ENT_QUOTES, 'UTF-8');
+                        $statusTitle = htmlspecialchars(ucfirst(str_replace(['_', '-'], ' ', $rawStatus ?: 'Tracking Update')), ENT_QUOTES, 'UTF-8');
+                        $noteSafe = htmlspecialchars($displayNote, ENT_QUOTES, 'UTF-8');
+                        $orderUrl = url('/admin/dashboard/all-orders/' . $order->order_id);
+
+                        $trkMsg = "🚚 <b>Steadfast Tracking Update</b>\n" .
+                                  "━━━━━━━━━━━━━━━━━━\n" .
+                                  "📦 <b>Order ID:</b> <code>#{$order->order_id}</code>\n" .
+                                  "🔢 <b>CID:</b> <code>#{$cidFormatted}</code>\n" .
+                                  "👤 <b>Customer:</b> {$cName} (<code>{$cPhone}</code>)\n" .
+                                  "📍 <b>Status:</b> <b>{$statusTitle}</b>\n" .
+                                  "💬 <b>Note:</b> {$noteSafe}\n" .
+                                  "🕒 <b>Time:</b> " . $eventBdt->format('d M Y, h:i A') . " BDT\n\n" .
+                                  "🔗 <a href=\"{$orderUrl}\">View Order Details</a>";
+
+                        $telegramService->sendMessage($trkMsg, null, 'HTML');
+                    }
+                } catch (Throwable $trkEx) {
+                    SteadfastLogger::warning('Telegram tracking update alert failed: ' . $trkEx->getMessage());
                 }
             }
 

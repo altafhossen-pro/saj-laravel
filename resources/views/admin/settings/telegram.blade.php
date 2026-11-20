@@ -188,6 +188,89 @@
                         </div>
                     </div>
 
+                    <!-- Event Notification Triggers & Toggles -->
+                    <div class="pt-5 border-t border-gray-100 space-y-4">
+                        <div>
+                            <h4 class="text-xs font-bold uppercase tracking-wider text-gray-800 flex items-center gap-1.5">
+                                <i class="ph-bold ph-bell-ringing text-brand-600"></i>
+                                Instant Notification Triggers
+                            </h4>
+                            <p class="text-[11px] text-gray-500 mt-0.5">
+                                Control which store events and courier milestones send instant alerts to your Telegram bot.
+                            </p>
+                        </div>
+
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            <!-- Toggle 1: New Order Place -->
+                            <div class="p-3.5 rounded-xl border border-gray-100 bg-gray-50/70 hover:bg-white hover:border-gray-200 transition-all flex items-center justify-between">
+                                <div class="pr-3">
+                                    <div class="text-xs font-bold text-gray-800 flex items-center gap-1.5">
+                                        <i class="ph-bold ph-shopping-cart text-emerald-600"></i>
+                                        New Order Placed
+                                    </div>
+                                    <p class="text-[11px] text-gray-500 mt-0.5">
+                                        Includes customer details, cart items & customer's previous order count.
+                                    </p>
+                                </div>
+                                <label class="relative inline-flex items-center cursor-pointer shrink-0">
+                                    <input type="checkbox" name="telegram_notify_new_order" x-model="notifyNewOrder" class="sr-only peer">
+                                    <div class="w-9 h-5 bg-gray-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-600"></div>
+                                </label>
+                            </div>
+
+                            <!-- Toggle 2: New User Signup -->
+                            <div class="p-3.5 rounded-xl border border-gray-100 bg-gray-50/70 hover:bg-white hover:border-gray-200 transition-all flex items-center justify-between">
+                                <div class="pr-3">
+                                    <div class="text-xs font-bold text-gray-800 flex items-center gap-1.5">
+                                        <i class="ph-bold ph-user-plus text-sky-600"></i>
+                                        New User Signup
+                                    </div>
+                                    <p class="text-[11px] text-gray-500 mt-0.5">
+                                        Instant alert when a customer completes account registration.
+                                    </p>
+                                </div>
+                                <label class="relative inline-flex items-center cursor-pointer shrink-0">
+                                    <input type="checkbox" name="telegram_notify_new_user" x-model="notifyNewUser" class="sr-only peer">
+                                    <div class="w-9 h-5 bg-gray-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-sky-600"></div>
+                                </label>
+                            </div>
+
+                            <!-- Toggle 3: Steadfast Delivery Callback -->
+                            <div class="p-3.5 rounded-xl border border-gray-100 bg-gray-50/70 hover:bg-white hover:border-gray-200 transition-all flex items-center justify-between">
+                                <div class="pr-3">
+                                    <div class="text-xs font-bold text-gray-800 flex items-center gap-1.5">
+                                        <i class="ph-bold ph-check-circle text-purple-600"></i>
+                                        Steadfast Delivery Alert
+                                    </div>
+                                    <p class="text-[11px] text-gray-500 mt-0.5">
+                                        Full financial & payout breakdown when parcel is delivered.
+                                    </p>
+                                </div>
+                                <label class="relative inline-flex items-center cursor-pointer shrink-0">
+                                    <input type="checkbox" name="telegram_notify_steadfast_delivery" x-model="notifySteadfastDelivery" class="sr-only peer">
+                                    <div class="w-9 h-5 bg-gray-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-purple-600"></div>
+                                </label>
+                            </div>
+
+                            <!-- Toggle 4: Steadfast Transit / Tracking Log -->
+                            <div class="p-3.5 rounded-xl border border-gray-100 bg-gray-50/70 hover:bg-white hover:border-gray-200 transition-all flex items-center justify-between">
+                                <div class="pr-3">
+                                    <div class="text-xs font-bold text-gray-800 flex items-center gap-1.5">
+                                        <i class="ph-bold ph-path text-amber-600"></i>
+                                        Steadfast Tracking Log
+                                    </div>
+                                    <p class="text-[11px] text-gray-500 mt-0.5">
+                                        Real-time milestone alerts for our store parcels (external CIDs safely ignored).
+                                    </p>
+                                </div>
+                                <label class="relative inline-flex items-center cursor-pointer shrink-0">
+                                    <input type="checkbox" name="telegram_notify_steadfast_tracking" x-model="notifySteadfastTracking" class="sr-only peer">
+                                    <div class="w-9 h-5 bg-gray-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-amber-600"></div>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+
                     <!-- Submit Button -->
                     <div class="flex items-center justify-between gap-3 pt-5 border-t border-gray-100">
                         <div class="flex items-center gap-2 text-xs">
@@ -314,6 +397,10 @@
             return {
                 botToken: @json($botToken),
                 chatIds: @json($chatIds),
+                notifyNewOrder: @json($notifyNewOrder),
+                notifyNewUser: @json($notifyNewUser),
+                notifySteadfastDelivery: @json($notifySteadfastDelivery),
+                notifySteadfastTracking: @json($notifySteadfastTracking),
                 showToken: false,
                 saving: false,
                 testingMessage: false,

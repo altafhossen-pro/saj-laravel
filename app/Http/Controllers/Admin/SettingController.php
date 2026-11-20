@@ -344,7 +344,20 @@ class SettingController extends Controller
         $botToken = Setting::get('telegram_bot_token', '');
         $chatIds = Setting::get('telegram_chat_ids', '');
 
-        return view('admin.settings.telegram', compact('botToken', 'chatIds'));
+        // Notification Toggles
+        $notifyNewOrder = (bool) Setting::get('telegram_notify_new_order', true);
+        $notifyNewUser = (bool) Setting::get('telegram_notify_new_user', true);
+        $notifySteadfastDelivery = (bool) Setting::get('telegram_notify_steadfast_delivery', true);
+        $notifySteadfastTracking = (bool) Setting::get('telegram_notify_steadfast_tracking', true);
+
+        return view('admin.settings.telegram', compact(
+            'botToken', 
+            'chatIds', 
+            'notifyNewOrder', 
+            'notifyNewUser', 
+            'notifySteadfastDelivery', 
+            'notifySteadfastTracking'
+        ));
     }
 
     public function updateTelegram(Request $request)
@@ -352,10 +365,19 @@ class SettingController extends Controller
         $request->validate([
             'telegram_bot_token' => 'nullable|string|max:255',
             'telegram_chat_ids' => 'nullable|string',
+            'telegram_notify_new_order' => 'nullable|boolean',
+            'telegram_notify_new_user' => 'nullable|boolean',
+            'telegram_notify_steadfast_delivery' => 'nullable|boolean',
+            'telegram_notify_steadfast_tracking' => 'nullable|boolean',
         ]);
 
         Setting::set('telegram_bot_token', trim($request->input('telegram_bot_token', '')), 'string', 'telegram');
         Setting::set('telegram_chat_ids', trim($request->input('telegram_chat_ids', '')), 'text', 'telegram');
+
+        Setting::set('telegram_notify_new_order', $request->boolean('telegram_notify_new_order', true), 'boolean', 'telegram');
+        Setting::set('telegram_notify_new_user', $request->boolean('telegram_notify_new_user', true), 'boolean', 'telegram');
+        Setting::set('telegram_notify_steadfast_delivery', $request->boolean('telegram_notify_steadfast_delivery', true), 'boolean', 'telegram');
+        Setting::set('telegram_notify_steadfast_tracking', $request->boolean('telegram_notify_steadfast_tracking', true), 'boolean', 'telegram');
 
         if ($request->wantsJson() || $request->ajax()) {
             return response()->json([

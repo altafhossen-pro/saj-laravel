@@ -202,6 +202,33 @@ class AuthController extends Controller
             } catch (\Throwable $logEx) {}
         }
 
+        // Send Instant Telegram Notification for New User Registration (if enabled)
+        try {
+            $isNotifyUserEnabled = (bool) \App\Models\Setting::get('telegram_notify_new_user', true);
+            $telegram = new \App\Services\TelegramService();
+            if ($isNotifyUserEnabled && $telegram->isConfigured()) {
+                $siteName = \App\Models\Setting::get('site_name', config('app.name', 'SAJ BD'));
+                $uName = htmlspecialchars($user->name ?: 'New Customer', ENT_QUOTES, 'UTF-8');
+                $uEmail = htmlspecialchars($user->email ?: 'N/A', ENT_QUOTES, 'UTF-8');
+                $uPhone = htmlspecialchars($user->phone ?: 'N/A', ENT_QUOTES, 'UTF-8');
+                $adminUsersUrl = url('/admin/dashboard/customers');
+
+                $teleUserMsg = "👤 <b>NEW USER REGISTERED!</b>\n" .
+                               "━━━━━━━━━━━━━━━━━━\n" .
+                               "🏪 <b>Store:</b> {$siteName}\n" .
+                               "🕒 <b>Time:</b> " . now()->format('d M Y, h:i A') . "\n\n" .
+                               "• <b>Name:</b> {$uName}\n" .
+                               "• <b>Email:</b> {$uEmail}\n" .
+                               "• <b>Phone:</b> <code>{$uPhone}</code>\n" .
+                               "• <b>Role:</b> " . ucfirst($user->role ?: 'User') . "\n\n" .
+                               "🔗 <a href=\"{$adminUsersUrl}\">View Customers in Admin</a>";
+
+                $telegram->sendMessage($teleUserMsg);
+            }
+        } catch (\Throwable $teleUserEx) {
+            \Illuminate\Support\Facades\Log::warning("Telegram New User Alert Error: " . $teleUserEx->getMessage());
+        }
+
         $redirectUrl = $user->hasAdminAccess() ? url('/admin/dashboard') : url('/dashboard');
 
         if ($request->expectsJson() || $request->ajax()) {

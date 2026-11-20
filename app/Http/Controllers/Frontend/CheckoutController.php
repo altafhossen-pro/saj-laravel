@@ -397,28 +397,51 @@ class CheckoutController extends Controller
                 \Illuminate\Support\Facades\Log::warning("CartSession conversion error: " . $cartEx->getMessage());
             }
 
-            // Send Instant Telegram Notification for New Order
+            // Send Instant Telegram Notification for New Order (if enabled)
             try {
+                $isNotifyOrderEnabled = (bool) \App\Models\Setting::get('telegram_notify_new_order', true);
                 $telegram = new \App\Services\TelegramService();
-                if ($telegram->isConfigured()) {
+                if ($isNotifyOrderEnabled && $telegram->isConfigured()) {
                     $siteName = \App\Models\Setting::get('site_name', config('app.name', 'SAJ BD'));
                     $itemsList = '';
                     foreach ($orderItemsData as $idx => $it) {
                         $pName = htmlspecialchars($it['name'] ?? 'Product', ENT_QUOTES, 'UTF-8');
                         $pQty = (int) ($it['quantity'] ?? 1);
-                        $pPrice = number_format((float) ($it['price'] ?? 0), 0);
                         $variantStr = !empty($it['variant_info']['label']) ? ' (' . htmlspecialchars($it['variant_info']['label'], ENT_QUOTES, 'UTF-8') . ')' : '';
                         $itemsList .= ($idx + 1) . ". <b>{$pName}</b>{$variantStr} × {$pQty} = ৳" . number_format($it['subtotal'] ?? 0, 0) . "\n";
                     }
 
                     $custName = htmlspecialchars($data['name'] ?? 'Guest', ENT_QUOTES, 'UTF-8');
-                    $custPhone = htmlspecialchars($data['phone'] ?? 'N/A', ENT_QUOTES, 'UTF-8');
+                    $rawPhone = trim((string)($data['phone'] ?? ''));
+                    $custPhone = htmlspecialchars($rawPhone ?: 'N/A', ENT_QUOTES, 'UTF-8');
                     $custAddress = htmlspecialchars($data['address'] ?? 'N/A', ENT_QUOTES, 'UTF-8');
                     $delivCharge = number_format($shippingCost, 0);
                     $orderTotal = number_format($total, 0);
                     $payMethod = strtoupper($data['payment_method'] ?? 'COD');
                     $orderNotes = !empty($data['notes']) ? "\n📝 <b>Note:</b> " . htmlspecialchars($data['notes'], ENT_QUOTES, 'UTF-8') : '';
                     $orderAdminUrl = url('/admin/dashboard/all-orders/' . $order->order_id);
+
+                    // Check customer's previous order count
+                    $prevOrderCount = 0;
+                    if (!empty($rawPhone)) {
+                        $normalizedPhone = preg_replace('/[^0-9]/', '', $rawPhone);
+                        if (strlen($normalizedPhone) > 10) {
+                            $normalizedPhone = substr($normalizedPhone, -10);
+                        }
+
+                        $prevOrderCount = \App\Models\Order::where('id', '!=', $order->id)
+                            ->where(function ($q) use ($rawPhone, $normalizedPhone) {
+                                $q->where('shipping_address->phone', $rawPhone)
+                                  ->orWhere('shipping_address->phone', 'LIKE', '%' . $normalizedPhone)
+                                  ->orWhere('guest_info->phone', $rawPhone)
+                                  ->orWhere('guest_info->phone', 'LIKE', '%' . $normalizedPhone);
+                            })
+                            ->count();
+                    }
+
+                    $orderHistoryBadge = $prevOrderCount > 0 
+                        ? "🔄 <b>Returning Customer:</b> <b>{$prevOrderCount} Previous Order(s)</b>" 
+                        : "✨ <b>New Customer:</b> 1st Order";
 
                     $teleMsg = "🛍️ <b>NEW ORDER RECEIVED!</b>\n" .
                                "━━━━━━━━━━━━━━━━━━\n" .
@@ -428,7 +451,8 @@ class CheckoutController extends Controller
                                "👤 <b>Customer Details:</b>\n" .
                                "• <b>Name:</b> {$custName}\n" .
                                "• <b>Phone:</b> <code>{$custPhone}</code>\n" .
-                               "• <b>Address:</b> {$custAddress}\n\n" .
+                               "• <b>Address:</b> {$custAddress}\n" .
+                               "• {$orderHistoryBadge}\n\n" .
                                "🛒 <b>Ordered Items:</b>\n" .
                                $itemsList . "\n" .
                                "━━━━━━━━━━━━━━━━━━\n" .
