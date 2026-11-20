@@ -44,58 +44,8 @@
 }
 
 @media print {
-    html, body {
-        visibility: hidden !important;
-        margin: 0 !important;
-        padding: 0 !important;
-        background: #ffffff !important;
-        width: 100% !important;
-        height: 100% !important;
-    }
-    #printable-shipping-label,
-    #printable-shipping-label * {
-        visibility: visible !important;
-    }
-    #printable-shipping-label {
-        position: absolute !important;
-        left: 8mm !important;
-        top: 8mm !important;
-        transform: none !important;
-        margin: 0 !important;
-        border: 2px solid #000000 !important;
-        border-radius: 4px !important;
-        box-shadow: none !important;
-        background: #ffffff !important;
-        color: #000000 !important;
-        -webkit-print-color-adjust: exact !important;
-        print-color-adjust: exact !important;
-        z-index: 9999999 !important;
-        box-sizing: border-box !important;
-        display: flex !important;
-        flex-direction: column !important;
-        justify-content: space-between !important;
-    }
-    /* Exact Physical Dimensions for Print */
-    #printable-shipping-label.size-3x3 {
-        width: 76.2mm !important;
-        height: 76.2mm !important;
-        max-width: 76.2mm !important;
-        max-height: 76.2mm !important;
-        padding: 3mm !important;
-    }
-    #printable-shipping-label.size-2x3 {
-        width: 76.2mm !important;
-        height: 50.8mm !important;
-        max-width: 76.2mm !important;
-        max-height: 50.8mm !important;
-        padding: 2mm !important;
-    }
     .no-print {
         display: none !important;
-    }
-    @page {
-        size: A4 portrait;
-        margin: 0;
     }
 }
 </style>
