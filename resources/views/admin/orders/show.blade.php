@@ -57,10 +57,10 @@
         visibility: visible !important;
     }
     #printable-shipping-label {
-        position: fixed !important;
-        left: 50% !important;
-        top: 20px !important;
-        transform: translateX(-50%) !important;
+        position: absolute !important;
+        left: 8mm !important;
+        top: 8mm !important;
+        transform: none !important;
         margin: 0 !important;
         border: 2px solid #000000 !important;
         border-radius: 4px !important;
@@ -94,7 +94,7 @@
         display: none !important;
     }
     @page {
-        size: auto;
+        size: A4 portrait;
         margin: 0;
     }
 }
