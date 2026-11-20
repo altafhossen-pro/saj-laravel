@@ -397,6 +397,54 @@ class CheckoutController extends Controller
                 \Illuminate\Support\Facades\Log::warning("CartSession conversion error: " . $cartEx->getMessage());
             }
 
+            // Send Instant Telegram Notification for New Order
+            try {
+                $telegram = new \App\Services\TelegramService();
+                if ($telegram->isConfigured()) {
+                    $siteName = \App\Models\Setting::get('site_name', config('app.name', 'SAJ BD'));
+                    $itemsList = '';
+                    foreach ($orderItemsData as $idx => $it) {
+                        $pName = htmlspecialchars($it['name'] ?? 'Product', ENT_QUOTES, 'UTF-8');
+                        $pQty = (int) ($it['quantity'] ?? 1);
+                        $pPrice = number_format((float) ($it['price'] ?? 0), 0);
+                        $variantStr = !empty($it['variant_info']['label']) ? ' (' . htmlspecialchars($it['variant_info']['label'], ENT_QUOTES, 'UTF-8') . ')' : '';
+                        $itemsList .= ($idx + 1) . ". <b>{$pName}</b>{$variantStr} × {$pQty} = ৳" . number_format($it['subtotal'] ?? 0, 0) . "\n";
+                    }
+
+                    $custName = htmlspecialchars($data['name'] ?? 'Guest', ENT_QUOTES, 'UTF-8');
+                    $custPhone = htmlspecialchars($data['phone'] ?? 'N/A', ENT_QUOTES, 'UTF-8');
+                    $custAddress = htmlspecialchars($data['address'] ?? 'N/A', ENT_QUOTES, 'UTF-8');
+                    $delivCharge = number_format($shippingCost, 0);
+                    $orderTotal = number_format($total, 0);
+                    $payMethod = strtoupper($data['payment_method'] ?? 'COD');
+                    $orderNotes = !empty($data['notes']) ? "\n📝 <b>Note:</b> " . htmlspecialchars($data['notes'], ENT_QUOTES, 'UTF-8') : '';
+                    $orderAdminUrl = url('/admin/dashboard/all-orders/' . $order->order_id);
+
+                    $teleMsg = "🛍️ <b>NEW ORDER RECEIVED!</b>\n" .
+                               "━━━━━━━━━━━━━━━━━━\n" .
+                               "📦 <b>Order ID:</b> <code>#{$order->order_id}</code>\n" .
+                               "🏪 <b>Store:</b> {$siteName}\n" .
+                               "🕒 <b>Time:</b> " . now()->format('d M Y, h:i A') . "\n\n" .
+                               "👤 <b>Customer Details:</b>\n" .
+                               "• <b>Name:</b> {$custName}\n" .
+                               "• <b>Phone:</b> <code>{$custPhone}</code>\n" .
+                               "• <b>Address:</b> {$custAddress}\n\n" .
+                               "🛒 <b>Ordered Items:</b>\n" .
+                               $itemsList . "\n" .
+                               "━━━━━━━━━━━━━━━━━━\n" .
+                               "🚚 <b>Delivery:</b> ৳{$delivCharge} (" . strtoupper($data['delivery_type'] ?? 'Standard') . ")\n" .
+                               "💰 <b>Total Payable:</b> <b>৳{$orderTotal}</b> ({$payMethod})" .
+                               $orderNotes . "\n\n" .
+                               "🔗 <a href=\"{$orderAdminUrl}\">View & Manage Order in Admin</a>";
+
+                    $telegram->sendMessage($teleMsg);
+                }
+            } catch (\Throwable $teleEx) {
+                \Illuminate\Support\Facades\Log::warning("Telegram New Order Alert Error: " . $teleEx->getMessage(), [
+                    'order_id' => $order->order_id ?? null
+                ]);
+            }
+
             // Note: Meta CAPI Purchase is delayed until order confirmation by Admin to filter out fake/cancelled COD orders.
             // When status is changed to 'confirmed' in Admin Panel, FacebookCapiService::trackPurchase() fires automatically.
 
