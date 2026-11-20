@@ -258,7 +258,103 @@
             },
 
             printShippingLabel() {
-                window.print();
+                const labelEl = document.getElementById('printable-shipping-label');
+                if (!labelEl) return;
+
+                // Create an isolated hidden iframe for printing to avoid Chrome modal overflow/clipping bugs
+                let printFrame = document.getElementById('shipping-print-iframe');
+                if (printFrame) {
+                    printFrame.remove();
+                }
+
+                printFrame = document.createElement('iframe');
+                printFrame.id = 'shipping-print-iframe';
+                printFrame.style.position = 'fixed';
+                printFrame.style.right = '0';
+                printFrame.style.bottom = '0';
+                printFrame.style.width = '0';
+                printFrame.style.height = '0';
+                printFrame.style.border = '0';
+                printFrame.style.zIndex = '-9999';
+                document.body.appendChild(printFrame);
+
+                const is3x3 = this.labelSize === '3x3';
+                const labelWidth = '76.2mm';
+                const labelHeight = is3x3 ? '76.2mm' : '50.8mm';
+                const labelPadding = is3x3 ? '3.5mm' : '2.5mm';
+
+                const frameDoc = printFrame.contentWindow.document;
+                frameDoc.open();
+                frameDoc.write(`<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Shipping Label - Order #{{ $order->order_id }}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@500;600;700;800;900&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @page {
+            size: A4 portrait;
+            margin: 0;
+        }
+        * {
+            box-sizing: border-box;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+        }
+        html, body {
+            margin: 0;
+            padding: 0;
+            background: #ffffff;
+            font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+            color: #000000;
+        }
+        .font-bn {
+            font-family: 'Hind Siliguri', 'Segoe UI', Arial, sans-serif !important;
+        }
+        /* Top-Left Quadrant Positioning on A4 (leaves 3/4 blank and reusable) */
+        .page-container {
+            width: 210mm;
+            min-height: 297mm;
+            padding: 10mm;
+            position: relative;
+        }
+        .print-label-box {
+            width: ${labelWidth};
+            height: ${labelHeight};
+            max-width: ${labelWidth};
+            max-height: ${labelHeight};
+            padding: ${labelPadding};
+            border: 2px solid #000000;
+            border-radius: 4px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            background: #ffffff;
+            overflow: hidden;
+        }
+    </style>
+</head>
+<body>
+    <div class="page-container">
+        <div class="print-label-box">
+            ${labelEl.innerHTML}
+        </div>
+    </div>
+</body>
+</html>`);
+                frameDoc.close();
+
+                // Allow styles/fonts to paint before triggering print
+                setTimeout(() => {
+                    printFrame.contentWindow.focus();
+                    printFrame.contentWindow.print();
+                    setTimeout(() => {
+                        printFrame.remove();
+                    }, 2000);
+                }, 400);
             },
 
             async updateStatus(newStatus, restockPayload = null) {
