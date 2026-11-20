@@ -53,6 +53,8 @@
             deletingOrder: false,
             showPrintLabelModal: false,
             labelSize: '3x3', // '3x3' (Square: 76.2mm x 76.2mm) or '2x3' (Compact: 50.8mm x 76.2mm)
+            printLayoutMode: 'default', // 'default' (Center / Thermal / Standalone) or 'a4' (A4 Sheet Quadrant)
+            a4Position: 'top-left', // 'top-left', 'top-right', 'bottom-left', 'bottom-right'
             includeLabelNotes: false, // Default: No notes in label
             loading: false,
             nextStatus: null,
@@ -324,6 +326,32 @@
                 const labelHeight = is3x3 ? '76.2mm' : '50.8mm';
                 const labelPadding = is3x3 ? '2.5mm' : '2mm';
                 const labelContent = labelEl.innerHTML;
+                const isA4 = this.printLayoutMode === 'a4';
+                const pos = this.a4Position || 'top-left';
+
+                let pageContainerStyle = '';
+                let printLabelBoxExtra = '';
+
+                if (isA4) {
+                    // Position inside 1 of 4 quadrants of A4 (210mm x 297mm)
+                    let posRules = '';
+                    if (pos === 'top-left') {
+                        posRules = 'top: 10mm; left: 10mm;';
+                    } else if (pos === 'top-right') {
+                        posRules = 'top: 10mm; right: 10mm;';
+                    } else if (pos === 'bottom-left') {
+                        posRules = 'bottom: 15mm; left: 10mm;';
+                    } else if (pos === 'bottom-right') {
+                        posRules = 'bottom: 15mm; right: 10mm;';
+                    }
+
+                    pageContainerStyle = 'width: 210mm; min-height: 297mm; position: relative; margin: 0; padding: 0;';
+                    printLabelBoxExtra = 'position: absolute; ' + posRules;
+                } else {
+                    // Default mode: Perfectly centered on page or standalone thermal size
+                    pageContainerStyle = 'width: 100%; min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 10mm; margin: 0;';
+                    printLabelBoxExtra = 'margin: auto;';
+                }
 
                 const frameDoc = printFrame.contentWindow.document;
                 frameDoc.open();
@@ -337,11 +365,11 @@
 '    <link href="https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@500;600;700;800;900&display=swap" rel="stylesheet">' +
 '    <script src="https://cdn.tailwindcss.com"><\/script>' +
 '    <style>' +
-'        @page { size: A4 portrait; margin: 0; }' +
+'        @page { size: ' + (isA4 ? 'A4 portrait' : 'auto') + '; margin: 0; }' +
 '        * { box-sizing: border-box; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }' +
 '        html, body { margin: 0; padding: 0; background: #ffffff; font-family: "Plus Jakarta Sans", sans-serif; color: #000000; }' +
 '        .font-bn { font-family: "Hind Siliguri", "Segoe UI", Arial, sans-serif !important; }' +
-'        .page-container { width: 210mm; min-height: 297mm; padding: 10mm; position: relative; }' +
+'        .page-container { ' + pageContainerStyle + ' }' +
 '        .print-label-box {' +
 '            width: ' + labelWidth + ';' +
 '            height: ' + labelHeight + ';' +
@@ -355,6 +383,7 @@
 '            justify-content: space-between;' +
 '            background: #ffffff;' +
 '            overflow: hidden;' +
+             printLabelBoxExtra +
 '        }' +
 '    </style>' +
 '</head>' +

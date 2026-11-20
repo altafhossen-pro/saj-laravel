@@ -380,53 +380,107 @@
              x-transition:leave-end="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95" 
              class="relative transform overflow-hidden rounded-2xl bg-white text-left shadow-2xl transition-all sm:my-8 sm:w-full sm:max-w-xl border border-gray-100 z-10">
             
-            <div class="bg-gray-50/90 px-6 py-3.5 border-b border-gray-100 flex flex-wrap items-center justify-between gap-3 no-print">
+            <div class="bg-gray-50/90 px-6 py-3 border-b border-gray-100 flex flex-wrap items-center justify-between gap-3 no-print">
                 <div class="flex items-center gap-3">
-                    <div class="w-10 h-10 rounded-xl bg-brand-50 text-brand-600 flex items-center justify-center text-xl font-bold border border-brand-100 shrink-0">
+                    <div class="w-9 h-9 rounded-xl bg-brand-50 text-brand-600 flex items-center justify-center text-lg font-bold border border-brand-100 shrink-0">
                         <i class="ph-bold ph-printer"></i>
                     </div>
                     <div>
-                        <h3 class="text-base font-bold text-gray-900" id="print-label-modal-title">
+                        <h3 class="text-sm font-bold text-gray-900" id="print-label-modal-title">
                             Shipping Label (SAJ BD)
                         </h3>
-                        <p class="text-xs text-gray-500">Steadfast Courier Delivery Sticker</p>
+                        <p class="text-[11px] text-gray-500">Steadfast Courier Delivery Sticker</p>
                     </div>
                 </div>
 
-                <div class="flex items-center gap-3">
+                <div class="flex items-center gap-2">
                     <!-- Size Selector Toggle (3x3 vs 2x3) -->
                     <div class="inline-flex items-center bg-gray-200/80 p-0.5 rounded-lg text-xs font-semibold">
                         <button type="button" 
                                 @click="labelSize = '3x3'" 
-                                class="px-2.5 py-1 rounded-md transition-all flex items-center gap-1 cursor-pointer"
+                                class="px-2 py-1 rounded-md transition-all flex items-center gap-1 cursor-pointer"
                                 :class="labelSize === '3x3' ? 'bg-white text-gray-900 shadow-xs font-bold' : 'text-gray-600 hover:text-gray-900'">
                             <span>3" × 3"</span>
-                            <span class="text-[9px] text-gray-400 font-normal">(Square)</span>
                         </button>
                         <button type="button" 
                                 @click="labelSize = '2x3'" 
-                                class="px-2.5 py-1 rounded-md transition-all flex items-center gap-1 cursor-pointer"
+                                class="px-2 py-1 rounded-md transition-all flex items-center gap-1 cursor-pointer"
                                 :class="labelSize === '2x3' ? 'bg-white text-gray-900 shadow-xs font-bold' : 'text-gray-600 hover:text-gray-900'">
                             <span>2" × 3"</span>
-                            <span class="text-[9px] text-gray-400 font-normal">(Compact)</span>
+                        </button>
+                    </div>
+
+                    <!-- Layout Mode Selector (Default / Centered vs A4 Adjust) -->
+                    <div class="inline-flex items-center bg-gray-200/80 p-0.5 rounded-lg text-xs font-semibold">
+                        <button type="button" 
+                                @click="printLayoutMode = 'default'" 
+                                class="px-2.5 py-1 rounded-md transition-all flex items-center gap-1 cursor-pointer"
+                                :class="printLayoutMode === 'default' ? 'bg-white text-gray-900 shadow-xs font-bold' : 'text-gray-600 hover:text-gray-900'"
+                                title="Standard Center / Thermal Printer layout">
+                            <i class="ph-bold ph-align-center text-xs"></i>
+                            <span>Default</span>
+                        </button>
+                        <button type="button" 
+                                @click="printLayoutMode = 'a4'" 
+                                class="px-2.5 py-1 rounded-md transition-all flex items-center gap-1 cursor-pointer"
+                                :class="printLayoutMode === 'a4' ? 'bg-white text-brand-600 shadow-xs font-bold' : 'text-gray-600 hover:text-gray-900'"
+                                title="Position in 1 of 4 quadrants of an A4 sheet">
+                            <i class="ph-bold ph-newspaper text-xs"></i>
+                            <span>A4 + Adjust</span>
                         </button>
                     </div>
 
                     <!-- Notes Toggle Button -->
                     <button type="button"
                             @click="includeLabelNotes = !includeLabelNotes"
-                            class="px-2.5 py-1 rounded-lg border text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer"
+                            class="px-2 py-1 rounded-lg border text-xs font-semibold flex items-center gap-1 transition-all cursor-pointer"
                             :class="includeLabelNotes ? 'bg-amber-50 border-amber-300 text-amber-800' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'"
                             title="Toggle customer order note visibility on label">
                         <i class="ph text-xs" :class="includeLabelNotes ? 'ph-check-square font-bold text-amber-600' : 'ph-square text-gray-400'"></i>
-                        <span>Add Notes</span>
+                        <span>Notes</span>
                     </button>
 
                     <button type="button" 
                             @click="closePrintLabelModal()" 
-                            class="w-8 h-8 rounded-lg bg-white border border-gray-200 hover:bg-gray-100 text-gray-500 flex items-center justify-center transition-colors cursor-pointer"
+                            class="w-7 h-7 rounded-lg bg-white border border-gray-200 hover:bg-gray-100 text-gray-500 flex items-center justify-center transition-colors cursor-pointer"
                             title="Close">
-                        <i class="ph-bold ph-x text-base"></i>
+                        <i class="ph-bold ph-x text-sm"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- A4 Quadrant Position Chooser (Visible only when A4 + Adjust is selected) -->
+            <div x-show="printLayoutMode === 'a4'" 
+                 x-transition 
+                 class="bg-blue-50/80 px-6 py-2 border-b border-blue-100 flex flex-wrap items-center justify-between gap-2 text-xs no-print">
+                <div class="flex items-center gap-1.5 text-blue-900 font-medium">
+                    <i class="ph-bold ph-corners text-blue-600"></i>
+                    <span>A4 Corner Position:</span>
+                </div>
+                <div class="inline-flex items-center gap-1.5">
+                    <button type="button" 
+                            @click="a4Position = 'top-left'" 
+                            class="px-2.5 py-1 rounded-md border text-[11px] font-bold transition-all cursor-pointer"
+                            :class="a4Position === 'top-left' ? 'bg-blue-600 border-blue-600 text-white shadow-xs' : 'bg-white border-gray-300 text-gray-700 hover:bg-blue-50'">
+                        Top-Left (১ম ভাগ)
+                    </button>
+                    <button type="button" 
+                            @click="a4Position = 'top-right'" 
+                            class="px-2.5 py-1 rounded-md border text-[11px] font-bold transition-all cursor-pointer"
+                            :class="a4Position === 'top-right' ? 'bg-blue-600 border-blue-600 text-white shadow-xs' : 'bg-white border-gray-300 text-gray-700 hover:bg-blue-50'">
+                        Top-Right (২য় ভাগ)
+                    </button>
+                    <button type="button" 
+                            @click="a4Position = 'bottom-left'" 
+                            class="px-2.5 py-1 rounded-md border text-[11px] font-bold transition-all cursor-pointer"
+                            :class="a4Position === 'bottom-left' ? 'bg-blue-600 border-blue-600 text-white shadow-xs' : 'bg-white border-gray-300 text-gray-700 hover:bg-blue-50'">
+                        Bottom-Left (৩য় ভাগ)
+                    </button>
+                    <button type="button" 
+                            @click="a4Position = 'bottom-right'" 
+                            class="px-2.5 py-1 rounded-md border text-[11px] font-bold transition-all cursor-pointer"
+                            :class="a4Position === 'bottom-right' ? 'bg-blue-600 border-blue-600 text-white shadow-xs' : 'bg-white border-gray-300 text-gray-700 hover:bg-blue-50'">
+                        Bottom-Right (৪র্থ ভাগ)
                     </button>
                 </div>
             </div>
@@ -545,10 +599,10 @@
                 </div>
             </div>
 
-            <div class="bg-gray-50 px-6 py-3.5 border-t border-gray-100 flex flex-wrap items-center justify-between gap-3 no-print">
+            <div class="bg-gray-50 px-6 py-3 border-t border-gray-100 flex flex-wrap items-center justify-between gap-3 no-print">
                 <div class="text-xs text-gray-500 flex items-center gap-1.5">
                     <i class="ph ph-info text-base text-gray-400"></i>
-                    <span>Selected Size: <strong class="text-gray-800" x-text="labelSize === '3x3' ? '3\" × 3\" (Square)' : '2\" × 3\" (Compact)'"></strong> • Works on Epson L3210 (A4/Sticker) or Thermal Printer.</span>
+                    <span>Mode: <strong class="text-gray-800" x-text="printLayoutMode === 'a4' ? ('A4 Quadrant (' + a4Position + ')') : 'Default (Centered / Thermal)'"></strong> • Size: <strong class="text-gray-800" x-text="labelSize === '3x3' ? '3\" × 3\"' : '2\" × 3\"'"></strong></span>
                 </div>
                 <div class="flex items-center gap-2">
                     <button type="button" 
