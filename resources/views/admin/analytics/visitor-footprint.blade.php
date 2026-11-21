@@ -21,12 +21,31 @@
             </div>
 
             <!-- Date Picker & Filter Form -->
-            <form method="GET" action="{{ route('admin.visitors.footprint') }}" class="flex flex-wrap items-center gap-2">
+            <form method="GET" action="{{ route('admin.visitors.footprint') }}" x-data="{ selectedRange: '{{ $range }}' }" class="flex flex-wrap items-center gap-2">
                 <input type="hidden" name="filter" value="{{ $filter }}">
 
+                <!-- Date Range Preset Dropdown -->
                 <div class="relative">
-                    <input type="date" name="date" value="{{ $date }}" onchange="this.form.submit()"
-                        class="px-3.5 py-2 bg-white border border-gray-200 rounded-xl text-sm font-medium text-gray-700 shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 cursor-pointer">
+                    <select name="range" x-model="selectedRange" @change="if (selectedRange !== 'custom') $el.form.submit()"
+                        class="px-3.5 py-2 bg-white border border-gray-200 rounded-xl text-sm font-semibold text-gray-800 shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 cursor-pointer">
+                        <option value="today">Today (Default)</option>
+                        <option value="yesterday">Yesterday</option>
+                        <option value="last_7_days">Last 7 Days</option>
+                        <option value="last_1_month">Last 1 Month</option>
+                        <option value="last_1_year">Last 1 Year</option>
+                        <option value="custom">Custom Date Range...</option>
+                    </select>
+                </div>
+
+                <!-- Custom Date Inputs (Visible only when 'custom' is selected) -->
+                <div x-show="selectedRange === 'custom'" class="flex items-center gap-1.5" style="display: none;">
+                    <input type="date" name="start_date" value="{{ $startDate }}"
+                        class="px-2.5 py-2 bg-white border border-gray-200 rounded-xl text-xs font-medium text-gray-700 shadow-sm focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+                        title="Start Date">
+                    <span class="text-xs text-gray-400 font-bold">to</span>
+                    <input type="date" name="end_date" value="{{ $endDate }}"
+                        class="px-2.5 py-2 bg-white border border-gray-200 rounded-xl text-xs font-medium text-gray-700 shadow-sm focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+                        title="End Date">
                 </div>
 
                 <div class="relative">
@@ -44,11 +63,11 @@
                 </div>
 
                 <button type="submit"
-                    class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-medium text-sm rounded-xl transition-colors shadow-sm">
+                    class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-medium text-sm rounded-xl transition-colors shadow-sm cursor-pointer">
                     Filter
                 </button>
 
-                @if($search || $date !== date('Y-m-d') || $filter !== 'all' || ($sort ?? 'recent') !== 'recent')
+                @if($search || $range !== 'today' || $filter !== 'all' || ($sort ?? 'recent') !== 'recent')
                     <a href="{{ route('admin.visitors.footprint') }}"
                         class="px-3 py-2 text-gray-500 hover:text-gray-800 text-sm font-medium">
                         Reset
@@ -66,8 +85,17 @@
                     <i class="ph ph-users text-indigo-600 text-lg"></i>
                 </div>
                 <div class="text-2xl font-bold text-gray-900">{{ number_format($metrics['total_visitors']) }}</div>
-                <div class="text-[11px] text-gray-400 mt-0.5">Unique sessions on
-                    {{ \Carbon\Carbon::parse($date)->format('M d') }}</div>
+                <div class="text-[11px] text-gray-400 mt-0.5">
+                    @if($range === 'today')
+                        Today's unique shoppers
+                    @elseif($range === 'yesterday')
+                        Yesterday's unique shoppers
+                    @elseif($startDate === $endDate)
+                        {{ \Carbon\Carbon::parse($startDate)->format('M d, Y') }}
+                    @else
+                        {{ \Carbon\Carbon::parse($startDate)->format('M d') }} - {{ \Carbon\Carbon::parse($endDate)->format('M d, Y') }}
+                    @endif
+                </div>
             </div>
 
             <!-- Total Page Views -->
@@ -130,14 +158,14 @@
 
         <!-- Filter Tabs -->
         <div class="flex items-center gap-2 border-b border-gray-200 pb-3 overflow-x-auto text-xs font-medium">
-            <a href="{{ route('admin.visitors.footprint', ['date' => $date, 'filter' => 'all', 'search' => $search, 'sort' => $sort]) }}"
+            <a href="{{ route('admin.visitors.footprint', ['range' => $range, 'start_date' => $startDate, 'end_date' => $endDate, 'filter' => 'all', 'search' => $search, 'sort' => $sort]) }}"
                 class="px-3.5 py-1.5 rounded-lg transition-colors flex items-center gap-1.5 {{ $filter === 'all' ? 'bg-indigo-600 text-white font-semibold' : 'bg-gray-100 text-gray-600 hover:text-gray-900' }}">
                 <span>All Shoppers</span>
                 <span
                     class="px-1.5 py-0.2 rounded-full text-[10px] {{ $filter === 'all' ? 'bg-indigo-700 text-white' : 'bg-gray-200 text-gray-700' }}">{{ $metrics['total_visitors'] }}</span>
             </a>
 
-            <a href="{{ route('admin.visitors.footprint', ['date' => $date, 'filter' => 'returning', 'search' => $search, 'sort' => $sort]) }}"
+            <a href="{{ route('admin.visitors.footprint', ['range' => $range, 'start_date' => $startDate, 'end_date' => $endDate, 'filter' => 'returning', 'search' => $search, 'sort' => $sort]) }}"
                 class="px-3.5 py-1.5 rounded-lg transition-colors flex items-center gap-1.5 {{ $filter === 'returning' ? 'bg-indigo-600 text-white font-semibold' : 'bg-gray-100 text-gray-600 hover:text-gray-900' }}">
                 <i class="ph ph-arrow-counter-clockwise"></i>
                 <span>Returning Visitors</span>
@@ -145,7 +173,7 @@
                     class="px-1.5 py-0.2 rounded-full text-[10px] {{ $filter === 'returning' ? 'bg-indigo-700 text-white' : 'bg-gray-200 text-gray-700' }}">{{ $metrics['returning_count'] }}</span>
             </a>
 
-            <a href="{{ route('admin.visitors.footprint', ['date' => $date, 'filter' => 'with_cart', 'search' => $search, 'sort' => $sort]) }}"
+            <a href="{{ route('admin.visitors.footprint', ['range' => $range, 'start_date' => $startDate, 'end_date' => $endDate, 'filter' => 'with_cart', 'search' => $search, 'sort' => $sort]) }}"
                 class="px-3.5 py-1.5 rounded-lg transition-colors flex items-center gap-1.5 {{ $filter === 'with_cart' ? 'bg-indigo-600 text-white font-semibold' : 'bg-gray-100 text-gray-600 hover:text-gray-900' }}">
                 <i class="ph ph-shopping-cart"></i>
                 <span>With Cart Items</span>
@@ -153,7 +181,7 @@
                     class="px-1.5 py-0.2 rounded-full text-[10px] {{ $filter === 'with_cart' ? 'bg-indigo-700 text-white' : 'bg-gray-200 text-gray-700' }}">{{ $metrics['cart_visitors'] }}</span>
             </a>
 
-            <a href="{{ route('admin.visitors.footprint', ['date' => $date, 'filter' => 'checkout', 'search' => $search, 'sort' => $sort]) }}"
+            <a href="{{ route('admin.visitors.footprint', ['range' => $range, 'start_date' => $startDate, 'end_date' => $endDate, 'filter' => 'checkout', 'search' => $search, 'sort' => $sort]) }}"
                 class="px-3.5 py-1.5 rounded-lg transition-colors flex items-center gap-1.5 {{ $filter === 'checkout' ? 'bg-indigo-600 text-white font-semibold' : 'bg-gray-100 text-gray-600 hover:text-gray-900' }}">
                 <i class="ph ph-credit-card"></i>
                 <span>Visited Checkout</span>
@@ -161,7 +189,7 @@
                     class="px-1.5 py-0.2 rounded-full text-[10px] {{ $filter === 'checkout' ? 'bg-indigo-700 text-white' : 'bg-gray-200 text-gray-700' }}">{{ $metrics['checkout_visitors'] }}</span>
             </a>
 
-            <a href="{{ route('admin.visitors.footprint', ['date' => $date, 'filter' => 'identified', 'search' => $search, 'sort' => $sort]) }}"
+            <a href="{{ route('admin.visitors.footprint', ['range' => $range, 'start_date' => $startDate, 'end_date' => $endDate, 'filter' => 'identified', 'search' => $search, 'sort' => $sort]) }}"
                 class="px-3.5 py-1.5 rounded-lg transition-colors flex items-center gap-1.5 {{ $filter === 'identified' ? 'bg-indigo-600 text-white font-semibold' : 'bg-gray-100 text-gray-600 hover:text-gray-900' }}">
                 <i class="ph ph-identification-badge"></i>
                 <span>Recognized Profiles</span>

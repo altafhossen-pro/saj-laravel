@@ -128,13 +128,61 @@ class VisitorFootprintController extends Controller
      */
     public function index(Request $request)
     {
-        $date = $request->input('date', date('Y-m-d'));
+        $range = $request->input('range', 'today'); // 'today', 'yesterday', 'last_7_days', 'last_1_month', 'last_1_year', 'custom'
+        $startDate = $request->input('start_date');
+        $endDate = $request->input('end_date');
+        $legacyDate = $request->input('date');
+
+        // Resolve date boundaries based on range selection
+        if ($legacyDate && !$request->has('range')) {
+            $range = 'custom';
+            $startDate = $legacyDate;
+            $endDate = $legacyDate;
+        }
+
+        $now = now();
+        switch ($range) {
+            case 'yesterday':
+                $startDate = $now->copy()->subDay()->toDateString();
+                $endDate = $startDate;
+                break;
+            case 'last_7_days':
+                $startDate = $now->copy()->subDays(6)->toDateString();
+                $endDate = $now->toDateString();
+                break;
+            case 'last_1_month':
+                $startDate = $now->copy()->subDays(29)->toDateString();
+                $endDate = $now->toDateString();
+                break;
+            case 'last_1_year':
+                $startDate = $now->copy()->subYear()->toDateString();
+                $endDate = $now->toDateString();
+                break;
+            case 'custom':
+                if (empty($startDate)) {
+                    $startDate = $now->toDateString();
+                }
+                if (empty($endDate)) {
+                    $endDate = $startDate;
+                }
+                break;
+            case 'today':
+            default:
+                $range = 'today';
+                $startDate = $now->toDateString();
+                $endDate = $now->toDateString();
+                break;
+        }
+
+        // Backward-compatibility variable for legacy references
+        $date = $startDate;
+
         $filter = $request->input('filter', 'all'); // 'all', 'returning', 'with_cart', 'checkout', 'identified'
         $search = trim($request->input('search', ''));
-
         $sort = $request->input('sort', 'recent'); // 'recent' (latest first) or 'serial' (#1, #2...)
+
         $query = VisitorSession::with(['user', 'cartSession', 'customOffers'])
-            ->whereDate('session_date', $date);
+            ->whereBetween('session_date', [$startDate, $endDate]);
 
         if ($sort === 'serial') {
             $query->orderByRaw('CASE WHEN daily_serial > 0 THEN daily_serial ELSE id END ASC');
@@ -176,8 +224,8 @@ class VisitorFootprintController extends Controller
 
         $sessions = $query->paginate(25)->withQueryString();
 
-        // Summary metrics for selected date
-        $baseDateQuery = VisitorSession::whereDate('session_date', $date);
+        // Summary metrics for selected date range
+        $baseDateQuery = VisitorSession::whereBetween('session_date', [$startDate, $endDate]);
         $metrics = [
             'total_visitors' => (clone $baseDateQuery)->count(),
             'total_page_views' => (clone $baseDateQuery)->sum('page_views_count'),
@@ -197,6 +245,9 @@ class VisitorFootprintController extends Controller
         return view('admin.analytics.visitor-footprint', compact(
             'sessions',
             'date',
+            'range',
+            'startDate',
+            'endDate',
             'filter',
             'search',
             'sort',
