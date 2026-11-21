@@ -217,7 +217,18 @@
                     </thead>
                     <tbody class="divide-y divide-gray-100">
                         @forelse($sessions as $s)
-                            <tr class="hover:bg-gray-50/80 transition-colors">
+                            <tr class="hover:bg-gray-50/80 transition-colors select-none group cursor-context-menu"
+                                @contextmenu.prevent="openContextMenu($event, {
+                                    id: {{ $s->id }},
+                                    vid: '{{ $s->visitor_token }}',
+                                    serial: {{ (int)($s->daily_serial ?: $s->id) }},
+                                    name: '{{ addslashes($s->customer_name ?: ($s->user?->name ?: 'Guest Visitor')) }}',
+                                    phone: '{{ $s->customer_phone ?: ($s->user?->phone ?: '') }}',
+                                    address: '{{ addslashes($s->customer_address ?: '') }}',
+                                    user_id: {{ $s->user_id ?: 'null' }},
+                                    device: '{{ addslashes($s->device_type ?: 'Desktop') }}',
+                                    has_cart: {{ $s->has_cart ? 'true' : 'false' }}
+                                })">
                                 <!-- Visitor ID -->
                                 <td class="px-5 py-4 text-center">
                                     <span
@@ -408,6 +419,22 @@
                                             <i class="ph ph-user-list text-sm"></i>
                                             <span>Details</span>
                                         </button>
+
+                                        <!-- Context Menu Dropdown Trigger Button -->
+                                        <button type="button" @click="openContextMenu($event, {
+                                            id: {{ $s->id }},
+                                            vid: '{{ $s->visitor_token }}',
+                                            serial: {{ (int)($s->daily_serial ?: $s->id) }},
+                                            name: '{{ addslashes($s->customer_name ?: ($s->user?->name ?: 'Guest Visitor')) }}',
+                                            phone: '{{ $s->customer_phone ?: ($s->user?->phone ?: '') }}',
+                                            address: '{{ addslashes($s->customer_address ?: '') }}',
+                                            user_id: {{ $s->user_id ?: 'null' }},
+                                            device: '{{ addslashes($s->device_type ?: 'Desktop') }}',
+                                            has_cart: {{ $s->has_cart ? 'true' : 'false' }}
+                                        })" class="cursor-pointer p-1.5 rounded-xl text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition inline-flex items-center justify-center"
+                                            title="More Actions (or Right-Click row)">
+                                            <i class="ph-bold ph-dots-three-vertical text-base"></i>
+                                        </button>
                                     </div>
                                 </td>
                             </tr>
@@ -433,6 +460,486 @@
                     {{ $sessions->links() }}
                 </div>
             @endif
+        </div>
+
+        <!-- Custom Modern Context Menu on Row Right Click -->
+        <div x-show="contextMenuOpen"
+             @click.outside="closeContextMenu()"
+             @scroll.window="closeContextMenu()"
+             @keydown.escape.window="closeContextMenu()"
+             x-cloak
+             x-transition:enter="transition ease-out duration-100"
+             x-transition:enter-start="opacity-0 scale-95"
+             x-transition:enter-end="opacity-100 scale-100"
+             x-transition:leave="transition ease-in duration-75"
+             x-transition:leave-start="opacity-100 scale-100"
+             x-transition:leave-end="opacity-0 scale-95"
+             :style="`top: ${contextY}px; left: ${contextX}px;`"
+             class="fixed z-[120] w-60 bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl border border-gray-100 py-1.5 text-xs text-gray-700 select-none overflow-hidden"
+             style="display: none;">
+
+            <!-- Header -->
+            <div class="px-3.5 py-2.5 border-b border-gray-100 bg-gray-50/80 flex items-center justify-between">
+                <div class="flex items-center gap-1.5">
+                    <span class="w-2 h-2 rounded-full bg-indigo-500"></span>
+                    <span class="font-bold text-gray-900 text-xs" x-text="'Shopper #' + (contextVisitor?.serial || 1)"></span>
+                </div>
+                <span class="text-[10px] text-gray-500 font-medium px-1.5 py-0.5 rounded bg-white border border-gray-200" x-text="contextVisitor?.device || 'Visitor'"></span>
+            </div>
+
+            <div class="py-1">
+                <!-- 1. Order as Customer (POS) -->
+                <button type="button" @click="orderAsCustomer()"
+                        class="w-full text-left px-3.5 py-2 hover:bg-brand-50 hover:text-brand-700 flex items-center gap-2.5 transition-colors cursor-pointer group">
+                    <i class="ph ph-shopping-cart-simple text-base text-gray-400 group-hover:text-brand-600"></i>
+                    <span class="font-semibold text-gray-800 group-hover:text-brand-700">Order as Customer</span>
+                </button>
+
+                <!-- 2. View Cart -->
+                <button type="button" @click="openCartModal(contextVisitor)"
+                        class="w-full text-left px-3.5 py-2 hover:bg-emerald-50 hover:text-emerald-700 flex items-center gap-2.5 transition-colors cursor-pointer group">
+                    <i class="ph ph-bag text-base text-gray-400 group-hover:text-emerald-600"></i>
+                    <span class="font-semibold text-gray-800 group-hover:text-emerald-700">View Cart</span>
+                </button>
+
+                <!-- 3. Send Offer -->
+                <button type="button" @click="triggerSendOffer()"
+                        class="w-full text-left px-3.5 py-2 hover:bg-pink-50 hover:text-pink-700 flex items-center gap-2.5 transition-colors cursor-pointer group">
+                    <i class="ph ph-lightning text-base text-gray-400 group-hover:text-pink-600"></i>
+                    <span class="font-semibold text-gray-800 group-hover:text-pink-700">Send Offer</span>
+                </button>
+
+                <div class="my-1 border-t border-gray-100"></div>
+
+                <!-- 4. Shopper Journey Details -->
+                <button type="button" @click="triggerJourney()"
+                        class="w-full text-left px-3.5 py-2 hover:bg-indigo-50 hover:text-indigo-700 flex items-center gap-2.5 transition-colors cursor-pointer group">
+                    <i class="ph ph-footprints text-base text-gray-400 group-hover:text-indigo-600"></i>
+                    <span class="font-medium text-gray-700 group-hover:text-indigo-700">Footprint Journey</span>
+                </button>
+
+                <!-- 5. Real-time Live Monitor Shortcut -->
+                <button type="button" @click="openLiveMonitor()"
+                        class="w-full text-left px-3.5 py-2 hover:bg-gray-100 flex items-center gap-2.5 transition-colors cursor-pointer group">
+                    <i class="ph ph-broadcast text-base text-gray-400 group-hover:text-gray-700"></i>
+                    <span class="font-medium text-gray-700 group-hover:text-gray-900">Open Live Monitor</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Real-time Shopper Cart & Checkout Draft Modal -->
+        <div x-show="isCartModalOpen"
+            x-cloak
+            style="display: none;"
+            class="fixed inset-0 z-[110] overflow-y-auto"
+            role="dialog" aria-modal="true">
+            <div class="fixed inset-0 bg-gray-900/60 backdrop-blur-xs transition-opacity" @click="isCartModalOpen = false"></div>
+
+            <div class="flex min-h-full items-center justify-center p-4">
+                <div class="relative w-full max-w-2xl bg-white rounded-3xl shadow-2xl border border-gray-100 overflow-hidden"
+                    @click.stop>
+
+                    <!-- Modal Header -->
+                    <div class="px-6 py-4 border-b border-gray-100 bg-gray-50/70 flex items-center justify-between">
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center text-xl shrink-0 border border-emerald-100">
+                                <i class="ph-bold ph-bag"></i>
+                            </div>
+                            <div>
+                                <div class="flex items-center gap-2">
+                                    <h3 class="text-base font-bold text-gray-900" x-text="'Shopper #' + (selectedVisitor?.serial || 1) + ' - Cart & Checkout Draft'"></h3>
+                                    <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-700">Cart Log</span>
+                                </div>
+                                <p class="text-xs text-gray-500 mt-0.5" x-text="selectedVisitor?.name || 'Customer'"></p>
+                            </div>
+                        </div>
+                        <button type="button" @click="isCartModalOpen = false" class="p-2 text-gray-400 hover:text-gray-700 rounded-xl hover:bg-gray-100 transition cursor-pointer">
+                            <i class="ph ph-x text-lg"></i>
+                        </button>
+                    </div>
+
+                    <!-- Modal Body -->
+                    <div class="p-6 max-h-[75vh] overflow-y-auto space-y-6">
+                        <!-- Loading state -->
+                        <div x-show="isLoadingCart" class="py-12 flex flex-col items-center justify-center text-gray-400">
+                            <i class="ph ph-spinner animate-spin text-3xl text-emerald-600 mb-2"></i>
+                            <span class="text-xs font-medium">Fetching cart data...</span>
+                        </div>
+
+                        <div x-show="!isLoadingCart" class="space-y-6">
+                            <!-- Customer Checkout Draft Profile -->
+                            <div class="bg-gray-50/90 rounded-2xl p-4 border border-gray-200/80">
+                                <div class="flex items-center justify-between mb-3">
+                                    <h4 class="text-xs font-bold uppercase tracking-wider text-gray-700 flex items-center gap-1.5">
+                                        <i class="ph-bold ph-identification-card text-brand-600 text-sm"></i>
+                                        Customer Checkout Draft Info
+                                    </h4>
+                                    <span class="text-[11px] text-gray-400" x-text="cartData?.last_active ? 'Updated ' + cartData.last_active : ''"></span>
+                                </div>
+
+                                <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+                                    <div class="bg-white p-3 rounded-xl border border-gray-100 shadow-2xs">
+                                        <span class="text-[10px] font-semibold text-gray-400 uppercase tracking-wider block mb-0.5">Name</span>
+                                        <span class="font-bold text-gray-800" x-text="cartData?.customer_name || selectedVisitor?.name || 'Not typed yet'"></span>
+                                    </div>
+                                    <div class="bg-white p-3 rounded-xl border border-gray-100 shadow-2xs">
+                                        <span class="text-[10px] font-semibold text-gray-400 uppercase tracking-wider block mb-0.5">Mobile Number</span>
+                                        <span class="font-bold font-mono text-gray-800" x-text="cartData?.customer_phone || selectedVisitor?.phone || 'Not typed yet'"></span>
+                                    </div>
+                                    <div class="bg-white p-3 rounded-xl border border-gray-100 shadow-2xs">
+                                        <span class="text-[10px] font-semibold text-gray-400 uppercase tracking-wider block mb-0.5">Delivery Address</span>
+                                        <span class="font-medium text-gray-800 line-clamp-2" :title="cartData?.customer_address || selectedVisitor?.address" x-text="cartData?.customer_address || selectedVisitor?.address || 'Not typed yet'"></span>
+                                    </div>
+                                </div>
+
+                                <!-- Customer Info Revision History (Versioning) -->
+                                <template x-if="cartData?.info_history && cartData.info_history.length > 1">
+                                    <div class="mt-4 pt-3 border-t border-gray-200/60">
+                                        <div class="flex items-center justify-between mb-2">
+                                            <span class="text-[11px] font-bold text-gray-700 flex items-center gap-1">
+                                                <i class="ph ph-clock-counter-clockwise text-indigo-600 font-bold"></i>
+                                                Information Revisions History (<span x-text="cartData.info_history.length"></span> versions)
+                                            </span>
+                                            <span class="text-[10px] text-gray-400">Customer modified info during session</span>
+                                        </div>
+                                        <div class="space-y-1.5 max-h-36 overflow-y-auto pr-1">
+                                            <template x-for="(rev, idx) in cartData.info_history.slice().reverse()" :key="idx">
+                                                <div class="bg-white p-2.5 rounded-xl border border-gray-100 text-[11px] flex items-center justify-between gap-3 shadow-2xs">
+                                                    <div class="flex items-center gap-2 min-w-0">
+                                                        <span class="px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 font-bold text-[10px]" x-text="'v' + (rev.version || (cartData.info_history.length - idx))"></span>
+                                                        <span class="font-bold text-gray-900 truncate" x-text="rev.name || 'No Name'"></span>
+                                                        <span class="text-gray-300">&bull;</span>
+                                                        <span class="font-mono text-gray-600 truncate" x-text="rev.phone || 'No Phone'"></span>
+                                                        <template x-if="rev.address">
+                                                            <span class="text-gray-500 truncate" x-text="'&bull; ' + rev.address"></span>
+                                                        </template>
+                                                    </div>
+                                                    <span class="text-[10px] text-gray-400 shrink-0 font-mono" x-text="rev.time"></span>
+                                                </div>
+                                            </template>
+                                        </div>
+                                    </div>
+                                </template>
+                            </div>
+
+                            <!-- Shopping Cart Items -->
+                            <div>
+                                <div class="flex items-center justify-between mb-3">
+                                    <h4 class="text-xs font-bold uppercase tracking-wider text-gray-700 flex items-center gap-1.5">
+                                        <i class="ph-bold ph-shopping-bag text-emerald-600 text-sm"></i>
+                                        Shopping Cart Products (<span x-text="cartData?.items ? cartData.items.length : 0"></span> items)
+                                    </h4>
+                                    <span class="text-xs font-bold text-brand-600" x-text="'Subtotal: ৳' + Math.round(cartData?.total_amount || 0)"></span>
+                                </div>
+
+                                <!-- Items List -->
+                                <template x-if="cartData?.items && cartData.items.length > 0">
+                                    <div class="divide-y divide-gray-100 border border-gray-100 rounded-2xl overflow-hidden bg-white shadow-2xs">
+                                        <template x-for="(item, idx) in cartData.items" :key="idx">
+                                            <div class="p-3.5 flex items-center justify-between gap-4 hover:bg-gray-50/50 transition">
+                                                <div class="flex items-center gap-3 min-w-0">
+                                                    <div class="w-12 h-12 rounded-xl bg-gray-100 overflow-hidden shrink-0 border border-gray-100">
+                                                        <template x-if="item.image">
+                                                            <img :src="item.image.startsWith('http') ? item.image : '/storage/' + item.image" class="w-full h-full object-cover">
+                                                        </template>
+                                                        <template x-if="!item.image">
+                                                            <div class="w-full h-full flex items-center justify-center text-gray-300">
+                                                                <i class="ph ph-image text-xl"></i>
+                                                            </div>
+                                                        </template>
+                                                    </div>
+                                                    <div class="min-w-0">
+                                                        <h5 class="font-bold text-xs text-gray-900 truncate" x-text="item.name"></h5>
+                                                        <template x-if="item.variant_name">
+                                                            <p class="text-[11px] text-gray-500 mt-0.5" x-text="'Variant: ' + item.variant_name"></p>
+                                                        </template>
+                                                        <p class="text-[11px] text-gray-400 mt-0.5" x-text="'৳' + Math.round(item.price) + ' × ' + item.quantity"></p>
+                                                    </div>
+                                                </div>
+                                                <div class="text-right shrink-0">
+                                                    <span class="text-xs font-bold text-gray-900" x-text="'৳' + Math.round(item.price * item.quantity)"></span>
+                                                </div>
+                                            </div>
+                                        </template>
+                                    </div>
+                                </template>
+
+                                <!-- Empty cart state -->
+                                <template x-if="!cartData?.items || cartData.items.length === 0">
+                                    <div class="py-8 text-center bg-gray-50/60 rounded-2xl border border-dashed border-gray-200">
+                                        <i class="ph ph-shopping-bag-open text-3xl text-gray-300 mb-1"></i>
+                                        <p class="text-xs font-medium text-gray-500">Shopper has not added any products to cart yet</p>
+                                    </div>
+                                </template>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Modal Footer -->
+                    <div class="px-6 py-4 bg-gray-50/80 border-t border-gray-100 flex items-center justify-between gap-3">
+                        <button type="button" @click="isCartModalOpen = false" class="px-4 py-2 bg-white border border-gray-200 text-gray-600 rounded-xl text-xs font-semibold hover:bg-gray-100 transition cursor-pointer">
+                            Close
+                        </button>
+                        <div class="flex items-center gap-2">
+                            <button type="button" @click="openOfferModal(selectedVisitor); isCartModalOpen = false;"
+                                    class="px-4 py-2 bg-pink-50 hover:bg-pink-100 text-pink-700 border border-pink-200 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer">
+                                <i class="ph ph-lightning text-sm text-pink-600"></i>
+                                Send Offer
+                            </button>
+                            <button type="button" @click="orderAsCustomer()"
+                                    class="px-4 py-2 bg-brand-600 hover:bg-brand-700 text-white rounded-xl text-xs font-bold shadow-md shadow-brand-500/20 transition flex items-center gap-1.5 cursor-pointer">
+                                <i class="ph ph-shopping-cart-simple text-sm"></i>
+                                Order as Customer (POS)
+                            </button>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+
+        <!-- Dedicated In-Modal "Order as Customer" POS Modal -->
+        <div x-show="isOrderModalOpen"
+            x-cloak
+            style="display: none;"
+            class="fixed inset-0 z-[9999] flex items-center justify-center bg-gray-900/60 backdrop-blur-xs p-3 sm:p-5"
+            @keydown.escape.window="isOrderModalOpen = false">
+
+            <div class="bg-white w-full max-w-4xl rounded-2xl shadow-2xl overflow-hidden border border-gray-100 max-h-[92vh] flex flex-col">
+
+                <!-- Modal Header -->
+                <div class="px-6 py-4 border-b border-gray-100 flex items-center justify-between bg-gradient-to-r from-brand-50/70 via-gray-50 to-white">
+                    <div class="flex items-center gap-3">
+                        <div class="w-9 h-9 rounded-xl bg-brand-600 text-white flex items-center justify-center text-lg shadow-sm">
+                            <i class="ph ph-shopping-bag"></i>
+                        </div>
+                        <div>
+                            <h3 class="font-bold text-gray-900 text-sm flex items-center gap-2">
+                                <span>Create Order as Customer</span>
+                                <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-brand-100 text-brand-800 uppercase tracking-wider">POS Mode</span>
+                            </h3>
+                            <p class="text-[11px] text-gray-400">Cart & Checkout details autofilled from session</p>
+                        </div>
+                    </div>
+
+                    <button type="button" @click="isOrderModalOpen = false" class="text-gray-400 hover:text-gray-600 p-1.5 rounded-lg hover:bg-gray-100 transition cursor-pointer">
+                        <i class="ph ph-x text-lg"></i>
+                    </button>
+                </div>
+
+                <!-- Modal Body -->
+                <div class="p-5 sm:p-6 overflow-y-auto space-y-5 flex-1">
+
+                    <!-- Alert Messages -->
+                    <template x-if="orderSuccessNotice">
+                        <div class="p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl text-xs font-semibold flex items-center gap-2">
+                            <i class="ph-bold ph-check-circle text-base text-emerald-600"></i>
+                            <span x-text="orderSuccessNotice"></span>
+                        </div>
+                    </template>
+
+                    <template x-if="orderErrorNotice">
+                        <div class="p-3 bg-rose-50 border border-rose-200 text-rose-800 rounded-xl text-xs font-semibold flex items-center gap-2">
+                            <i class="ph-bold ph-warning-circle text-base text-rose-600"></i>
+                            <span x-text="orderErrorNotice"></span>
+                        </div>
+                    </template>
+
+                    <div class="grid grid-cols-1 lg:grid-cols-12 gap-5">
+
+                        <!-- Left: Customer Info & Order Settings (5 cols) -->
+                        <div class="lg:col-span-5 space-y-4">
+
+                            <!-- Customer Info Card -->
+                            <div class="bg-gray-50/80 p-4 rounded-xl border border-gray-200/70 space-y-3">
+                                <div class="flex items-center justify-between">
+                                    <span class="text-xs font-bold text-gray-800 uppercase tracking-wider flex items-center gap-1.5">
+                                        <i class="ph-bold ph-user text-brand-600"></i>
+                                        Customer Information
+                                    </span>
+
+                                    <!-- Version selector if revisions exist -->
+                                    <template x-if="cartData?.info_history && cartData.info_history.length > 1">
+                                        <select x-model="selectedHistoryVersion" @change="onHistoryVersionChange()"
+                                            class="text-[11px] font-semibold bg-white border border-indigo-200 text-indigo-700 rounded-lg px-2 py-0.5 cursor-pointer">
+                                            <option value="latest">Latest Typings</option>
+                                            <template x-for="rev in cartData.info_history" :key="rev.version">
+                                                <option :value="rev.version" x-text="'Version ' + rev.version + ' (' + rev.time + ')'"></option>
+                                            </template>
+                                        </select>
+                                    </template>
+                                </div>
+
+                                <div>
+                                    <label class="block text-[11px] font-semibold text-gray-600 mb-1">Customer Name *</label>
+                                    <input type="text" x-model="orderForm.customer_name" required placeholder="Full Name"
+                                        class="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-xs focus:ring-2 focus:ring-brand-500 focus:border-brand-500">
+                                </div>
+
+                                <div>
+                                    <label class="block text-[11px] font-semibold text-gray-600 mb-1">Phone Number *</label>
+                                    <input type="text" x-model="orderForm.customer_contact" required placeholder="01XXXXXXXXX"
+                                        class="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-xs font-mono focus:ring-2 focus:ring-brand-500 focus:border-brand-500">
+                                </div>
+
+                                <div>
+                                    <label class="block text-[11px] font-semibold text-gray-600 mb-1">Delivery Address *</label>
+                                    <textarea x-model="orderForm.shipping_address" required rows="2" placeholder="Full delivery address..."
+                                        class="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-xs focus:ring-2 focus:ring-brand-500 focus:border-brand-500"></textarea>
+                                </div>
+                            </div>
+
+                            <!-- Delivery & Order Settings -->
+                            <div class="bg-gray-50/80 p-4 rounded-xl border border-gray-200/70 space-y-3">
+                                <span class="text-xs font-bold text-gray-800 uppercase tracking-wider flex items-center gap-1.5">
+                                    <i class="ph-bold ph-truck text-brand-600"></i>
+                                    Shipping & Charges
+                                </span>
+
+                                <div class="grid grid-cols-2 gap-3">
+                                    <div>
+                                        <label class="block text-[11px] font-semibold text-gray-600 mb-1">Delivery Charge (৳)</label>
+                                        <input type="number" x-model.number="orderForm.delivery_charge" min="0"
+                                            class="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-xs font-mono font-bold focus:ring-2 focus:ring-brand-500 focus:border-brand-500">
+                                    </div>
+                                    <div>
+                                        <label class="block text-[11px] font-semibold text-gray-600 mb-1">Discount (৳)</label>
+                                        <input type="number" x-model.number="orderForm.discount" min="0"
+                                            class="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-xs font-mono font-bold focus:ring-2 focus:ring-brand-500 focus:border-brand-500">
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label class="block text-[11px] font-semibold text-gray-600 mb-1">Order Notes / Instructions</label>
+                                    <input type="text" x-model="orderForm.notes" placeholder="e.g. Call before delivery, fragile item"
+                                        class="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-xs focus:ring-2 focus:ring-brand-500 focus:border-brand-500">
+                                </div>
+                            </div>
+
+                        </div>
+
+                        <!-- Right: Products List & Live Search (7 cols) -->
+                        <div class="lg:col-span-7 space-y-4 flex flex-col justify-between">
+
+                            <div class="space-y-4">
+                                <!-- Product Search Bar -->
+                                <div class="relative">
+                                    <label class="block text-xs font-bold text-gray-800 uppercase tracking-wider mb-1 flex items-center gap-1.5">
+                                        <i class="ph-bold ph-magnifying-glass text-brand-600"></i>
+                                        Add More Products to Order
+                                    </label>
+                                    <div class="relative">
+                                        <input type="text" x-model="posSearchQuery" @input.debounce.300ms="searchPosProducts()"
+                                            placeholder="Type product name or SKU..."
+                                            class="w-full pl-9 pr-4 py-2 bg-white border border-gray-200 rounded-xl text-xs focus:ring-2 focus:ring-brand-500 focus:border-brand-500">
+                                        <i class="ph ph-magnifying-glass absolute left-3 top-2.5 text-gray-400 text-sm"></i>
+                                        <i x-show="isSearchingPos" class="ph ph-spinner animate-spin absolute right-3 top-2.5 text-brand-600 text-sm"></i>
+                                    </div>
+
+                                    <!-- Suggestions Dropdown -->
+                                    <div x-show="showPosSuggestions" @click.outside="showPosSuggestions = false"
+                                        class="absolute z-20 left-0 right-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-xl max-h-56 overflow-y-auto divide-y divide-gray-100">
+                                        <template x-for="p in posSuggestions" :key="p.id">
+                                            <div class="p-2.5 hover:bg-gray-50 transition cursor-pointer flex items-center justify-between gap-3"
+                                                @click="addPosProductToOrder(p)">
+                                                <div class="flex items-center gap-2.5 min-w-0">
+                                                    <img :src="p.featured_image ? (p.featured_image.startsWith('http') ? p.featured_image : '/storage/' + p.featured_image) : '/images/placeholder.png'"
+                                                        class="w-8 h-8 rounded-lg object-cover shrink-0 border border-gray-100">
+                                                    <div class="min-w-0">
+                                                        <h5 class="font-bold text-xs text-gray-900 truncate" x-text="p.title"></h5>
+                                                        <span class="text-[10px] text-gray-400 font-mono" x-text="'SKU: ' + (p.sku || 'N/A') + ' • Stock: ' + (p.stock_quantity ?? '—')"></span>
+                                                    </div>
+                                                </div>
+                                                <div class="text-right shrink-0">
+                                                    <span class="text-xs font-bold text-brand-600" x-text="'৳' + Math.round(p.current_price || p.regular_price || 0)"></span>
+                                                    <span class="block text-[10px] text-emerald-600 font-bold">+ Add</span>
+                                                </div>
+                                            </div>
+                                        </template>
+                                    </div>
+                                </div>
+
+                                <!-- Current Order Items Table -->
+                                <div class="border border-gray-200 rounded-xl overflow-hidden bg-white">
+                                    <div class="px-4 py-2.5 bg-gray-50 border-b border-gray-200 flex items-center justify-between">
+                                        <span class="text-xs font-bold text-gray-700 uppercase tracking-wider">
+                                            Order Items (<span x-text="orderForm.items.length"></span>)
+                                        </span>
+                                        <span class="text-xs font-bold text-gray-500 font-mono" x-text="'Subtotal: ৳' + Math.round(orderSubtotal)"></span>
+                                    </div>
+
+                                    <div class="divide-y divide-gray-100 max-h-64 overflow-y-auto">
+                                        <template x-for="(item, idx) in orderForm.items" :key="item.cartId || idx">
+                                            <div class="p-3 flex items-center justify-between gap-3 text-xs hover:bg-gray-50/50">
+                                                <div class="flex items-center gap-2.5 min-w-0">
+                                                    <img :src="item.image ? (item.image.startsWith('http') ? item.image : '/storage/' + item.image) : '/images/placeholder.png'"
+                                                        class="w-10 h-10 rounded-lg object-cover shrink-0 border border-gray-100">
+                                                    <div class="min-w-0">
+                                                        <h5 class="font-bold text-gray-900 truncate" x-text="item.name"></h5>
+                                                        <p class="text-[10px] text-gray-400 font-mono" x-text="(item.variantLabel ? item.variantLabel + ' • ' : '') + '৳' + Math.round(item.price)"></p>
+                                                    </div>
+                                                </div>
+
+                                                <div class="flex items-center gap-3 shrink-0">
+                                                    <!-- Quantity Selector -->
+                                                    <div class="flex items-center border border-gray-200 rounded-lg overflow-hidden bg-gray-50">
+                                                        <button type="button" @click="updateOrderItemQty(idx, -1)"
+                                                            class="px-2 py-1 text-gray-500 hover:bg-gray-200 transition font-bold cursor-pointer">-</button>
+                                                        <span class="px-2 text-xs font-bold font-mono text-gray-800" x-text="item.qty"></span>
+                                                        <button type="button" @click="updateOrderItemQty(idx, 1)"
+                                                            class="px-2 py-1 text-gray-500 hover:bg-gray-200 transition font-bold cursor-pointer">+</button>
+                                                    </div>
+
+                                                    <span class="font-bold text-gray-900 font-mono w-14 text-right" x-text="'৳' + Math.round(item.price * item.qty)"></span>
+
+                                                    <button type="button" @click="removeOrderItem(idx)"
+                                                        class="text-gray-300 hover:text-rose-600 p-1 rounded transition cursor-pointer" title="Remove Item">
+                                                        <i class="ph ph-trash text-sm"></i>
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </template>
+
+                                        <div x-show="orderForm.items.length === 0" class="py-8 text-center text-gray-400">
+                                            <i class="ph ph-shopping-bag text-2xl text-gray-300 mb-1"></i>
+                                            <p class="text-xs">No products in order. Search and add products above.</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Financial Summary & Confirm Button -->
+                            <div class="pt-3 border-t border-gray-100 space-y-3">
+                                <div class="bg-brand-50/50 p-3.5 rounded-xl border border-brand-100/70 flex items-center justify-between">
+                                    <div class="space-y-0.5 text-xs">
+                                        <div class="text-gray-500">Subtotal: <span class="font-mono font-bold text-gray-700" x-text="'৳' + Math.round(orderSubtotal)"></span></div>
+                                        <div class="text-gray-500">Shipping: <span class="font-mono text-gray-700" x-text="'৳' + (orderForm.delivery_charge || 0)"></span> • Discount: <span class="font-mono text-brand-600" x-text="'−৳' + (orderForm.discount || 0)"></span></div>
+                                    </div>
+                                    <div class="text-right">
+                                        <span class="text-[10px] text-gray-400 uppercase tracking-wider block font-bold">Total Payable</span>
+                                        <span class="text-lg font-black text-brand-700 font-mono" x-text="'৳' + Math.round(orderTotal)"></span>
+                                    </div>
+                                </div>
+
+                                <div class="flex items-center justify-end gap-2">
+                                    <button type="button" @click="isOrderModalOpen = false"
+                                        class="px-4 py-2 border border-gray-200 rounded-xl text-xs font-semibold text-gray-600 hover:bg-gray-50 transition cursor-pointer">
+                                        Cancel
+                                    </button>
+                                    <button type="button" @click="submitCustomerOrder()" :disabled="isSubmittingOrder || orderForm.items.length === 0"
+                                        class="px-6 py-2.5 bg-brand-600 hover:bg-brand-700 text-white rounded-xl text-xs font-bold shadow-lg shadow-brand-500/25 transition flex items-center gap-2 cursor-pointer disabled:opacity-50">
+                                        <i x-show="!isSubmittingOrder" class="ph-bold ph-check text-sm"></i>
+                                        <i x-show="isSubmittingOrder" class="ph ph-spinner animate-spin text-sm"></i>
+                                        <span x-text="isSubmittingOrder ? 'Placing Order...' : 'Confirm & Place Order'"></span>
+                                    </button>
+                                </div>
+                            </div>
+
+                        </div>
+                    </div>
+
+                </div>
+            </div>
         </div>
 
         <!-- Footprint Journey Timeline Modal -->
@@ -832,6 +1339,40 @@
                 selectedSession: null,
                 events: [],
 
+                // Context Menu State
+                contextMenuOpen: false,
+                contextX: 0,
+                contextY: 0,
+                contextVisitor: null,
+
+                // Cart & Order Modal State
+                isCartModalOpen: false,
+                isLoadingCart: false,
+                cartData: null,
+                selectedVisitor: null,
+                selectedHistoryVersion: 'latest',
+
+                // POS "Order as Customer" State
+                isOrderModalOpen: false,
+                isSubmittingOrder: false,
+                orderSuccessNotice: null,
+                orderErrorNotice: null,
+                posSearchQuery: '',
+                isSearchingPos: false,
+                posSuggestions: [],
+                showPosSuggestions: false,
+                orderForm: {
+                    customer_name: '',
+                    customer_contact: '',
+                    shipping_address: '',
+                    delivery_charge: 70,
+                    discount: 0,
+                    notes: '',
+                    order_source: 'website',
+                    user_id: null,
+                    items: []
+                },
+
                 // Offer modal state for historical users
                 offerModalOpen: false,
                 offerTarget: null,
@@ -848,6 +1389,309 @@
                 },
                 offerSending: false,
                 offerNotice: null,
+
+                templates: @json($templates ?? []),
+
+                openContextMenu(e, v) {
+                    this.contextVisitor = v;
+                    const menuWidth = 240;
+                    const menuHeight = 240;
+                    let x = e.clientX;
+                    let y = e.clientY;
+                    if (x + menuWidth > window.innerWidth) x = window.innerWidth - menuWidth - 12;
+                    if (y + menuHeight > window.innerHeight) y = window.innerHeight - menuHeight - 12;
+                    this.contextX = Math.max(10, x);
+                    this.contextY = Math.max(10, y);
+                    this.contextMenuOpen = true;
+                },
+
+                closeContextMenu() {
+                    this.contextMenuOpen = false;
+                },
+
+                openCartModal(v) {
+                    const target = v || this.contextVisitor || this.selectedVisitor;
+                    if (!target || !target.vid) return;
+                    this.closeContextMenu();
+                    this.selectedVisitor = target;
+                    this.isCartModalOpen = true;
+                    this.isLoadingCart = true;
+                    this.cartData = null;
+
+                    const url = '{{ url('admin/dashboard/live-monitor/cart') }}/' + encodeURIComponent(target.vid);
+                    fetch(url)
+                        .then(res => res.json())
+                        .then(data => {
+                            if (data && data.success) {
+                                this.cartData = data;
+                            }
+                        })
+                        .catch(err => {
+                            console.error('Failed to load cart:', err);
+                        })
+                        .finally(() => {
+                            this.isLoadingCart = false;
+                        });
+                },
+
+                triggerSendOffer() {
+                    const v = this.contextVisitor || this.selectedVisitor;
+                    this.closeContextMenu();
+                    if (v) this.openOfferModal(v);
+                },
+
+                triggerJourney() {
+                    const v = this.contextVisitor || this.selectedVisitor;
+                    this.closeContextMenu();
+                    if (v && v.id) this.openJourney(v.id);
+                },
+
+                openLiveMonitor() {
+                    const v = this.contextVisitor || this.selectedVisitor;
+                    this.closeContextMenu();
+                    window.open('{{ route('admin.visitors.live') }}', '_blank');
+                },
+
+                orderAsCustomer() {
+                    const v = this.contextVisitor || this.selectedVisitor;
+                    if (!v || !v.vid) return;
+
+                    this.closeContextMenu();
+                    this.isCartModalOpen = false;
+                    this.selectedVisitor = v;
+                    this.orderSuccessNotice = null;
+                    this.orderErrorNotice = null;
+                    this.posSearchQuery = '';
+                    this.posSuggestions = [];
+                    this.showPosSuggestions = false;
+
+                    const latestName = this.cartData?.customer_name || v.name || '';
+                    const latestPhone = this.cartData?.customer_phone || v.phone || '';
+                    const latestAddress = this.cartData?.customer_address || v.address || '';
+                    const userId = this.cartData?.user_id || v.user_id || null;
+
+                    let initialItems = [];
+                    if (this.cartData && Array.isArray(this.cartData.items)) {
+                        initialItems = this.cartData.items.map((ci, idx) => ({
+                            cartId: 'c_' + (ci.product_id || idx) + '_' + (ci.variant_id || 0) + '_' + Date.now(),
+                            product_id: ci.product_id,
+                            variant_id: ci.variant_id || null,
+                            name: ci.name || 'Product',
+                            qty: parseInt(ci.quantity) || 1,
+                            price: parseFloat(ci.price) || 0,
+                            original_price: parseFloat(ci.price) || 0,
+                            image: ci.image || null,
+                            product_sku: ci.sku || null,
+                            variant_sku: ci.variant_sku || null,
+                            variantLabel: ci.variant_name || null,
+                            max_stock: ci.max_stock || 999
+                        }));
+                    }
+
+                    this.orderForm = {
+                        customer_name: latestName,
+                        customer_contact: latestPhone,
+                        shipping_address: latestAddress,
+                        delivery_charge: 70,
+                        discount: 0,
+                        notes: 'Order created via Visitor Footprint (POS Mode)',
+                        order_source: 'admin_pos',
+                        user_id: userId,
+                        items: initialItems
+                    };
+
+                    this.isOrderModalOpen = true;
+
+                    fetch('{{ url('admin/dashboard/live-monitor/cart') }}/' + encodeURIComponent(v.vid))
+                        .then(res => res.json())
+                        .then(data => {
+                            if (data && data.success) {
+                                this.cartData = data;
+                                if (this.orderForm.items.length === 0 && Array.isArray(data.items) && data.items.length > 0) {
+                                    this.orderForm.items = data.items.map((ci, idx) => ({
+                                        cartId: 'c_' + (ci.product_id || idx) + '_' + (ci.variant_id || 0) + '_' + Date.now(),
+                                        product_id: ci.product_id,
+                                        variant_id: ci.variant_id || null,
+                                        name: ci.name || 'Product',
+                                        qty: parseInt(ci.quantity) || 1,
+                                        price: parseFloat(ci.price) || 0,
+                                        original_price: parseFloat(ci.price) || 0,
+                                        image: ci.image || null,
+                                        product_sku: ci.sku || null,
+                                        variant_sku: ci.variant_sku || null,
+                                        variantLabel: ci.variant_name || null,
+                                        max_stock: ci.max_stock || 999
+                                    }));
+                                }
+                                if (!this.orderForm.customer_name && data.customer_name) this.orderForm.customer_name = data.customer_name;
+                                if (!this.orderForm.customer_contact && data.customer_phone) this.orderForm.customer_contact = data.customer_phone;
+                                if (!this.orderForm.shipping_address && data.customer_address) this.orderForm.shipping_address = data.customer_address;
+                                if (!this.orderForm.user_id && data.user_id) this.orderForm.user_id = data.user_id;
+                            }
+                        })
+                        .catch(() => {});
+                },
+
+                onHistoryVersionChange() {
+                    if (this.selectedHistoryVersion === 'latest') {
+                        this.orderForm.customer_name = this.cartData?.customer_name || this.selectedVisitor?.name || '';
+                        this.orderForm.customer_contact = this.cartData?.customer_phone || this.selectedVisitor?.phone || '';
+                        this.orderForm.shipping_address = this.cartData?.customer_address || this.selectedVisitor?.address || '';
+                    } else if (this.cartData?.info_history) {
+                        const rev = this.cartData.info_history.find(h => String(h.version) === String(this.selectedHistoryVersion));
+                        if (rev) {
+                            if (rev.name) this.orderForm.customer_name = rev.name;
+                            if (rev.phone) this.orderForm.customer_contact = rev.phone;
+                            if (rev.address) this.orderForm.shipping_address = rev.address;
+                        }
+                    }
+                },
+
+                get orderSubtotal() {
+                    return this.orderForm.items.reduce((sum, item) => sum + (parseFloat(item.price || 0) * (parseInt(item.qty) || 1)), 0);
+                },
+
+                get orderTotal() {
+                    const sub = this.orderSubtotal;
+                    const shipping = parseFloat(this.orderForm.delivery_charge || 0);
+                    const discount = parseFloat(this.orderForm.discount || 0);
+                    return Math.max(0, sub + shipping - discount);
+                },
+
+                updateOrderItemQty(index, change) {
+                    const item = this.orderForm.items[index];
+                    if (!item) return;
+                    let newQty = (parseInt(item.qty) || 1) + change;
+                    if (newQty < 1) newQty = 1;
+                    if (item.max_stock && newQty > item.max_stock) {
+                        alert('Cannot exceed stock quantity (' + item.max_stock + ')');
+                        return;
+                    }
+                    item.qty = newQty;
+                },
+
+                removeOrderItem(index) {
+                    this.orderForm.items.splice(index, 1);
+                },
+
+                async searchPosProducts() {
+                    if (!this.posSearchQuery || this.posSearchQuery.length < 2) {
+                        this.posSuggestions = [];
+                        this.showPosSuggestions = false;
+                        return;
+                    }
+                    this.isSearchingPos = true;
+                    try {
+                        const res = await fetch(`/admin/dashboard/products/search?q=${encodeURIComponent(this.posSearchQuery)}`);
+                        const data = await res.json();
+                        this.posSuggestions = Array.isArray(data) ? data : [];
+                        this.showPosSuggestions = this.posSuggestions.length > 0;
+                    } catch (e) {
+                        this.posSuggestions = [];
+                    } finally {
+                        this.isSearchingPos = false;
+                    }
+                },
+
+                addPosProductToOrder(product, variant = null) {
+                    const cartId = 'item_' + product.id + (variant ? '_' + variant.id : '') + '_' + Date.now();
+                    const existingIndex = this.orderForm.items.findIndex(i => i.product_id === product.id && i.variant_id === (variant ? variant.id : null));
+
+                    if (existingIndex !== -1) {
+                        this.updateOrderItemQty(existingIndex, 1);
+                    } else {
+                        let attrParts = [];
+                        if (variant && variant.attributes) {
+                            for (const [key, val] of Object.entries(variant.attributes)) {
+                                attrParts.push(val);
+                            }
+                        }
+
+                        this.orderForm.items.push({
+                            cartId: cartId,
+                            product_id: product.id,
+                            variant_id: variant ? variant.id : null,
+                            name: product.title,
+                            qty: 1,
+                            price: parseFloat(variant ? (variant.current_price || variant.original_price) : (product.current_price || product.regular_price)) || 0,
+                            original_price: parseFloat(variant ? (variant.original_price || variant.current_price) : (product.regular_price || product.current_price)) || 0,
+                            image: variant?.images?.[0] || product.featured_image || null,
+                            product_sku: product.sku || null,
+                            variant_sku: variant ? variant.sku : null,
+                            variantLabel: attrParts.length > 0 ? attrParts.join(', ') : null,
+                            max_stock: variant ? (variant.stock_quantity || 999) : (product.stock_quantity || 999)
+                        });
+                    }
+
+                    this.posSearchQuery = '';
+                    this.showPosSuggestions = false;
+                },
+
+                async submitCustomerOrder() {
+                    if (!this.orderForm.customer_name || !this.orderForm.customer_contact || !this.orderForm.shipping_address) {
+                        this.orderErrorNotice = 'Please fill customer name, contact and delivery address.';
+                        return;
+                    }
+                    if (this.orderForm.items.length === 0) {
+                        this.orderErrorNotice = 'Please add at least one product to the order.';
+                        return;
+                    }
+
+                    this.isSubmittingOrder = true;
+                    this.orderErrorNotice = null;
+                    this.orderSuccessNotice = null;
+
+                    const payload = {
+                        customer_name: this.orderForm.customer_name,
+                        customer_contact: this.orderForm.customer_contact,
+                        shipping_address: this.orderForm.shipping_address,
+                        source: this.orderForm.order_source || 'website',
+                        notes: this.orderForm.notes || null,
+                        delivery_charge: parseFloat(this.orderForm.delivery_charge || 0),
+                        discount: parseFloat(this.orderForm.discount || 0),
+                        subtotal: this.orderSubtotal,
+                        total: this.orderTotal,
+                        user_id: this.orderForm.user_id,
+                        visitor_token: this.selectedVisitor?.vid || null,
+                        items: this.orderForm.items.map(it => ({
+                            product_id: it.product_id,
+                            variant_id: it.variant_id,
+                            product_sku: it.product_sku,
+                            variant_sku: it.variant_sku,
+                            variant_name: it.variantLabel,
+                            name: it.name,
+                            quantity: it.qty,
+                            price: it.price
+                        }))
+                    };
+
+                    try {
+                        const res = await fetch('{{ route('admin.orders.store-pos') }}', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'X-CSRF-TOKEN': '{{ csrf_token() }}'
+                            },
+                            body: JSON.stringify(payload)
+                        });
+                        const data = await res.json();
+                        if (data && data.success) {
+                            this.orderSuccessNotice = data.message || 'Order placed successfully!';
+                            setTimeout(() => {
+                                this.isOrderModalOpen = false;
+                                if (data.order && data.order.order_id) {
+                                    window.open('/admin/dashboard/all-orders/' + data.order.order_id, '_blank');
+                                }
+                            }, 1200);
+                        } else {
+                            this.orderErrorNotice = data.message || 'Failed to place order.';
+                        }
+                    } catch (e) {
+                        this.orderErrorNotice = 'Error connecting to order server: ' + e.message;
+                    } finally {
+                        this.isSubmittingOrder = false;
+                    }
+                },
 
                 templates: @json($templates ?? []),
 
