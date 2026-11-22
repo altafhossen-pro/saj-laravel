@@ -401,25 +401,7 @@
 
                                 <!-- Actions -->
                                 <td class="px-6 py-4 text-right">
-                                    <div class="flex items-center justify-end gap-1.5">
-                                        <button type="button" @click="openOfferModal({
-                                            vid: '{{ $s->visitor_token }}',
-                                            name: '{{ addslashes($s->customer_name ?: ($s->user?->name ?: 'Guest Visitor')) }}',
-                                            phone: '{{ $s->customer_phone ?: ($s->user?->phone ?: '') }}',
-                                            user_id: {{ $s->user_id ?: 'null' }}
-                                        })" class="cursor-pointer inline-flex items-center gap-1 px-2.5 py-1.5 bg-pink-50 hover:bg-pink-100 text-pink-700 font-bold text-xs rounded-xl transition"
-                                            title="Send Custom Offer for Next Visit">
-                                            <i class="ph ph-lightning text-sm text-pink-600"></i>
-                                            <span>Offer</span>
-                                        </button>
-
-                                        <button type="button" @click="openJourney({{ $s->id }})"
-                                            class="cursor-pointer inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-semibold text-xs rounded-xl transition-colors"
-                                            title="View Full Footprint & History Details">
-                                            <i class="ph ph-user-list text-sm"></i>
-                                            <span>Details</span>
-                                        </button>
-
+                                    <div class="flex items-center justify-end">
                                         <!-- Context Menu Dropdown Trigger Button -->
                                         <button type="button" @click="openContextMenu($event, {
                                             id: {{ $s->id }},
@@ -432,7 +414,7 @@
                                             device: '{{ addslashes($s->device_type ?: 'Desktop') }}',
                                             has_cart: {{ $s->has_cart ? 'true' : 'false' }}
                                         })" class="cursor-pointer p-1.5 rounded-xl text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition inline-flex items-center justify-center"
-                                            title="More Actions (or Right-Click row)">
+                                            title="Actions (or Right-Click row)">
                                             <i class="ph-bold ph-dots-three-vertical text-base"></i>
                                         </button>
                                     </div>
