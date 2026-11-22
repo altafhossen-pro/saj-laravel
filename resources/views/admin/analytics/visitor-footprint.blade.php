@@ -1666,7 +1666,7 @@
                     };
 
                     try {
-                        const res = await fetch('{{ route('admin.orders.store-pos') }}', {
+                        const res = await fetch('{{ route('admin.orders.store') }}', {
                             method: 'POST',
                             headers: {
                                 'Content-Type': 'application/json',
