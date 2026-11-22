@@ -567,7 +567,7 @@
                                     <span class="text-[11px] text-gray-400" x-text="infoData?.profile?.last_seen ? 'Last seen ' + infoData.profile.last_seen : ''"></span>
                                 </div>
 
-                                <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
                                     <!-- Name -->
                                     <div class="bg-white/90 p-3 rounded-xl border border-gray-100 shadow-2xs">
                                         <div class="text-[10px] text-gray-400 font-semibold uppercase">Customer Name</div>
@@ -597,21 +597,29 @@
                                             </template>
                                         </div>
                                     </div>
+                                </div>
 
-                                    <!-- Address -->
-                                    <div class="bg-white/90 p-3 rounded-xl border border-gray-100 shadow-2xs">
-                                        <div class="text-[10px] text-gray-400 font-semibold uppercase">Address</div>
-                                        <div class="flex items-center justify-between gap-1 mt-1">
-                                            <span class="font-medium text-gray-800 text-xs truncate" :title="infoData?.profile?.address || ''" x-text="infoData?.profile?.address || 'Not provided'"></span>
-                                            <template x-if="infoData?.profile?.address">
-                                                <button type="button" @click="copyText(infoData.profile.address, 'Address copied!')"
-                                                        class="p-1 text-gray-400 hover:text-sky-600 rounded hover:bg-sky-50 transition cursor-pointer"
-                                                        title="Copy Address">
-                                                    <i class="ph ph-copy text-xs"></i>
-                                                </button>
-                                            </template>
+                                <!-- Full Address Textarea Box with Copy -->
+                                <div class="bg-white/95 p-3 rounded-xl border border-gray-100 shadow-2xs">
+                                    <div class="flex items-center justify-between mb-1.5">
+                                        <div class="text-[10px] text-gray-400 font-semibold uppercase flex items-center gap-1">
+                                            <i class="ph ph-map-pin text-rose-500"></i>
+                                            Customer Full Address
                                         </div>
+                                        <template x-if="infoData?.profile?.address">
+                                            <button type="button" @click="copyText(infoData.profile.address, 'Full address copied!')"
+                                                    class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold text-sky-700 bg-sky-50 hover:bg-sky-100 border border-sky-200 transition cursor-pointer"
+                                                    title="Copy Address">
+                                                <i class="ph ph-copy text-xs"></i>
+                                                <span>Copy Address</span>
+                                            </button>
+                                        </template>
                                     </div>
+                                    <textarea readonly
+                                              :value="infoData?.profile?.address || 'No address provided yet'"
+                                              rows="3"
+                                              class="w-full text-xs font-sans text-gray-800 p-2.5 rounded-lg border border-gray-200 bg-gray-50/70 focus:outline-none resize-y leading-relaxed"
+                                              placeholder="No address provided yet"></textarea>
                                 </div>
                             </div>
 
@@ -638,9 +646,9 @@
                                                 </div>
                                             </div>
 
-                                            <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
+                                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs mb-2">
                                                 <!-- Rev Name -->
-                                                <div class="bg-white p-2 rounded-xl border border-gray-100 flex items-center justify-between gap-1">
+                                                <div class="bg-white p-2.5 rounded-xl border border-gray-100 flex items-center justify-between gap-1 shadow-2xs">
                                                     <div class="min-w-0">
                                                         <div class="text-[9px] text-gray-400 font-bold uppercase">Name</div>
                                                         <div class="font-medium text-gray-800 truncate" x-text="rev.name || '-'"></div>
@@ -655,7 +663,7 @@
                                                 </div>
 
                                                 <!-- Rev Phone -->
-                                                <div class="bg-white p-2 rounded-xl border border-gray-100 flex items-center justify-between gap-1">
+                                                <div class="bg-white p-2.5 rounded-xl border border-gray-100 flex items-center justify-between gap-1 shadow-2xs">
                                                     <div class="min-w-0">
                                                         <div class="text-[9px] text-gray-400 font-bold uppercase">Phone</div>
                                                         <div class="font-mono font-medium text-gray-800 truncate" x-text="rev.phone || '-'"></div>
@@ -668,21 +676,29 @@
                                                         </button>
                                                     </template>
                                                 </div>
+                                            </div>
 
-                                                <!-- Rev Address -->
-                                                <div class="bg-white p-2 rounded-xl border border-gray-100 flex items-center justify-between gap-1">
-                                                    <div class="min-w-0">
-                                                        <div class="text-[9px] text-gray-400 font-bold uppercase">Address</div>
-                                                        <div class="text-gray-800 truncate text-[11px]" :title="rev.address || ''" x-text="rev.address || '-'"></div>
+                                            <!-- Rev Full Address Textarea -->
+                                            <div class="bg-white p-2.5 rounded-xl border border-gray-100 shadow-2xs">
+                                                <div class="flex items-center justify-between mb-1">
+                                                    <div class="text-[9px] text-gray-400 font-bold uppercase flex items-center gap-1">
+                                                        <i class="ph ph-map-pin text-rose-500"></i>
+                                                        Address Typed
                                                     </div>
                                                     <template x-if="rev.address">
                                                         <button type="button" @click="copyText(rev.address, 'Address copied: ' + rev.address)"
-                                                                class="p-1 text-gray-400 hover:text-indigo-600 rounded transition cursor-pointer"
+                                                                class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 transition cursor-pointer"
                                                                 title="Copy Address">
-                                                            <i class="ph ph-copy text-xs"></i>
+                                                            <i class="ph ph-copy text-[11px]"></i>
+                                                            <span>Copy Address</span>
                                                         </button>
                                                     </template>
                                                 </div>
+                                                <textarea readonly
+                                                          :value="rev.address || 'No address typed'"
+                                                          rows="2"
+                                                          class="w-full text-xs font-sans text-gray-800 p-2 rounded-lg border border-gray-200 bg-gray-50/60 focus:outline-none resize-y leading-relaxed"
+                                                          placeholder="No address typed"></textarea>
                                             </div>
                                         </div>
                                     </template>
