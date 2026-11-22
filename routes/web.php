@@ -262,6 +262,8 @@ Route::middleware(['auth', 'admin_access'])->prefix('admin/dashboard')->group(fu
         Route::get('/live-monitor/cart/{visitorToken}', [\App\Http\Controllers\Admin\VisitorFootprintController::class, 'getShopperCart'])->name('admin.visitors.shopper-cart');
         Route::get('/visitor-footprint', [\App\Http\Controllers\Admin\VisitorFootprintController::class, 'index'])->name('admin.visitors.footprint');
         Route::get('/visitor-footprint/{session}/journey', [\App\Http\Controllers\Admin\VisitorFootprintController::class, 'journey'])->name('admin.visitors.journey');
+        Route::get('/visitor/info-profile/{visitorToken}', [\App\Http\Controllers\Admin\VisitorFootprintController::class, 'getInfoProfile'])->name('admin.visitors.info-profile');
+        Route::post('/visitor/save-note', [\App\Http\Controllers\Admin\VisitorFootprintController::class, 'saveVisitorNote'])->name('admin.visitors.save-note');
         Route::post('/visitor/send-offer', [\App\Http\Controllers\Admin\VisitorFootprintController::class, 'sendOffer'])->name('admin.visitors.send-offer');
         Route::get('/visitor/offers-history', [\App\Http\Controllers\Admin\VisitorFootprintController::class, 'offersHistory'])->name('admin.visitors.offers-history');
     });

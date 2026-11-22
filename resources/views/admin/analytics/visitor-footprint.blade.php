@@ -277,10 +277,16 @@
                                             </div>
 
                                             @if($s->customer_phone || $s->user?->phone)
-                                                <div
-                                                    class="text-xs text-gray-700 font-mono font-medium flex items-center gap-1 mt-0.5">
-                                                    <i class="ph ph-phone text-brand-600"></i>
-                                                    <span>{{ $s->customer_phone ?: $s->user?->phone }}</span>
+                                                @php $ph = $s->customer_phone ?: $s->user?->phone; @endphp
+                                                <div class="inline-flex items-center gap-1.5 mt-0.5 group/phone">
+                                                    <button type="button"
+                                                        @click.stop="copyText('{{ addslashes($ph) }}', 'Phone copied: {{ addslashes($ph) }}')"
+                                                        class="inline-flex items-center gap-1 px-1.5 py-0.5 -ml-1 rounded-md text-xs text-gray-800 font-mono font-semibold hover:bg-brand-50 hover:text-brand-700 transition cursor-pointer"
+                                                        title="Click to copy phone number">
+                                                        <i class="ph-bold ph-phone text-brand-600"></i>
+                                                        <span>{{ $ph }}</span>
+                                                        <i class="ph ph-copy text-[11px] text-gray-400 group-hover/phone:text-brand-600 transition"></i>
+                                                    </button>
                                                 </div>
                                             @endif
 
@@ -491,21 +497,274 @@
                     <span class="font-semibold text-gray-800 group-hover:text-pink-700">Send Offer</span>
                 </button>
 
+                <!-- 4. Visitor Info & History Profile -->
+                <button type="button" @click="openInfoModal(contextVisitor)"
+                        class="w-full text-left px-3.5 py-2 hover:bg-sky-50 hover:text-sky-700 flex items-center gap-2.5 transition-colors cursor-pointer group">
+                    <i class="ph ph-identification-card text-base text-gray-400 group-hover:text-sky-600"></i>
+                    <span class="font-semibold text-gray-800 group-hover:text-sky-700">Visitor Info & Notes</span>
+                </button>
+
                 <div class="my-1 border-t border-gray-100"></div>
 
-                <!-- 4. Shopper Journey Details -->
+                <!-- 5. Shopper Journey Details -->
                 <button type="button" @click="triggerJourney()"
                         class="w-full text-left px-3.5 py-2 hover:bg-indigo-50 hover:text-indigo-700 flex items-center gap-2.5 transition-colors cursor-pointer group">
                     <i class="ph ph-footprints text-base text-gray-400 group-hover:text-indigo-600"></i>
                     <span class="font-medium text-gray-700 group-hover:text-indigo-700">Footprint Journey</span>
                 </button>
 
-                <!-- 5. Real-time Live Monitor Shortcut -->
+                <!-- 6. Real-time Live Monitor Shortcut -->
                 <button type="button" @click="openLiveMonitor()"
                         class="w-full text-left px-3.5 py-2 hover:bg-gray-100 flex items-center gap-2.5 transition-colors cursor-pointer group">
                     <i class="ph ph-broadcast text-base text-gray-400 group-hover:text-gray-700"></i>
                     <span class="font-medium text-gray-700 group-hover:text-gray-900">Open Live Monitor</span>
                 </button>
+            </div>
+        </div>
+
+        <!-- Real-time Shopper Cart & Checkout Draft Modal -->
+        <!-- Visitor Info, Historical Revisions & Timeline Notes Modal -->
+        <div x-show="isInfoModalOpen"
+            x-cloak
+            style="display: none;"
+            class="fixed inset-0 z-[110] overflow-y-auto"
+            role="dialog" aria-modal="true">
+            <div class="fixed inset-0 bg-gray-900/60 backdrop-blur-xs transition-opacity" @click="isInfoModalOpen = false"></div>
+
+            <div class="flex min-h-full items-center justify-center p-4">
+                <div class="relative w-full max-w-2xl bg-white rounded-3xl shadow-2xl border border-gray-100 overflow-hidden"
+                    @click.stop>
+
+                    <!-- Modal Header -->
+                    <div class="px-6 py-4 border-b border-gray-100 bg-gray-50/80 flex items-center justify-between">
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 rounded-2xl bg-sky-50 text-sky-600 flex items-center justify-center text-xl shrink-0 border border-sky-100">
+                                <i class="ph-bold ph-identification-card"></i>
+                            </div>
+                            <div>
+                                <div class="flex items-center gap-2">
+                                    <h3 class="text-base font-bold text-gray-900" x-text="'Shopper #' + (infoModalVisitor?.serial || 1) + ' - Identity & Notes'"></h3>
+                                    <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-sky-100 text-sky-700">Visitor Profile</span>
+                                </div>
+                                <p class="text-xs text-gray-500 font-mono mt-0.5" x-text="'Token: ' + (infoModalVisitor?.vid || '')"></p>
+                            </div>
+                        </div>
+                        <button type="button" @click="isInfoModalOpen = false" class="p-2 text-gray-400 hover:text-gray-700 rounded-xl hover:bg-gray-100 transition cursor-pointer">
+                            <i class="ph ph-x text-lg"></i>
+                        </button>
+                    </div>
+
+                    <!-- Modal Body -->
+                    <div class="p-6 max-h-[75vh] overflow-y-auto space-y-6">
+                        <!-- Loading spinner -->
+                        <div x-show="isLoadingInfo" class="py-12 flex flex-col items-center justify-center text-gray-400">
+                            <i class="ph ph-spinner animate-spin text-3xl text-sky-600 mb-2"></i>
+                            <span class="text-xs font-medium">Fetching visitor info & history...</span>
+                        </div>
+
+                        <div x-show="!isLoadingInfo" class="space-y-6">
+                            <!-- 1. Current Active Profile Card -->
+                            <div class="bg-gradient-to-br from-sky-50/60 via-indigo-50/30 to-white rounded-2xl p-4 border border-sky-100">
+                                <div class="flex items-center justify-between mb-3">
+                                    <h4 class="text-xs font-bold uppercase tracking-wider text-sky-900 flex items-center gap-1.5">
+                                        <i class="ph-bold ph-user text-sky-600 text-sm"></i>
+                                        Latest Saved Profile
+                                    </h4>
+                                    <span class="text-[11px] text-gray-400" x-text="infoData?.profile?.last_seen ? 'Last seen ' + infoData.profile.last_seen : ''"></span>
+                                </div>
+
+                                <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                    <!-- Name -->
+                                    <div class="bg-white/90 p-3 rounded-xl border border-gray-100 shadow-2xs">
+                                        <div class="text-[10px] text-gray-400 font-semibold uppercase">Customer Name</div>
+                                        <div class="flex items-center justify-between gap-1 mt-1">
+                                            <span class="font-bold text-gray-900 text-xs truncate" x-text="infoData?.profile?.name || 'Not provided'"></span>
+                                            <template x-if="infoData?.profile?.name">
+                                                <button type="button" @click="copyText(infoData.profile.name, 'Name copied!')"
+                                                        class="p-1 text-gray-400 hover:text-sky-600 rounded hover:bg-sky-50 transition cursor-pointer"
+                                                        title="Copy Name">
+                                                    <i class="ph ph-copy text-xs"></i>
+                                                </button>
+                                            </template>
+                                        </div>
+                                    </div>
+
+                                    <!-- Phone -->
+                                    <div class="bg-white/90 p-3 rounded-xl border border-gray-100 shadow-2xs">
+                                        <div class="text-[10px] text-gray-400 font-semibold uppercase">Phone Number</div>
+                                        <div class="flex items-center justify-between gap-1 mt-1">
+                                            <span class="font-bold font-mono text-gray-900 text-xs" x-text="infoData?.profile?.phone || 'Not provided'"></span>
+                                            <template x-if="infoData?.profile?.phone">
+                                                <button type="button" @click="copyText(infoData.profile.phone, 'Phone copied!')"
+                                                        class="p-1 text-gray-400 hover:text-sky-600 rounded hover:bg-sky-50 transition cursor-pointer"
+                                                        title="Copy Phone">
+                                                    <i class="ph ph-copy text-xs"></i>
+                                                </button>
+                                            </template>
+                                        </div>
+                                    </div>
+
+                                    <!-- Address -->
+                                    <div class="bg-white/90 p-3 rounded-xl border border-gray-100 shadow-2xs">
+                                        <div class="text-[10px] text-gray-400 font-semibold uppercase">Address</div>
+                                        <div class="flex items-center justify-between gap-1 mt-1">
+                                            <span class="font-medium text-gray-800 text-xs truncate" :title="infoData?.profile?.address || ''" x-text="infoData?.profile?.address || 'Not provided'"></span>
+                                            <template x-if="infoData?.profile?.address">
+                                                <button type="button" @click="copyText(infoData.profile.address, 'Address copied!')"
+                                                        class="p-1 text-gray-400 hover:text-sky-600 rounded hover:bg-sky-50 transition cursor-pointer"
+                                                        title="Copy Address">
+                                                    <i class="ph ph-copy text-xs"></i>
+                                                </button>
+                                            </template>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- 2. Historical Typed Info & Revisions -->
+                            <div>
+                                <div class="flex items-center justify-between mb-2.5">
+                                    <h4 class="text-xs font-bold uppercase tracking-wider text-gray-700 flex items-center gap-1.5">
+                                        <i class="ph-bold ph-clock-counter-clockwise text-indigo-600 text-sm"></i>
+                                        Previous Typed Info & Revisions
+                                        <span class="px-1.5 py-0.2 rounded-full text-[10px] bg-indigo-50 text-indigo-700 font-semibold"
+                                              x-text="(infoData?.revisions?.length || 0) + ' saved'"></span>
+                                    </h4>
+                                    <span class="text-[10px] text-gray-400">Click copy on any field to use</span>
+                                </div>
+
+                                <div class="space-y-2">
+                                    <template x-for="(rev, idx) in (infoData?.revisions || [])" :key="idx">
+                                        <div class="bg-gray-50/80 hover:bg-indigo-50/30 p-3 rounded-2xl border border-gray-200/80 transition-colors">
+                                            <div class="flex items-center justify-between gap-2 mb-2">
+                                                <div class="flex items-center gap-1.5">
+                                                    <span class="px-2 py-0.5 rounded-md bg-indigo-100 text-indigo-800 text-[10px] font-bold"
+                                                          x-text="'Rev #' + (rev.version || (infoData.revisions.length - idx))"></span>
+                                                    <span class="text-[10px] text-gray-400 font-mono" x-text="rev.time"></span>
+                                                </div>
+                                            </div>
+
+                                            <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
+                                                <!-- Rev Name -->
+                                                <div class="bg-white p-2 rounded-xl border border-gray-100 flex items-center justify-between gap-1">
+                                                    <div class="min-w-0">
+                                                        <div class="text-[9px] text-gray-400 font-bold uppercase">Name</div>
+                                                        <div class="font-medium text-gray-800 truncate" x-text="rev.name || '-'"></div>
+                                                    </div>
+                                                    <template x-if="rev.name">
+                                                        <button type="button" @click="copyText(rev.name, 'Name copied: ' + rev.name)"
+                                                                class="p-1 text-gray-400 hover:text-indigo-600 rounded transition cursor-pointer"
+                                                                title="Copy Name">
+                                                            <i class="ph ph-copy text-xs"></i>
+                                                        </button>
+                                                    </template>
+                                                </div>
+
+                                                <!-- Rev Phone -->
+                                                <div class="bg-white p-2 rounded-xl border border-gray-100 flex items-center justify-between gap-1">
+                                                    <div class="min-w-0">
+                                                        <div class="text-[9px] text-gray-400 font-bold uppercase">Phone</div>
+                                                        <div class="font-mono font-medium text-gray-800 truncate" x-text="rev.phone || '-'"></div>
+                                                    </div>
+                                                    <template x-if="rev.phone">
+                                                        <button type="button" @click="copyText(rev.phone, 'Phone copied: ' + rev.phone)"
+                                                                class="p-1 text-gray-400 hover:text-indigo-600 rounded transition cursor-pointer"
+                                                                title="Copy Phone">
+                                                            <i class="ph ph-copy text-xs"></i>
+                                                        </button>
+                                                    </template>
+                                                </div>
+
+                                                <!-- Rev Address -->
+                                                <div class="bg-white p-2 rounded-xl border border-gray-100 flex items-center justify-between gap-1">
+                                                    <div class="min-w-0">
+                                                        <div class="text-[9px] text-gray-400 font-bold uppercase">Address</div>
+                                                        <div class="text-gray-800 truncate text-[11px]" :title="rev.address || ''" x-text="rev.address || '-'"></div>
+                                                    </div>
+                                                    <template x-if="rev.address">
+                                                        <button type="button" @click="copyText(rev.address, 'Address copied: ' + rev.address)"
+                                                                class="p-1 text-gray-400 hover:text-indigo-600 rounded transition cursor-pointer"
+                                                                title="Copy Address">
+                                                            <i class="ph ph-copy text-xs"></i>
+                                                        </button>
+                                                    </template>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </template>
+
+                                    <div x-show="!infoData?.revisions || infoData.revisions.length === 0" class="text-center py-4 bg-gray-50 rounded-2xl border border-dashed border-gray-200 text-xs text-gray-400">
+                                        No prior typed variations saved for this visitor yet.
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- 3. Visitor Notes & Timeline -->
+                            <div class="pt-2 border-t border-gray-100">
+                                <div class="flex items-center justify-between mb-3">
+                                    <h4 class="text-xs font-bold uppercase tracking-wider text-gray-700 flex items-center gap-1.5">
+                                        <i class="ph-bold ph-note-pencil text-amber-600 text-sm"></i>
+                                        Admin Notes & Timeline
+                                        <span class="px-1.5 py-0.2 rounded-full text-[10px] bg-amber-50 text-amber-700 font-semibold"
+                                              x-text="(infoData?.notes?.length || 0) + ' notes'"></span>
+                                    </h4>
+                                </div>
+
+                                <!-- Add New Note Form -->
+                                <div class="bg-amber-50/40 rounded-2xl p-3.5 border border-amber-100 mb-4">
+                                    <label class="block text-[11px] font-bold text-amber-900 mb-1.5">Add New Note for this Visitor</label>
+                                    <div class="space-y-2">
+                                        <textarea x-model="newVisitorNote"
+                                                  rows="2"
+                                                  placeholder="Type notes (e.g. Called customer, requested follow-up, promised discount, fake order suspect...)"
+                                                  class="w-full text-xs p-2.5 rounded-xl border border-amber-200 bg-white focus:outline-none focus:ring-2 focus:ring-amber-400 resize-none"></textarea>
+                                        <div class="flex items-center justify-between">
+                                            <span class="text-[10px] text-gray-400">Notes are saved permanently with timestamps.</span>
+                                            <button type="button"
+                                                    @click="saveNote()"
+                                                    :disabled="isSavingNote || !newVisitorNote.trim()"
+                                                    class="px-3.5 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white font-bold text-xs shadow-xs transition flex items-center gap-1 cursor-pointer">
+                                                <i class="ph ph-plus-circle font-bold" x-show="!isSavingNote"></i>
+                                                <i class="ph ph-spinner animate-spin" x-show="isSavingNote"></i>
+                                                <span x-text="isSavingNote ? 'Saving...' : 'Add Note'"></span>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Notes Timeline List -->
+                                <div class="space-y-2.5">
+                                    <template x-for="n in (infoData?.notes || [])" :key="n.id">
+                                        <div class="p-3 bg-white rounded-2xl border border-gray-200/90 shadow-2xs hover:border-amber-200 transition">
+                                            <div class="flex items-center justify-between gap-2 mb-1.5">
+                                                <div class="flex items-center gap-1.5">
+                                                    <span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+                                                    <span class="font-bold text-gray-900 text-xs" x-text="n.admin_name"></span>
+                                                </div>
+                                                <div class="flex items-center gap-1 text-[10px] text-gray-400 font-mono">
+                                                    <span x-text="n.created_at"></span>
+                                                    <span x-show="n.time_ago" x-text="'(' + n.time_ago + ')'"></span>
+                                                </div>
+                                            </div>
+                                            <div class="text-xs text-gray-800 whitespace-pre-line pl-3 border-l-2 border-amber-200/80" x-text="n.note"></div>
+                                        </div>
+                                    </template>
+
+                                    <div x-show="!infoData?.notes || infoData.notes.length === 0" class="text-center py-4 bg-gray-50 rounded-2xl border border-dashed border-gray-200 text-xs text-gray-400">
+                                        No notes added for this visitor yet. Add the first note above!
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Modal Footer -->
+                    <div class="px-6 py-3 border-t border-gray-100 bg-gray-50/70 flex items-center justify-end">
+                        <button type="button" @click="isInfoModalOpen = false" class="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 font-semibold text-xs rounded-xl transition cursor-pointer">
+                            Close
+                        </button>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -1309,6 +1568,20 @@
             </div>
         </div>
 
+        <!-- Global Floating Toast Notification -->
+        <div x-show="toast.show"
+             x-transition:enter="transition ease-out duration-200"
+             x-transition:enter-start="opacity-0 translate-y-3"
+             x-transition:enter-end="opacity-100 translate-y-0"
+             x-transition:leave="transition ease-in duration-150"
+             x-transition:leave-start="opacity-100 translate-y-0"
+             x-transition:leave-end="opacity-0 translate-y-3"
+             style="display: none;"
+             class="fixed bottom-6 right-6 z-[150] flex items-center gap-2.5 px-4 py-3 bg-gray-900/95 text-white text-xs font-semibold rounded-2xl shadow-2xl backdrop-blur-md border border-gray-800">
+            <i class="ph-bold text-base" :class="toast.type === 'error' ? 'ph-warning-circle text-rose-400' : 'ph-check-circle text-emerald-400'"></i>
+            <span x-text="toast.message"></span>
+        </div>
+
     </div>
 @endsection
 
@@ -1343,6 +1616,45 @@
                 isSearchingPos: false,
                 posSuggestions: [],
                 showPosSuggestions: false,
+
+                // Visitor Info, Revisions & Notes Modal State
+                isInfoModalOpen: false,
+                isLoadingInfo: false,
+                infoModalVisitor: null,
+                infoData: null,
+                newVisitorNote: '',
+                isSavingNote: false,
+
+                // Toast Notification State
+                toast: { show: false, message: '', type: 'success' },
+                toastTimer: null,
+
+                showToast(message, type = 'success') {
+                    clearTimeout(this.toastTimer);
+                    this.toast = { show: true, message, type };
+                    this.toastTimer = setTimeout(() => this.toast.show = false, 3500);
+                },
+
+                async copyText(text, successMsg = 'Copied to clipboard!') {
+                    if (!text) return;
+                    try {
+                        if (navigator.clipboard && window.isSecureContext) {
+                            await navigator.clipboard.writeText(text);
+                        } else {
+                            const input = document.createElement('textarea');
+                            input.value = text;
+                            input.style.position = 'fixed';
+                            input.style.opacity = '0';
+                            document.body.appendChild(input);
+                            input.select();
+                            document.execCommand('copy');
+                            document.body.removeChild(input);
+                        }
+                        this.showToast(successMsg, 'success');
+                    } catch (e) {
+                        this.showToast('Could not copy text', 'error');
+                    }
+                },
                 orderForm: {
                     customer_name: '',
                     customer_contact: '',
@@ -1432,6 +1744,70 @@
                     const v = this.contextVisitor || this.selectedVisitor;
                     this.closeContextMenu();
                     window.open('{{ route('admin.visitors.live') }}', '_blank');
+                },
+
+                openInfoModal(v) {
+                    const target = v || this.contextVisitor || this.selectedVisitor;
+                    if (!target || !target.vid) return;
+                    this.closeContextMenu();
+                    this.infoModalVisitor = target;
+                    this.isInfoModalOpen = true;
+                    this.isLoadingInfo = true;
+                    this.infoData = null;
+                    this.newVisitorNote = '';
+
+                    const url = '{{ url('admin/dashboard/visitor/info-profile') }}/' + encodeURIComponent(target.vid);
+                    fetch(url)
+                        .then(res => res.json())
+                        .then(data => {
+                            if (data && data.success) {
+                                this.infoData = data;
+                            }
+                        })
+                        .catch(err => {
+                            console.error('Failed to load visitor info profile:', err);
+                            this.showToast('Failed to load profile', 'error');
+                        })
+                        .finally(() => {
+                            this.isLoadingInfo = false;
+                        });
+                },
+
+                saveNote() {
+                    if (!this.infoModalVisitor?.vid || !this.newVisitorNote.trim()) return;
+                    this.isSavingNote = true;
+
+                    fetch('{{ route('admin.visitors.save-note') }}', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                            'Accept': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            visitor_token: this.infoModalVisitor.vid,
+                            note: this.newVisitorNote.trim()
+                        })
+                    })
+                    .then(res => res.json())
+                    .then(data => {
+                        if (data && data.success) {
+                            if (!this.infoData) this.infoData = {};
+                            if (!Array.isArray(this.infoData.notes)) this.infoData.notes = [];
+                            this.infoData.notes.unshift(data.note);
+                            this.newVisitorNote = '';
+                            this.showToast('Note added to visitor history!', 'success');
+                        } else {
+                            this.showToast(data.message || 'Could not save note', 'error');
+                        }
+                    })
+                    .catch(err => {
+                        console.error('Error saving note:', err);
+                        this.showToast('Error saving note', 'error');
+                    })
+                    .finally(() => {
+                        this.isSavingNote = false;
+                    });
                 },
 
                 orderAsCustomer() {

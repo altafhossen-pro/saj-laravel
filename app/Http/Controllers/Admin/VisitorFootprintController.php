@@ -450,6 +450,157 @@ class VisitorFootprintController extends Controller
     }
 
     /**
+     * Get aggregate profile, all revisions, and timeline notes for a visitor
+     */
+    public function getInfoProfile(Request $request, string $visitorToken): JsonResponse
+    {
+        $session = VisitorSession::with(['user', 'cartSession'])
+            ->where('visitor_token', $visitorToken)
+            ->latest('id')
+            ->first();
+
+        $cart = CartSession::where('visitor_token', $visitorToken)
+            ->latest('id')
+            ->first();
+
+        // Also check RAM / Cache live session for extra real-time info
+        $liveProfile = [];
+        foreach (['/dev/shm/ariomart_visitors', storage_path('framework/cache/visitors')] as $dir) {
+            $activeFile = $dir . '/live_sessions.json';
+            if (file_exists($activeFile)) {
+                $sessions = json_decode(@file_get_contents($activeFile), true);
+                if (is_array($sessions) && isset($sessions[$visitorToken])) {
+                    $liveProfile = $sessions[$visitorToken];
+                    break;
+                }
+            }
+        }
+
+        $currentName = $session?->customer_name ?: ($cart?->customer_name ?: ($session?->user?->name ?: ($liveProfile['name'] ?? null)));
+        $currentPhone = $session?->customer_phone ?: ($cart?->customer_phone ?: ($session?->user?->phone ?: ($liveProfile['phone'] ?? null)));
+        $currentAddress = $session?->customer_address ?: ($cart?->customer_address ?: ($liveProfile['address'] ?? null));
+
+        // Gather all typing revisions across CartSession and VisitorSession
+        $cartHistory = $cart && is_array($cart->info_history) ? $cart->info_history : [];
+
+        // Combine distinct typed entries into a structured timeline
+        $allRevisions = [];
+        if (!empty($cartHistory)) {
+            foreach ($cartHistory as $h) {
+                if (!empty($h['name']) || !empty($h['phone']) || !empty($h['address'])) {
+                    $allRevisions[] = [
+                        'version' => $h['version'] ?? (count($allRevisions) + 1),
+                        'name' => $h['name'] ?? null,
+                        'phone' => $h['phone'] ?? null,
+                        'address' => $h['address'] ?? null,
+                        'time' => $h['time'] ?? null,
+                        'timestamp' => $h['timestamp'] ?? null,
+                    ];
+                }
+            }
+        }
+
+        // If no cart history but current info exists, provide current as v1
+        if (empty($allRevisions) && ($currentName || $currentPhone || $currentAddress)) {
+            $allRevisions[] = [
+                'version' => 1,
+                'name' => $currentName,
+                'phone' => $currentPhone,
+                'address' => $currentAddress,
+                'time' => $session?->updated_at?->format('h:i:s A (d M)') ?: date('h:i:s A (d M)'),
+                'timestamp' => time(),
+            ];
+        }
+
+        // Fetch all admin notes for this visitor from visitor_events
+        $notesEvents = \App\Models\VisitorEvent::where('visitor_token', $visitorToken)
+            ->where('event_type', 'admin_note')
+            ->orderBy('id', 'desc')
+            ->get();
+
+        $notesList = [];
+        foreach ($notesEvents as $ev) {
+            $meta = is_array($ev->metadata) ? $ev->metadata : [];
+            $notesList[] = [
+                'id' => $ev->id,
+                'note' => $ev->title ?: ($meta['note'] ?? ''),
+                'admin_name' => $meta['admin_name'] ?? 'Admin',
+                'admin_id' => $meta['admin_id'] ?? null,
+                'created_at' => $ev->created_at ? $ev->created_at->setTimezone('Asia/Dhaka')->format('h:i A, d M Y') : 'Recently',
+                'time_ago' => $ev->created_at ? $ev->created_at->diffForHumans() : '',
+            ];
+        }
+
+        return response()->json([
+            'success' => true,
+            'visitor_token' => $visitorToken,
+            'profile' => [
+                'name' => $currentName,
+                'phone' => $currentPhone,
+                'address' => $currentAddress,
+                'ip' => $session?->ip_address,
+                'device' => $session?->device,
+                'browser' => $session?->browser,
+                'os' => $session?->os,
+                'first_seen' => $session?->first_seen_at?->format('h:i A, d M Y'),
+                'last_seen' => $session?->last_seen_at?->format('h:i A, d M Y'),
+            ],
+            'revisions' => array_reverse($allRevisions),
+            'notes' => $notesList,
+        ]);
+    }
+
+    /**
+     * Add a persistent timeline note for a visitor
+     */
+    public function saveVisitorNote(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'visitor_token' => 'required|string',
+            'note' => 'required|string|max:5000',
+        ]);
+
+        $visitorToken = trim($validated['visitor_token']);
+        $noteText = trim($validated['note']);
+
+        $session = VisitorSession::where('visitor_token', $visitorToken)
+            ->latest('id')
+            ->first();
+
+        $user = auth()->user();
+        $adminName = $user ? $user->name : 'Admin';
+        $adminId = $user ? $user->id : null;
+
+        $event = \App\Models\VisitorEvent::create([
+            'visitor_session_id' => $session ? $session->id : 0,
+            'visitor_token' => $visitorToken,
+            'event_type' => 'admin_note',
+            'url' => request()->url(),
+            'title' => $noteText,
+            'metadata' => [
+                'note' => $noteText,
+                'admin_name' => $adminName,
+                'admin_id' => $adminId,
+                'created_at' => now()->setTimezone('Asia/Dhaka')->toDateTimeString(),
+            ],
+            'created_at' => now(),
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Visitor note saved successfully.',
+            'note' => [
+                'id' => $event->id,
+                'note' => $noteText,
+                'admin_name' => $adminName,
+                'admin_id' => $adminId,
+                'created_at' => $event->created_at->setTimezone('Asia/Dhaka')->format('h:i A, d M Y'),
+                'time_ago' => 'Just now',
+            ]
+        ]);
+    }
+
+    /**
      * Get list of offers sent to visitors
      */
     public function offersHistory(): JsonResponse
