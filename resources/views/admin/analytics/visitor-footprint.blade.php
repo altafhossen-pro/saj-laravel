@@ -217,18 +217,21 @@
                     </thead>
                     <tbody class="divide-y divide-gray-100">
                         @forelse($sessions as $s)
+                            @php
+                                $visitorObj = [
+                                    'id' => (int) $s->id,
+                                    'vid' => (string) $s->visitor_token,
+                                    'serial' => (int) ($s->daily_serial ?: $s->id),
+                                    'name' => (string) ($s->customer_name ?: ($s->user?->name ?: 'Guest Visitor')),
+                                    'phone' => (string) ($s->customer_phone ?: ($s->user?->phone ?: '')),
+                                    'address' => (string) ($s->customer_address ?: ''),
+                                    'user_id' => $s->user_id ? (int) $s->user_id : null,
+                                    'device' => (string) ($s->device ?: 'Desktop'),
+                                    'has_cart' => (bool) $s->has_cart,
+                                ];
+                            @endphp
                             <tr class="hover:bg-gray-50/80 transition-colors select-none group cursor-context-menu"
-                                @contextmenu.prevent="openContextMenu($event, {
-                                    id: {{ $s->id }},
-                                    vid: '{{ $s->visitor_token }}',
-                                    serial: {{ (int)($s->daily_serial ?: $s->id) }},
-                                    name: '{{ addslashes($s->customer_name ?: ($s->user?->name ?: 'Guest Visitor')) }}',
-                                    phone: '{{ $s->customer_phone ?: ($s->user?->phone ?: '') }}',
-                                    address: '{{ addslashes($s->customer_address ?: '') }}',
-                                    user_id: {{ $s->user_id ?: 'null' }},
-                                    device: '{{ addslashes($s->device_type ?: 'Desktop') }}',
-                                    has_cart: {{ $s->has_cart ? 'true' : 'false' }}
-                                })">
+                                @contextmenu.prevent='openContextMenu($event, @json($visitorObj))'>
                                 <!-- Visitor ID -->
                                 <td class="px-5 py-4 text-center">
                                     <span
@@ -409,17 +412,8 @@
                                 <td class="px-6 py-4 text-right">
                                     <div class="flex items-center justify-end">
                                         <!-- Context Menu Dropdown Trigger Button -->
-                                        <button type="button" @click="openContextMenu($event, {
-                                            id: {{ $s->id }},
-                                            vid: '{{ $s->visitor_token }}',
-                                            serial: {{ (int)($s->daily_serial ?: $s->id) }},
-                                            name: '{{ addslashes($s->customer_name ?: ($s->user?->name ?: 'Guest Visitor')) }}',
-                                            phone: '{{ $s->customer_phone ?: ($s->user?->phone ?: '') }}',
-                                            address: '{{ addslashes($s->customer_address ?: '') }}',
-                                            user_id: {{ $s->user_id ?: 'null' }},
-                                            device: '{{ addslashes($s->device_type ?: 'Desktop') }}',
-                                            has_cart: {{ $s->has_cart ? 'true' : 'false' }}
-                                        })" class="cursor-pointer p-1.5 rounded-xl text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition inline-flex items-center justify-center"
+                                        <button type="button" @click='openContextMenu($event, @json($visitorObj))'
+                                            class="cursor-pointer p-1.5 rounded-xl text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition inline-flex items-center justify-center"
                                             title="Actions (or Right-Click row)">
                                             <i class="ph-bold ph-dots-three-vertical text-base"></i>
                                         </button>
@@ -2050,8 +2044,6 @@
                         this.isSubmittingOrder = false;
                     }
                 },
-
-                templates: @json($templates ?? []),
 
                 applyTemplate() {
                     if (!this.selectedTemplate) return;
