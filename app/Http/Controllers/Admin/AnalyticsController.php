@@ -627,19 +627,42 @@ class AnalyticsController extends Controller
                 break;
         }
 
-        // 1. Total Revenue (sum of orders, excluding cancelled and drafts)
-        $revenueQuery = Order::where('is_draft_mode', false)->whereNotIn('status', ['cancelled']);
-        if ($startDate && $endDate) {
-            $revenueQuery->whereBetween('created_at', [$startDate, $endDate]);
-        }
-        $revenue = (float) $revenueQuery->sum('total');
+        // 1. High-Performance Single-Query Order & Delivered Profit Aggregations
+        // Formula: Net Profit = Steadfast Cash Collected - Courier Delivery Charge - 1% COD Fee
+        $orderMetricsQuery = DB::table('orders')
+            ->whereNull('deleted_at')
+            ->where('is_draft_mode', false);
 
-        // 2. Total Orders (valid non-draft orders)
+        if ($startDate && $endDate) {
+            $orderMetricsQuery->whereBetween('created_at', [$startDate, $endDate]);
+        }
+
+        $orderMetrics = $orderMetricsQuery->selectRaw("
+            COUNT(*) as total_orders,
+            COALESCE(SUM(CASE WHEN status != 'cancelled' THEN total ELSE 0 END), 0) as gross_revenue,
+            COUNT(CASE WHEN status = 'delivered' THEN 1 END) as delivered_orders,
+            COALESCE(SUM(
+                CASE WHEN status = 'delivered' THEN 
+                    (CASE 
+                        WHEN steadfast_receivable_amount > 0 THEN steadfast_receivable_amount 
+                        WHEN (COALESCE(steadfast_collected_amount, total) - COALESCE(steadfast_delivery_charge, shipping_cost, 70)) > 0 
+                        THEN ROUND((COALESCE(steadfast_collected_amount, total) - COALESCE(steadfast_delivery_charge, shipping_cost, 70)) - ROUND((COALESCE(steadfast_collected_amount, total) - COALESCE(steadfast_delivery_charge, shipping_cost, 70)) * 0.01))
+                        ELSE 0 
+                    END)
+                ELSE 0 END
+            ), 0) as net_profit
+        ")->first();
+
+        $grossRevenue = (float) ($orderMetrics->gross_revenue ?? 0.0);
+        $netProfit = (float) ($orderMetrics->net_profit ?? 0.0);
+        $totalOrders = (int) ($orderMetrics->total_orders ?? 0);
+        $deliveredOrders = (int) ($orderMetrics->delivered_orders ?? 0);
+
+        // 2. Total Orders Query reference for customer identification
         $ordersQuery = Order::where('is_draft_mode', false);
         if ($startDate && $endDate) {
             $ordersQuery->whereBetween('created_at', [$startDate, $endDate]);
         }
-        $totalOrders = (int) $ordersQuery->count();
 
         // 3. Total Customers
         $regUserQuery = \App\Models\User::whereDoesntHave('roles', fn($r) => $r->where('is_customer', false))->whereNotIn('role', ['super_admin', 'admin', 'manager', 'staff']);
@@ -675,8 +698,13 @@ class AnalyticsController extends Controller
         return [
             'success' => true,
             'period' => $period,
-            'revenue' => $revenue,
-            'formatted_revenue' => '৳' . number_format($revenue, 0),
+            'revenue' => $netProfit,
+            'formatted_revenue' => '৳' . number_format($netProfit, 0),
+            'net_profit' => $netProfit,
+            'formatted_net_profit' => '৳' . number_format($netProfit, 0),
+            'gross_revenue' => $grossRevenue,
+            'formatted_gross_revenue' => '৳' . number_format($grossRevenue, 0),
+            'delivered_orders' => $deliveredOrders,
             'orders' => $totalOrders,
             'customers' => $totalCustomers,
             'visitors' => $visitorsCount,
