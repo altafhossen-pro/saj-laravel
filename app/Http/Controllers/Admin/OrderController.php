@@ -363,8 +363,10 @@ class OrderController extends Controller
 
             // Reset collected & receivable amounts if returned
             if ($newStatus === 'returned') {
-                if ($order->payment_method === 'cod') {
-                    $order->payment_status = 'unpaid';
+                if ($order->payment_status === 'paid') {
+                    $order->payment_status = 'refunded';
+                } else {
+                    $order->payment_status = 'pending';
                 }
                 $order->steadfast_collected_amount = 0.00;
                 $order->steadfast_receivable_amount = 0.00;

@@ -1,9 +1,10 @@
 <script>
     document.addEventListener('alpine:init', () => {
-        Alpine.data('orderActions', (orderId, currentStatus, isBooked, cid, trackingCode, customerPhone, initialFraudData, isOrderOlderThan10Days, isStockDeducted, orderItems, initialFbSentAt) => ({
+        Alpine.data('orderActions', (orderId, currentStatus, isBooked, cid, trackingCode, customerPhone, initialFraudData, isOrderOlderThan10Days, isStockDeducted, orderItems, initialFbSentAt, initialStatusTimestamps) => ({
             orderId: orderId,
             currentStatus: currentStatus,
             selectedStatus: currentStatus,
+            statusTimestamps: initialStatusTimestamps || {},
             isSteadfastBooked: Boolean(isBooked),
             steadfastCid: cid || '',
             steadfastTracking: trackingCode || '',
@@ -58,7 +59,24 @@
             includeLabelNotes: false, // Default: No notes in label
             loading: false,
             nextStatus: null,
-            steps: ['pending', 'confirmed', 'processing', 'shipped', 'delivered'],
+            get steps() {
+                if (this.currentStatus === 'returned') {
+                    if (this.statusTimestamps && this.statusTimestamps['delivered']) {
+                        return ['pending', 'confirmed', 'processing', 'shipped', 'delivered', 'returned'];
+                    }
+                    return ['pending', 'confirmed', 'processing', 'shipped', 'returned'];
+                }
+                if (this.currentStatus === 'cancelled') {
+                    if (this.statusTimestamps && this.statusTimestamps['processing']) {
+                        return ['pending', 'confirmed', 'processing', 'cancelled'];
+                    }
+                    if (this.statusTimestamps && this.statusTimestamps['confirmed']) {
+                        return ['pending', 'confirmed', 'cancelled'];
+                    }
+                    return ['pending', 'cancelled'];
+                }
+                return ['pending', 'confirmed', 'processing', 'shipped', 'delivered'];
+            },
             toast: { show: false, message: '', type: 'success' },
             toastTimer: null,
             previewImageUrl: null,
@@ -194,7 +212,8 @@
                     'bg-indigo-50 text-indigo-600': status === 'processing',
                     'bg-purple-50 text-purple-600': status === 'shipped',
                     'bg-emerald-50 text-emerald-600': status === 'delivered',
-                    'bg-red-50 text-red-600': status === 'cancelled' || status === 'returned',
+                    'bg-rose-50 text-rose-600': status === 'cancelled',
+                    'bg-amber-50 text-amber-700': status === 'returned',
                 };
             },
 
@@ -203,8 +222,10 @@
             },
 
             isDone(step) {
-                const current = this.steps.indexOf(this.currentStatus);
-                return current !== -1 && this.steps.indexOf(step) < current;
+                const stepList = this.steps;
+                const current = stepList.indexOf(this.currentStatus);
+                const stepIndex = stepList.indexOf(step);
+                return current !== -1 && stepIndex !== -1 && stepIndex < current;
             },
 
             calculateNextStatus() {
@@ -464,6 +485,10 @@
                     const previousStatus = this.currentStatus;
                     this.currentStatus = data.status || newStatus;
                     this.selectedStatus = this.currentStatus;
+                    if (!this.statusTimestamps) {
+                        this.statusTimestamps = {};
+                    }
+                    this.statusTimestamps[this.currentStatus] = new Date().toISOString();
                     if (data.is_stock_deducted !== undefined) {
                         this.isStockDeducted = Boolean(data.is_stock_deducted);
                     }

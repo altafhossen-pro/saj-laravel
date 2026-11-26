@@ -186,7 +186,8 @@
     {{ $isOrderOlderThan10Days ? 'true' : 'false' }},
     {{ $order->is_stock_deducted ? 'true' : 'false' }},
     {{ json_encode($orderItemsJson) }},
-    '{{ $initialFbPurchaseSentAt }}'
+    '{{ $initialFbPurchaseSentAt }}',
+    {{ json_encode($statusTimestampsArray) }}
 )">
 
     {{-- ─── Page Header ─── --}}

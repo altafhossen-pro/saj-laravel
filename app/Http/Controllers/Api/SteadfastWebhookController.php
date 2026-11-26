@@ -166,8 +166,10 @@ class SteadfastWebhookController extends Controller
                 case 'return_received':
                 case 'return_pending':
                     $newOrderStatus = 'returned';
-                    if ($order->payment_method === 'cod') {
-                        $newPaymentStatus = 'unpaid';
+                    if ($order->payment_status === 'paid') {
+                        $newPaymentStatus = 'refunded';
+                    } else {
+                        $newPaymentStatus = 'pending';
                     }
                     break;
 
