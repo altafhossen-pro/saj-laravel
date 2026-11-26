@@ -70,7 +70,17 @@
                             </div>
                         </div>
                     </td>
-                    <td class="px-6 py-4 text-center font-medium">{{ $item->quantity }}</td>
+                    <td class="px-6 py-4 text-center">
+                        <span class="font-medium text-gray-900">{{ $item->quantity }}</span>
+                        @if(!empty($alreadyReturned[$item->id]) && $alreadyReturned[$item->id] > 0)
+                            <div class="mt-1">
+                                <span class="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200" title="Restocked / Returned to inventory">
+                                    <i class="ph-bold ph-arrow-u-up-left text-[10px]"></i>
+                                    Returned: {{ $alreadyReturned[$item->id] }}
+                                </span>
+                            </div>
+                        @endif
+                    </td>
                     <td class="px-6 py-4 text-right text-gray-600">৳{{ number_format($item->price, 2) }}</td>
                     <td class="px-6 py-4 text-right font-medium text-gray-900">৳{{ number_format($item->subtotal, 2) }}</td>
                 </tr>

@@ -334,11 +334,17 @@ class OrderController extends Controller
             }
         }
 
-        if ($oldStatus !== $newStatus) {
-            $order->status = $newStatus;
+        $restockResult = null;
+        $statusChanged = ($oldStatus !== $newStatus);
+        $hasRestockSelections = !empty($request->input('restock_items'));
+
+        if ($statusChanged || $hasRestockSelections) {
+            if ($statusChanged) {
+                $order->status = $newStatus;
+            }
 
             // Deduct stock if order is moving from pending to confirmed (or beyond) and stock wasn't deducted yet
-            if (in_array($newStatus, ['confirmed', 'processing', 'shipped', 'delivered']) && !$order->is_stock_deducted) {
+            if ($statusChanged && in_array($newStatus, ['confirmed', 'processing', 'shipped', 'delivered']) && !$order->is_stock_deducted) {
                 \App\Services\OrderStockService::deductOrderStock($order);
             }
 
@@ -346,7 +352,7 @@ class OrderController extends Controller
             if (in_array($newStatus, ['cancelled', 'returned']) && $order->is_stock_deducted) {
                 $restockSelections = $request->input('restock_items', []);
                 if (!empty($restockSelections) && is_array($restockSelections)) {
-                    \App\Services\OrderStockService::restockOrderItems(
+                    $restockResult = \App\Services\OrderStockService::restockOrderItems(
                         $order,
                         $restockSelections,
                         $newStatus,
@@ -354,19 +360,31 @@ class OrderController extends Controller
                     );
                 }
             }
+
+            // Reset collected & receivable amounts if returned
+            if ($newStatus === 'returned') {
+                if ($order->payment_method === 'cod') {
+                    $order->payment_status = 'unpaid';
+                }
+                $order->steadfast_collected_amount = 0.00;
+                $order->steadfast_receivable_amount = 0.00;
+            }
             
             // Add to status timestamps
-            $timestamps = is_array($order->status_timestamps) ? $order->status_timestamps : [];
-            $timestamps[$newStatus] = now()->toDateTimeString();
-            $order->status_timestamps = $timestamps;
+            if ($statusChanged) {
+                $timestamps = is_array($order->status_timestamps) ? $order->status_timestamps : [];
+                $timestamps[$newStatus] = now()->toDateTimeString();
+                $order->status_timestamps = $timestamps;
+            }
             
             // Add to update history
             $history = is_array($order->update_history) ? $order->update_history : [];
             $history[] = [
-                'action' => 'status_updated',
+                'action' => $statusChanged ? 'status_updated' : 'restock_items_updated',
                 'old_status' => $oldStatus,
                 'new_status' => $newStatus,
                 'steadfast_booked' => $steadfastBooked,
+                'restock_items_count' => $restockResult['restocked_count'] ?? 0,
                 'updated_by' => auth()->id() ?? 0,
                 'timestamp' => now()->toDateTimeString()
             ];
@@ -377,7 +395,7 @@ class OrderController extends Controller
             $sendToMeta = $request->boolean('send_to_meta', true);
 
             // Trigger Meta Conversions API (CAPI) Purchase upon first confirmation (filtered, authentic orders only)
-            if ($sendToMeta && in_array($newStatus, ['confirmed', 'processing', 'shipped', 'delivered'])) {
+            if ($statusChanged && $sendToMeta && in_array($newStatus, ['confirmed', 'processing', 'shipped', 'delivered'])) {
                 $statusTimestamps = is_array($order->status_timestamps) ? $order->status_timestamps : [];
                 if (empty($statusTimestamps['fb_purchase_sent_at'])) {
                     try {
@@ -389,7 +407,7 @@ class OrderController extends Controller
             }
 
             // Trigger Delivered Email if status changed to 'delivered'
-            if ($newStatus === 'delivered' && \App\Services\MailConfigService::isMailEnabled() && \App\Models\Setting::get('email_tpl_order_delivered_active', 1)) {
+            if ($statusChanged && $newStatus === 'delivered' && \App\Services\MailConfigService::isMailEnabled() && \App\Models\Setting::get('email_tpl_order_delivered_active', 1)) {
                 try {
                     $shipping = is_array($order->shipping_address) ? $order->shipping_address : json_decode($order->shipping_address, true);
                     $customerEmail = optional($order->user)->email ?? ($shipping['email'] ?? null);
@@ -415,12 +433,20 @@ class OrderController extends Controller
             }
         }
 
+        $successMessage = 'Status updated successfully';
+        if ($steadfastBooked) {
+            $successMessage = 'Status updated to ' . ucfirst($newStatus) . ' and parcel booked in Steadfast successfully!';
+        } elseif ($restockResult && !empty($restockResult['message'])) {
+            $successMessage = $restockResult['message'];
+        } elseif ($statusChanged) {
+            $successMessage = 'Order status updated to ' . ucfirst($newStatus) . ' successfully!';
+        }
+
         return response()->json([
-            'message' => $steadfastBooked 
-                ? 'Status updated to ' . ucfirst($newStatus) . ' and parcel booked in Steadfast successfully!' 
-                : 'Status updated successfully',
-            'status' => $newStatus,
+            'message' => $successMessage,
+            'status' => $order->status,
             'is_stock_deducted' => (bool) $order->is_stock_deducted,
+            'reload' => in_array($newStatus, ['returned', 'cancelled']) || $hasRestockSelections,
             'steadfast_booked' => $steadfastBooked,
             'is_added_into_steadfast' => (bool) $order->is_added_into_steadfast,
             'steadfast_consignment_id' => $order->steadfast_consignment_id,

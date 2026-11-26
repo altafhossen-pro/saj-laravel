@@ -120,19 +120,38 @@
         }
     }
 
-    $orderItemsJson = $order->items->map(function ($it) {
+    // Calculate already restocked/returned quantities to support accurate partial return UI
+    $existingReturns = is_array($order->return_quantities) ? $order->return_quantities : [];
+    $alreadyReturned = [];
+    foreach ($existingReturns as $event) {
+        if (!empty($event['items']) && is_array($event['items'])) {
+            foreach ($event['items'] as $it) {
+                $id = $it['order_item_id'] ?? null;
+                $qty = (int) ($it['restocked_quantity'] ?? 0);
+                if ($id) {
+                    $alreadyReturned[$id] = ($alreadyReturned[$id] ?? 0) + $qty;
+                }
+            }
+        }
+    }
+
+    $orderItemsJson = $order->items->map(function ($it) use ($alreadyReturned) {
         $sku  = $it->variant_sku ?: ($it->product ? $it->product->sku : '');
         $info = is_array($it->variant_info) ? $it->variant_info : [];
+        $already = $alreadyReturned[$it->id] ?? 0;
+        $remaining = max(0, (int) $it->quantity - $already);
         return [
-            'id'         => $it->id,
-            'product_id' => $it->product_id,
-            'name'       => $it->name,
-            'sku'        => $sku,
-            'label'      => $info['label'] ?? null,
-            'quantity'   => (int) $it->quantity,
-            'image'      => $it->image,
-            'return_qty' => (int) $it->quantity,
-            'selected'   => true,
+            'id'               => $it->id,
+            'product_id'       => $it->product_id,
+            'name'             => $it->name,
+            'sku'              => $sku,
+            'label'            => $info['label'] ?? null,
+            'quantity'         => (int) $it->quantity,
+            'already_returned' => $already,
+            'remaining_qty'    => $remaining,
+            'image'            => $it->image,
+            'return_qty'       => $remaining,
+            'selected'         => $remaining > 0,
         ];
     })->values();
 
@@ -262,7 +281,7 @@
         {{-- Left Column (2/3) --}}
         <div class="lg:col-span-2 space-y-6">
             @include('admin.orders.partials.status-progress')
-            @include('admin.orders.partials.order-items')
+            @include('admin.orders.partials.order-items', ['alreadyReturned' => $alreadyReturned ?? []])
             @include('admin.orders.partials.admin-notes')
             @include('admin.orders.partials.courier-tracking')
             @include('admin.orders.partials.edit-history')

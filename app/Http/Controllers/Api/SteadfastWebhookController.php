@@ -166,6 +166,9 @@ class SteadfastWebhookController extends Controller
                 case 'return_received':
                 case 'return_pending':
                     $newOrderStatus = 'returned';
+                    if ($order->payment_method === 'cod') {
+                        $newPaymentStatus = 'unpaid';
+                    }
                     break;
 
                 case 'in_transit':
@@ -217,7 +220,9 @@ class SteadfastWebhookController extends Controller
             }
 
             // Determine COD Amount
-            if ($codAmountInput !== null && is_numeric($codAmountInput)) {
+            if ($newOrderStatus === 'returned') {
+                $codAmount = 0.0;
+            } elseif ($codAmountInput !== null && is_numeric($codAmountInput)) {
                 $codAmount = (float) $codAmountInput;
             } elseif ($order->payment_status === 'paid' && !$isDelivered) {
                 $codAmount = 0.0;
@@ -226,7 +231,16 @@ class SteadfastWebhookController extends Controller
             }
 
             // 6. Calculate Financial Payout (Profit/Receive)
-            $payout = self::calculatePayout($codAmount, $deliveryCharge);
+            if ($newOrderStatus === 'returned') {
+                $payout = [
+                    'cod_amount' => 0.0,
+                    'delivery_charge' => $deliveryCharge,
+                    'cod_charge' => 0.0,
+                    'net_receivable' => 0.0,
+                ];
+            } else {
+                $payout = self::calculatePayout($codAmount, $deliveryCharge);
+            }
 
             // 7. Update Order Fields
             $order->is_added_into_steadfast = true;
@@ -248,7 +262,7 @@ class SteadfastWebhookController extends Controller
                 $order->status = $newOrderStatus;
                 $timestamps[$newOrderStatus] = now()->toDateTimeString();
             }
-            if ($newPaymentStatus && $order->payment_status !== 'paid') {
+            if ($newPaymentStatus && ($order->payment_status !== 'paid' || $newOrderStatus === 'returned')) {
                 $order->payment_status = $newPaymentStatus;
             }
             $order->status_timestamps = $timestamps;

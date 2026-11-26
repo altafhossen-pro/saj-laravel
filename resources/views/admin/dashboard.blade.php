@@ -121,7 +121,7 @@
                         <div>
                             <p class="text-xs text-gray-500 font-medium">Net Profit (Delivered)</p>
                             <h3 class="text-xl font-bold text-gray-900 tabular-nums" x-text="overviewStats.formatted_revenue">{{ $initialOverviewStats['formatted_revenue'] ?? '৳0' }}</h3>
-                            <p class="text-[11px] text-gray-400 mt-1" x-text="`${getPeriodLabel(selectedPeriod)} • ${(overviewStats.delivered_orders || 0)} delivered`">All Time • {{ $initialOverviewStats['delivered_orders'] ?? 0 }} delivered</p>
+                            <p class="text-[11px] text-gray-400 mt-1" x-text="`${getPeriodLabel(selectedPeriod)} • ${(overviewStats.delivered_orders || 0)} delivered${overviewStats.returned_orders > 0 ? ', ' + overviewStats.returned_orders + ' returned' : ''}`">All Time • {{ $initialOverviewStats['delivered_orders'] ?? 0 }} delivered{{ (!empty($initialOverviewStats['returned_orders'])) ? ', ' . $initialOverviewStats['returned_orders'] . ' returned' : '' }}</p>
                         </div>
                     </div>
                 </div>

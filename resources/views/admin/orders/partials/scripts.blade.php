@@ -105,21 +105,27 @@
             initRestockModal(targetStatus) {
                 this.restockTargetStatus = targetStatus;
                 this.restockReason = '';
-                this.restockItems = (this.orderItems || []).map(item => ({
-                    id: item.id,
-                    name: item.name,
-                    sku: item.sku,
-                    quantity: item.quantity,
-                    return_qty: item.quantity,
-                    selected: true,
-                }));
+                this.restockItems = (this.orderItems || []).map(item => {
+                    const maxQty = item.remaining_qty !== undefined ? item.remaining_qty : item.quantity;
+                    return {
+                        id: item.id,
+                        name: item.name,
+                        sku: item.sku,
+                        quantity: item.quantity,
+                        already_returned: item.already_returned || 0,
+                        remaining_qty: maxQty,
+                        return_qty: maxQty,
+                        selected: maxQty > 0,
+                    };
+                });
                 this.showRestockModal = true;
             },
 
             selectFullRestock() {
                 this.restockItems.forEach(item => {
-                    item.selected = true;
-                    item.return_qty = item.quantity;
+                    const maxQty = item.remaining_qty !== undefined ? item.remaining_qty : item.quantity;
+                    item.selected = maxQty > 0;
+                    item.return_qty = maxQty;
                 });
             },
 
@@ -414,7 +420,7 @@
                     return;
                 }
 
-                if (newStatus === this.currentStatus && !(this.currentStatus === 'processing' && newStatus === 'shipped' && this.sendToSteadfast && !this.isSteadfastBooked)) {
+                if (newStatus === this.currentStatus && !restockPayload && !(this.currentStatus === 'processing' && newStatus === 'shipped' && this.sendToSteadfast && !this.isSteadfastBooked)) {
                     this.openStatusModal = false;
                     this.openConfirmModal = false;
                     return;
@@ -479,6 +485,12 @@
                     this.openStatusModal = false;
                     this.openConfirmModal = false;
                     this.showToast(data.message || ('Order status updated to ' + this.getStatusLabel(this.currentStatus)));
+
+                    if (data.reload || newStatus === 'returned' || newStatus === 'cancelled' || restockPayload) {
+                        setTimeout(() => {
+                            window.location.reload();
+                        }, 700);
+                    }
                 } catch (error) {
                     this.showToast(error.message, 'error');
                 } finally {

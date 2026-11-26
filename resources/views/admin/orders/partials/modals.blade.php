@@ -713,6 +713,9 @@
                                             <span class="font-mono bg-gray-100 px-1 py-0.5 rounded text-[10px] text-gray-600" x-text="'SKU: ' + item.sku"></span>
                                         </template>
                                         <span x-text="'Ordered: ' + item.quantity + ' pcs'"></span>
+                                        <template x-if="item.already_returned && item.already_returned > 0">
+                                            <span class="text-amber-700 font-semibold" x-text="'(Already Returned: ' + item.already_returned + ')'"></span>
+                                        </template>
                                     </div>
                                 </label>
                             </div>
@@ -722,7 +725,7 @@
                                 <input type="number" 
                                        x-model.number="item.return_qty" 
                                        :min="0" 
-                                       :max="item.quantity" 
+                                       :max="item.remaining_qty !== undefined ? item.remaining_qty : item.quantity" 
                                        class="w-16 h-8 text-center text-xs font-bold font-mono border border-gray-300 rounded-lg focus:ring-1 focus:ring-brand-500 focus:border-brand-500">
                             </div>
                         </div>

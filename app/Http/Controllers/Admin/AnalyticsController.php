@@ -639,24 +639,36 @@ class AnalyticsController extends Controller
 
         $orderMetrics = $orderMetricsQuery->selectRaw("
             COUNT(*) as total_orders,
-            COALESCE(SUM(CASE WHEN status != 'cancelled' THEN total ELSE 0 END), 0) as gross_revenue,
+            COALESCE(SUM(CASE WHEN status NOT IN ('cancelled', 'returned') THEN total ELSE 0 END), 0) as gross_revenue,
             COUNT(CASE WHEN status = 'delivered' THEN 1 END) as delivered_orders,
+            COUNT(CASE WHEN status = 'returned' THEN 1 END) as returned_orders,
             COALESCE(SUM(
-                CASE WHEN status = 'delivered' THEN 
-                    (CASE 
-                        WHEN steadfast_receivable_amount > 0 THEN steadfast_receivable_amount 
-                        WHEN (COALESCE(steadfast_collected_amount, total) - COALESCE(steadfast_delivery_charge, shipping_cost, 70)) > 0 
-                        THEN ROUND((COALESCE(steadfast_collected_amount, total) - COALESCE(steadfast_delivery_charge, shipping_cost, 70)) - ROUND((COALESCE(steadfast_collected_amount, total) - COALESCE(steadfast_delivery_charge, shipping_cost, 70)) * 0.01))
-                        ELSE 0 
-                    END)
+                CASE 
+                    WHEN status = 'delivered' THEN 
+                        (CASE 
+                            WHEN steadfast_receivable_amount > 0 THEN steadfast_receivable_amount 
+                            WHEN (COALESCE(steadfast_collected_amount, total) - COALESCE(steadfast_delivery_charge, shipping_cost, 70)) > 0 
+                            THEN ROUND((COALESCE(steadfast_collected_amount, total) - COALESCE(steadfast_delivery_charge, shipping_cost, 70)) - ROUND((COALESCE(steadfast_collected_amount, total) - COALESCE(steadfast_delivery_charge, shipping_cost, 70)) * 0.01))
+                            ELSE 0 
+                        END)
+                    WHEN status = 'returned' THEN 
+                        - (COALESCE(steadfast_delivery_charge, shipping_cost, 70))
+                    ELSE 0 
+                END
+            ), 0) as net_profit,
+            COALESCE(SUM(
+                CASE WHEN status = 'returned' THEN 
+                    COALESCE(steadfast_delivery_charge, shipping_cost, 70)
                 ELSE 0 END
-            ), 0) as net_profit
+            ), 0) as return_loss
         ")->first();
 
         $grossRevenue = (float) ($orderMetrics->gross_revenue ?? 0.0);
         $netProfit = (float) ($orderMetrics->net_profit ?? 0.0);
         $totalOrders = (int) ($orderMetrics->total_orders ?? 0);
         $deliveredOrders = (int) ($orderMetrics->delivered_orders ?? 0);
+        $returnedOrders = (int) ($orderMetrics->returned_orders ?? 0);
+        $returnLoss = (float) ($orderMetrics->return_loss ?? 0.0);
 
         // 2. Total Orders Query reference for customer identification
         $ordersQuery = Order::where('is_draft_mode', false);
@@ -705,6 +717,9 @@ class AnalyticsController extends Controller
             'gross_revenue' => $grossRevenue,
             'formatted_gross_revenue' => '৳' . number_format($grossRevenue, 0),
             'delivered_orders' => $deliveredOrders,
+            'returned_orders' => $returnedOrders,
+            'return_loss' => $returnLoss,
+            'formatted_return_loss' => '৳' . number_format($returnLoss, 0),
             'orders' => $totalOrders,
             'customers' => $totalCustomers,
             'visitors' => $visitorsCount,
