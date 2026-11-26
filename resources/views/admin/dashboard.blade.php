@@ -121,7 +121,7 @@
                         <div>
                             <p class="text-xs text-gray-500 font-medium">Net Profit (Delivered)</p>
                             <h3 class="text-xl font-bold text-gray-900 tabular-nums" x-text="overviewStats.formatted_revenue">{{ $initialOverviewStats['formatted_revenue'] ?? '৳0' }}</h3>
-                            <p class="text-[11px] text-gray-400 mt-1" x-text="`${getPeriodLabel(selectedPeriod)} • ${(overviewStats.delivered_orders || 0)} delivered${overviewStats.returned_orders > 0 ? ', ' + overviewStats.returned_orders + ' returned' : ''}`">All Time • {{ $initialOverviewStats['delivered_orders'] ?? 0 }} delivered{{ (!empty($initialOverviewStats['returned_orders'])) ? ', ' . $initialOverviewStats['returned_orders'] . ' returned' : '' }}</p>
+                            <p class="text-[11px] text-gray-400 mt-1" x-text="`${getPeriodLabel(selectedPeriod)} • ${(overviewStats.delivered_orders || 0)} delivered${overviewStats.partial_orders > 0 ? ' (' + overviewStats.partial_orders + ' partial)' : ''}${overviewStats.returned_orders > 0 ? ', ' + overviewStats.returned_orders + ' returned' : ''}`">All Time • {{ $initialOverviewStats['delivered_orders'] ?? 0 }} delivered{{ (!empty($initialOverviewStats['partial_orders'])) ? ' (' . $initialOverviewStats['partial_orders'] . ' partial)' : '' }}{{ (!empty($initialOverviewStats['returned_orders'])) ? ', ' . $initialOverviewStats['returned_orders'] . ' returned' : '' }}</p>
                         </div>
                     </div>
                 </div>
@@ -1370,7 +1370,11 @@
                                         'cancelled' => 'bg-rose-100 text-rose-700 border-rose-200',
                                         'returned' => 'bg-gray-100 text-gray-700 border-gray-200',
                                     ];
-                                    $statusBadgeClass = $statusClasses[strtolower($order->status ?? 'pending')] ?? 'bg-gray-100 text-gray-700 border-gray-200';
+                                    $isPartial = !empty($order->is_partial_delivery);
+                                    $statusBadgeClass = $isPartial
+                                        ? 'bg-amber-100 text-amber-800 border-amber-300'
+                                        : ($statusClasses[strtolower($order->status ?? 'pending')] ?? 'bg-gray-100 text-gray-700 border-gray-200');
+                                    $displayStatus = $isPartial ? 'Partial Delivered' : ($order->status ?? 'pending');
                                 @endphp
                                 <tr class="hover:bg-gray-50/70 transition-colors">
                                     <td class="px-6 py-4 font-mono font-bold text-gray-900 text-xs">
@@ -1396,7 +1400,7 @@
                                     </td>
                                     <td class="px-6 py-4">
                                         <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-bold border capitalize {{ $statusBadgeClass }}">
-                                            {{ $order->status ?? 'pending' }}
+                                            {{ $displayStatus }}
                                         </span>
                                     </td>
                                     <td class="px-6 py-4 text-right font-bold text-gray-900 text-xs font-mono">
@@ -1568,10 +1572,11 @@
                                                   'bg-blue-50 text-blue-600': order.status === 'confirmed',
                                                   'bg-indigo-50 text-indigo-600': order.status === 'processing',
                                                   'bg-purple-50 text-purple-600': order.status === 'shipped',
-                                                  'bg-emerald-50 text-emerald-600': order.status === 'delivered',
+                                                  'bg-amber-50 text-amber-800 border border-amber-200': order.status === 'delivered' && order.is_partial_delivery,
+                                                  'bg-emerald-50 text-emerald-600': order.status === 'delivered' && !order.is_partial_delivery,
                                                   'bg-red-50 text-red-600': order.status === 'cancelled' || order.status === 'returned',
                                               }"
-                                              x-text="order.status">
+                                              x-text="order.status === 'delivered' && order.is_partial_delivery ? 'partial delivered' : order.status">
                                         </span>
                                     </td>
                                     <td class="px-6 py-4">

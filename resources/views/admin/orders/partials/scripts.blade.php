@@ -1,10 +1,12 @@
 <script>
     document.addEventListener('alpine:init', () => {
-        Alpine.data('orderActions', (orderId, currentStatus, isBooked, cid, trackingCode, customerPhone, initialFraudData, isOrderOlderThan10Days, isStockDeducted, orderItems, initialFbSentAt, initialStatusTimestamps) => ({
+        Alpine.data('orderActions', (orderId, currentStatus, isBooked, cid, trackingCode, customerPhone, initialFraudData, isOrderOlderThan10Days, isStockDeducted, orderItems, initialFbSentAt, initialStatusTimestamps, isPartialDelivery, orderTotal) => ({
             orderId: orderId,
             currentStatus: currentStatus,
             selectedStatus: currentStatus,
             statusTimestamps: initialStatusTimestamps || {},
+            isPartialDelivery: Boolean(isPartialDelivery),
+            orderTotal: Number(orderTotal || 0),
             isSteadfastBooked: Boolean(isBooked),
             steadfastCid: cid || '',
             steadfastTracking: trackingCode || '',
@@ -31,6 +33,8 @@
             restockTargetStatus: 'cancelled',
             restockReason: '',
             restockItems: [],
+            manualCollectedAmount: 0,
+            suggestedCollectionAmount: 0,
             submittingRestock: false,
             showFraudCaptchaModal: false,
             fraudCaptchaDigit1: 0,
@@ -96,8 +100,8 @@
                     }
                 }
 
-                // Auto-fetch Steadfast live tracking milestones on order page load (identical to forpink-version-2)
-                if (this.isSteadfastBooked || this.steadfastCid || this.steadfastTracking) {
+                // Auto-fetch Steadfast live tracking milestones on order page load (only for active orders, never overwrite returned/cancelled)
+                if ((this.isSteadfastBooked || this.steadfastCid || this.steadfastTracking) && !['returned', 'cancelled'].includes(this.currentStatus)) {
                     this.syncTracking(true);
                 }
             },
@@ -129,6 +133,7 @@
                         id: item.id,
                         name: item.name,
                         sku: item.sku,
+                        price: Number(item.price || 0),
                         quantity: item.quantity,
                         already_returned: item.already_returned || 0,
                         remaining_qty: maxQty,
@@ -136,7 +141,38 @@
                         selected: maxQty > 0,
                     };
                 });
+                this.recalculateSuggestedCollection();
                 this.showRestockModal = true;
+            },
+
+            isPartialRestock() {
+                if (!this.restockItems || this.restockItems.length === 0) return false;
+                let anyReturned = false;
+                let anyKept = false;
+                this.restockItems.forEach(item => {
+                    const retQty = item.selected ? Number(item.return_qty || 0) : 0;
+                    const totalQty = Number(item.quantity || 0);
+                    if (retQty > 0) anyReturned = true;
+                    if (totalQty > retQty) anyKept = true;
+                });
+                return anyReturned && anyKept;
+            },
+
+            recalculateSuggestedCollection() {
+                if (!this.isPartialRestock()) {
+                    this.suggestedCollectionAmount = 0;
+                    this.manualCollectedAmount = 0;
+                    return;
+                }
+                let keptItemsValue = 0;
+                this.restockItems.forEach(item => {
+                    const retQty = item.selected ? Number(item.return_qty || 0) : 0;
+                    const totalQty = Number(item.quantity || 0);
+                    const keptQty = Math.max(0, totalQty - retQty);
+                    keptItemsValue += keptQty * Number(item.price || 0);
+                });
+                this.suggestedCollectionAmount = Math.max(0, Math.round(keptItemsValue));
+                this.manualCollectedAmount = this.suggestedCollectionAmount;
             },
 
             selectFullRestock() {
@@ -145,6 +181,7 @@
                     item.selected = maxQty > 0;
                     item.return_qty = maxQty;
                 });
+                this.recalculateSuggestedCollection();
             },
 
             selectNoRestock() {
@@ -152,6 +189,7 @@
                     item.selected = false;
                     item.return_qty = 0;
                 });
+                this.recalculateSuggestedCollection();
             },
 
             async confirmRestockSubmit() {
@@ -168,7 +206,8 @@
                 try {
                     await this.updateStatus(this.restockTargetStatus, {
                         restock_items: selectedItems,
-                        restock_reason: this.restockReason
+                        restock_reason: this.restockReason,
+                        collected_amount: Number(this.manualCollectedAmount || 0)
                     });
                     this.showRestockModal = false;
                 } finally {
@@ -178,6 +217,9 @@
 
             getStatusLabel(status) {
                 if (!status) return '';
+                if (status === 'delivered' && this.isPartialDelivery) {
+                    return 'Partial Delivered';
+                }
                 return status
                     .toString()
                     .toLowerCase()
@@ -464,6 +506,9 @@
                         if (restockPayload.restock_reason) {
                             payload.restock_reason = restockPayload.restock_reason;
                         }
+                        if (restockPayload.collected_amount !== undefined) {
+                            payload.collected_amount = restockPayload.collected_amount;
+                        }
                     }
 
                     const response = await fetch(`/admin/dashboard/api/orders/${this.orderId}/status`, {
@@ -721,12 +766,12 @@
                     if (data.tracking) {
                         this.trackingLogs = data.tracking;
                     }
-                    if (data.status) {
+                    if (data.status && !['returned', 'cancelled'].includes(this.currentStatus)) {
                         this.currentStatus = data.status;
                         this.selectedStatus = data.status;
                         this.calculateNextStatus();
                     }
-                    if (data.payout) {
+                    if (data.payout && !['returned', 'cancelled'].includes(this.currentStatus)) {
                         this.collectedAmount = data.payout.cod_amount;
                         this.deliveryCharge = data.payout.delivery_charge;
                         this.codCharge = data.payout.cod_charge;

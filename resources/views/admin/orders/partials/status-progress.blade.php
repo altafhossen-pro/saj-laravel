@@ -8,6 +8,12 @@
                 Order Returned
             </span>
         </template>
+        <template x-if="isPartialDelivery && currentStatus !== 'returned'">
+            <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-50 text-amber-700 border border-amber-200">
+                <i class="ph-bold ph-truck"></i>
+                Partial Delivered
+            </span>
+        </template>
         <template x-if="currentStatus === 'cancelled'">
             <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-rose-50 text-rose-700 border border-rose-200">
                 <i class="ph-bold ph-x"></i>
@@ -62,6 +68,15 @@
         </template>
     </div>
 
+    <template x-if="isPartialDelivery && currentStatus !== 'returned'">
+        <div class="mt-4 flex items-center gap-3 bg-amber-50 border border-amber-200 text-amber-800 rounded-xl px-4 py-2.5 text-xs">
+            <i class="ph-bold ph-package text-lg text-amber-600 shrink-0"></i>
+            <div>
+                <span class="font-bold">Partial Delivered</span>
+                <span class="text-amber-700/90 ml-1">• Customer accepted and paid partial amount (<span class="font-bold" x-text="'৳' + collectedAmount"></span>), while returned items were restored to stock.</span>
+            </div>
+        </div>
+    </template>
     <template x-if="currentStatus === 'returned'">
         <div class="mt-4 flex items-center gap-3 bg-amber-50 border border-amber-200 text-amber-800 rounded-xl px-4 py-2.5 text-xs">
             <i class="ph-bold ph-arrow-u-up-left text-lg text-amber-600 shrink-0"></i>

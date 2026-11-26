@@ -145,6 +145,7 @@
             'product_id'       => $it->product_id,
             'name'             => $it->name,
             'sku'              => $sku,
+            'price'            => (float) $it->price,
             'label'            => $info['label'] ?? null,
             'quantity'         => (int) $it->quantity,
             'already_returned' => $already,
@@ -187,7 +188,9 @@
     {{ $order->is_stock_deducted ? 'true' : 'false' }},
     {{ json_encode($orderItemsJson) }},
     '{{ $initialFbPurchaseSentAt }}',
-    {{ json_encode($statusTimestampsArray) }}
+    {{ json_encode($statusTimestampsArray) }},
+    {{ $order->is_partial_delivery ? 'true' : 'false' }},
+    {{ (float) $order->total }}
 )">
 
     {{-- ─── Page Header ─── --}}
@@ -210,11 +213,18 @@
                     <i class="ph ph-arrow-left"></i> Back to Orders
                 </a>
                 <span>Placed on {{ $order->created_at->format('F d, Y \a\t h:i A') }}</span>
-                <span class="px-2 py-0.5 rounded text-[11px] font-bold uppercase tracking-wider"
-                      :class="badgeClass(currentStatus)"
-                      x-text="getStatusLabel(currentStatus)">
-                    {{ ucfirst($order->status) }}
-                </span>
+                <template x-if="isPartialDelivery">
+                    <span class="px-2 py-0.5 rounded text-[11px] font-bold uppercase tracking-wider bg-amber-50 text-amber-700 border border-amber-200">
+                        Partial Delivered
+                    </span>
+                </template>
+                <template x-if="!isPartialDelivery">
+                    <span class="px-2 py-0.5 rounded text-[11px] font-bold uppercase tracking-wider"
+                          :class="badgeClass(currentStatus)"
+                          x-text="getStatusLabel(currentStatus)">
+                        {{ ucfirst($order->status) }}
+                    </span>
+                </template>
                 <span class="px-2 py-0.5 rounded text-[11px] font-bold uppercase tracking-wider bg-gray-100 text-gray-700 border border-gray-200">
                     Source: {{ ucfirst($order->order_source ?? 'website') }}
                 </span>

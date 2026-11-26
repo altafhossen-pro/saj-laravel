@@ -28,6 +28,7 @@ class Order extends Model
         'affiliate_order' => 'array',
         'is_added_into_steadfast' => 'boolean',
         'is_stock_deducted' => 'boolean',
+        'is_partial_delivery' => 'boolean',
         'is_read_by_admin' => 'boolean',
         'total' => 'decimal:2',
         'discount' => 'decimal:2',

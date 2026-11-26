@@ -704,7 +704,7 @@
                                 <input type="checkbox" 
                                        :id="'rstk_item_' + item.id" 
                                        x-model="item.selected" 
-                                       @change="if (item.selected && item.return_qty === 0) item.return_qty = item.quantity; if (!item.selected) item.return_qty = 0;"
+                                       @change="if (item.selected && item.return_qty === 0) item.return_qty = item.quantity; if (!item.selected) item.return_qty = 0; recalculateSuggestedCollection();"
                                        class="rounded border-gray-300 text-brand-600 focus:ring-brand-500 w-4 h-4 cursor-pointer">
                                 <label :for="'rstk_item_' + item.id" class="cursor-pointer min-w-0">
                                     <p class="text-xs font-bold text-gray-900 truncate" x-text="item.name"></p>
@@ -724,10 +724,48 @@
                                 <label class="text-[11px] text-gray-500 font-medium">Restock Qty:</label>
                                 <input type="number" 
                                        x-model.number="item.return_qty" 
+                                       @input="recalculateSuggestedCollection()"
                                        :min="0" 
                                        :max="item.remaining_qty !== undefined ? item.remaining_qty : item.quantity" 
                                        class="w-16 h-8 text-center text-xs font-bold font-mono border border-gray-300 rounded-lg focus:ring-1 focus:ring-brand-500 focus:border-brand-500">
                             </div>
+                        </div>
+                    </template>
+                </div>
+
+                <!-- Cash Collected (Courier / Customer) Control -->
+                <div class="p-3.5 rounded-xl border transition-colors" :class="isPartialRestock() ? 'bg-amber-50/70 border-amber-200' : 'bg-gray-50/80 border-gray-200'">
+                    <div class="flex items-center justify-between gap-3">
+                        <div>
+                            <label class="block text-xs font-bold text-gray-900 flex items-center gap-1.5">
+                                <i class="ph-bold ph-money text-brand-600"></i>
+                                Cash Collected from Customer (৳)
+                            </label>
+                            <p class="text-[11px] text-gray-500 mt-0.5">
+                                <span x-show="!isPartialRestock()">Full Return: Collected amount defaults to ৳0.</span>
+                                <span x-show="isPartialRestock()" class="text-amber-800 font-semibold">Partial Return: Amount customer paid for accepted items.</span>
+                            </p>
+                        </div>
+                        <div class="w-36 shrink-0">
+                            <div class="relative">
+                                <span class="absolute left-2.5 top-2 text-xs font-bold text-gray-400">৳</span>
+                                <input type="number" 
+                                       step="any" 
+                                       min="0" 
+                                       x-model.number="manualCollectedAmount" 
+                                       placeholder="0" 
+                                       class="w-full text-right text-xs font-bold font-mono pl-6 pr-3 py-1.5 bg-white border border-gray-300 rounded-lg focus:ring-1 focus:ring-brand-500 focus:border-brand-500">
+                            </div>
+                        </div>
+                    </div>
+                    <template x-if="isPartialRestock()">
+                        <div class="mt-2.5 pt-2 border-t border-amber-200/60 flex items-center justify-between text-[11px]">
+                            <span class="text-amber-800">Auto-calculated value of kept items: <strong class="font-mono text-gray-900" x-text="'৳' + suggestedCollectionAmount"></strong></span>
+                            <button type="button" 
+                                    @click="manualCollectedAmount = suggestedCollectionAmount" 
+                                    class="text-xs font-bold text-amber-700 hover:text-amber-900 underline cursor-pointer">
+                                Apply Suggested
+                            </button>
                         </div>
                     </template>
                 </div>

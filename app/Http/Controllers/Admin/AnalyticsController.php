@@ -641,6 +641,7 @@ class AnalyticsController extends Controller
             COUNT(*) as total_orders,
             COALESCE(SUM(CASE WHEN status NOT IN ('cancelled', 'returned') THEN total ELSE 0 END), 0) as gross_revenue,
             COUNT(CASE WHEN status = 'delivered' THEN 1 END) as delivered_orders,
+            COUNT(CASE WHEN status = 'delivered' AND is_partial_delivery = 1 THEN 1 END) as partial_orders,
             COUNT(CASE WHEN status = 'returned' THEN 1 END) as returned_orders,
             COALESCE(SUM(
                 CASE 
@@ -667,6 +668,7 @@ class AnalyticsController extends Controller
         $netProfit = (float) ($orderMetrics->net_profit ?? 0.0);
         $totalOrders = (int) ($orderMetrics->total_orders ?? 0);
         $deliveredOrders = (int) ($orderMetrics->delivered_orders ?? 0);
+        $partialOrders = (int) ($orderMetrics->partial_orders ?? 0);
         $returnedOrders = (int) ($orderMetrics->returned_orders ?? 0);
         $returnLoss = (float) ($orderMetrics->return_loss ?? 0.0);
 
@@ -717,6 +719,7 @@ class AnalyticsController extends Controller
             'gross_revenue' => $grossRevenue,
             'formatted_gross_revenue' => '৳' . number_format($grossRevenue, 0),
             'delivered_orders' => $deliveredOrders,
+            'partial_orders' => $partialOrders,
             'returned_orders' => $returnedOrders,
             'return_loss' => $returnLoss,
             'formatted_return_loss' => '৳' . number_format($returnLoss, 0),

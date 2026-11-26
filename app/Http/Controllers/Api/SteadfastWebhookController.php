@@ -148,11 +148,18 @@ class SteadfastWebhookController extends Controller
 
             switch ($normalizedStatus) {
                 case 'delivered':
+                    $newOrderStatus = 'delivered';
+                    $newPaymentStatus = 'paid';
+                    $isDelivered = true;
+                    $isPartialDelivery = false;
+                    break;
+
                 case 'partial_delivered':
                 case 'partial delivered':
                     $newOrderStatus = 'delivered';
                     $newPaymentStatus = 'paid';
                     $isDelivered = true;
+                    $isPartialDelivery = true;
                     break;
 
                 case 'cancelled':
@@ -257,6 +264,9 @@ class SteadfastWebhookController extends Controller
             $order->steadfast_delivery_charge = $payout['delivery_charge'];
             $order->steadfast_cod_charge = $payout['cod_charge'];
             $order->steadfast_receivable_amount = $payout['net_receivable'];
+            if (isset($isPartialDelivery)) {
+                $order->is_partial_delivery = $isPartialDelivery;
+            }
 
             // Update Timestamps & Status
             $timestamps = is_array($order->status_timestamps) ? $order->status_timestamps : [];
@@ -369,9 +379,9 @@ class SteadfastWebhookController extends Controller
                 }
             }
 
-            // 12. Send Telegram Notification on Delivery (if enabled)
+            // 12. Send Telegram Notification on Delivery (if enabled and not previously returned/cancelled)
             $isDeliveryAlertEnabled = (bool) Setting::get('telegram_notify_steadfast_delivery', true);
-            if ($isDeliveryAlertEnabled && $isDelivered && $oldStatus !== 'delivered') {
+            if ($isDeliveryAlertEnabled && $isDelivered && $oldStatus !== 'delivered' && !in_array($oldStatus, ['returned', 'cancelled'])) {
                 try {
                     $telegramService = app(TelegramService::class);
                     if ($telegramService->isConfigured()) {
@@ -385,7 +395,7 @@ class SteadfastWebhookController extends Controller
                         ]);
                         $customerAddress = implode(', ', $addressParts);
 
-                        $msg = "🎉 <b>Steadfast Parcel Delivered!</b>\n\n";
+                        $msg = !empty($order->is_partial_delivery) ? "📦 <b>Steadfast Parcel Partially Delivered!</b>\n\n" : "🎉 <b>Steadfast Parcel Delivered!</b>\n\n";
                         $msg .= "📦 <b>Order ID:</b> #{$order->order_id}\n";
                         $msg .= "👤 <b>Customer:</b> {$customerName} ({$customerPhone})\n";
                         if (!empty($customerAddress)) {

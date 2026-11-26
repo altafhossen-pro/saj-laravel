@@ -247,6 +247,7 @@ class OrderController extends Controller
                 'order_count' => $orderCount,
                 'date' => $order->created_at ? $order->created_at->format('M d, Y h:i A') : '',
                 'status' => $order->status,
+                'is_partial_delivery' => (bool) $order->is_partial_delivery,
                 'payment_status' => $order->payment_status ?? 'pending',
                 'source' => $order->order_source ?? 'website',
                 'discount' => number_format((float) $order->total_discount, 2),
@@ -280,6 +281,7 @@ class OrderController extends Controller
             'restock_items.*.item_id' => 'required_with:restock_items|integer',
             'restock_items.*.quantity' => 'required_with:restock_items|integer|min:0',
             'restock_reason' => 'nullable|string|max:500',
+            'collected_amount' => 'nullable|numeric|min:0',
         ]);
 
         $order = Order::where('order_id', $order_id)->orWhere('id', $order_id)->firstOrFail();
@@ -339,10 +341,6 @@ class OrderController extends Controller
         $hasRestockSelections = !empty($request->input('restock_items'));
 
         if ($statusChanged || $hasRestockSelections) {
-            if ($statusChanged) {
-                $order->status = $newStatus;
-            }
-
             // Deduct stock if order is moving from pending to confirmed (or beyond) and stock wasn't deducted yet
             if ($statusChanged && in_array($newStatus, ['confirmed', 'processing', 'shipped', 'delivered']) && !$order->is_stock_deducted) {
                 \App\Services\OrderStockService::deductOrderStock($order);
@@ -361,15 +359,83 @@ class OrderController extends Controller
                 }
             }
 
-            // Reset collected & receivable amounts if returned
-            if ($newStatus === 'returned') {
-                if ($order->payment_status === 'paid') {
-                    $order->payment_status = 'refunded';
-                } else {
-                    $order->payment_status = 'pending';
+            // Check Full Return vs Partial Return
+            if ($newStatus === 'returned' || ($hasRestockSelections && in_array($order->status, ['returned', 'delivered', 'shipped']))) {
+                $order->loadMissing(['items']);
+                $totalOrderedQty = (int) $order->items->sum('quantity');
+
+                // Cumulative restocked items
+                $existingReturns = is_array($order->return_quantities) ? $order->return_quantities : [];
+                $alreadyRestocked = [];
+                foreach ($existingReturns as $event) {
+                    if (!empty($event['items']) && is_array($event['items'])) {
+                        foreach ($event['items'] as $it) {
+                            $id = $it['order_item_id'] ?? null;
+                            $qty = (int) ($it['restocked_quantity'] ?? 0);
+                            if ($id) {
+                                $alreadyRestocked[$id] = ($alreadyRestocked[$id] ?? 0) + $qty;
+                            }
+                        }
+                    }
                 }
-                $order->steadfast_collected_amount = 0.00;
-                $order->steadfast_receivable_amount = 0.00;
+                $totalReturnedQty = array_sum($alreadyRestocked);
+                $totalKeptQty = max(0, $totalOrderedQty - $totalReturnedQty);
+
+                if ($totalReturnedQty > 0 && $totalKeptQty > 0) {
+                    // PARTIAL RETURN / PARTIAL DELIVERY: customer kept part of the items
+                    $order->status = 'delivered';
+                    $order->is_partial_delivery = true;
+                    $order->payment_status = 'paid';
+
+                    $keptSubtotal = 0.0;
+                    $returnedSubtotal = 0.0;
+                    foreach ($order->items as $it) {
+                        $retQty = $alreadyRestocked[$it->id] ?? 0;
+                        $keptQty = max(0, (int) $it->quantity - $retQty);
+                        $keptSubtotal += ($keptQty * (float) $it->price);
+                        $returnedSubtotal += ($retQty * (float) $it->price);
+                    }
+
+                    $deliveryCost = (float) ($order->steadfast_delivery_charge ?: ($order->shipping_cost ?: 70.0));
+                    $discount = (float) ($order->discount ?: 0.0);
+                    $calculatedCollected = max(0, round($keptSubtotal + $deliveryCost - $discount, 2));
+
+                    if ($request->filled('collected_amount')) {
+                        $order->steadfast_collected_amount = max(0, (float) $request->input('collected_amount'));
+                    } elseif (!($order->steadfast_collected_amount > 0)) {
+                        $order->steadfast_collected_amount = $calculatedCollected;
+                    }
+                    $order->steadfast_delivery_charge = $deliveryCost;
+                    $order->steadfast_cod_charge = round($order->steadfast_collected_amount * 0.01, 2);
+                    $order->steadfast_receivable_amount = max(0, round($order->steadfast_collected_amount - $order->steadfast_delivery_charge - $order->steadfast_cod_charge, 2));
+                    $order->refunded_amount = round($returnedSubtotal, 2);
+                } else {
+                    // FULL RETURN: all items returned
+                    $order->status = 'returned';
+                    $order->is_partial_delivery = false;
+                    if ($order->payment_status === 'paid') {
+                        $order->payment_status = 'refunded';
+                    } else {
+                        $order->payment_status = 'pending';
+                    }
+
+                    $deliveryCost = (float) ($order->steadfast_delivery_charge ?: ($order->shipping_cost ?: 70.0));
+                    $order->steadfast_delivery_charge = $deliveryCost;
+
+                    if ($request->filled('collected_amount') && (float) $request->input('collected_amount') > 0) {
+                        $order->steadfast_collected_amount = (float) $request->input('collected_amount');
+                        $order->steadfast_cod_charge = round($order->steadfast_collected_amount * 0.01, 2);
+                        $order->steadfast_receivable_amount = max(0, round($order->steadfast_collected_amount - $deliveryCost - $order->steadfast_cod_charge, 2));
+                    } else {
+                        $order->steadfast_collected_amount = 0.00;
+                        $order->steadfast_receivable_amount = 0.00;
+                    }
+                    $order->refunded_amount = (float) $order->total;
+                }
+            } else {
+                if ($statusChanged) {
+                    $order->status = $newStatus;
+                }
             }
             
             // Add to status timestamps
@@ -447,6 +513,7 @@ class OrderController extends Controller
         return response()->json([
             'message' => $successMessage,
             'status' => $order->status,
+            'is_partial_delivery' => (bool) $order->is_partial_delivery,
             'is_stock_deducted' => (bool) $order->is_stock_deducted,
             'reload' => in_array($newStatus, ['returned', 'cancelled']) || $hasRestockSelections,
             'steadfast_booked' => $steadfastBooked,
@@ -634,20 +701,40 @@ class OrderController extends Controller
         // Check if status changed to delivered
         $oldStatus = $order->status;
         $normalizedStatus = strtolower(trim((string)$deliveryStatus));
-        $isDelivered = in_array($normalizedStatus, ['delivered', 'partial_delivered', 'partial delivered']);
+
+        // CRITICAL GUARD: If order is already in returned or cancelled status, Steadfast sync MUST NOT revert it to delivered!
+        if (in_array($oldStatus, ['returned', 'cancelled'])) {
+            $isDelivered = false;
+        } else {
+            $isDelivered = in_array($normalizedStatus, ['delivered', 'partial_delivered', 'partial delivered']);
+        }
+
+        if (in_array($normalizedStatus, ['partial_delivered', 'partial delivered'])) {
+            $order->is_partial_delivery = true;
+        }
 
         // Determine delivery charge & COD
         $deliveryCharge = $apiDeliveryCharge ?: ($order->steadfast_delivery_charge > 0 ? $order->steadfast_delivery_charge : ($order->shipping_cost > 0 ? $order->shipping_cost : 70.0));
-        $codAmount = $apiCodAmount !== null ? (float)$apiCodAmount : ($order->steadfast_collected_amount > 0 ? (float)$order->steadfast_collected_amount : ($order->payment_status === 'paid' ? 0.0 : (float)$order->total));
 
-        $payout = \App\Http\Controllers\Api\SteadfastWebhookController::calculatePayout((float)$codAmount, (float)$deliveryCharge);
+        if (in_array($oldStatus, ['returned', 'cancelled'])) {
+            // Keep returned financial fields clean, do not overwrite to full order total!
+            $payout = [
+                'cod_amount' => (float) $order->steadfast_collected_amount,
+                'delivery_charge' => (float) $deliveryCharge,
+                'cod_charge' => (float) $order->steadfast_cod_charge,
+                'net_receivable' => (float) $order->steadfast_receivable_amount,
+            ];
+        } else {
+            $codAmount = $apiCodAmount !== null ? (float)$apiCodAmount : ($order->steadfast_collected_amount > 0 ? (float)$order->steadfast_collected_amount : ($order->payment_status === 'paid' ? 0.0 : ($isDelivered && empty($order->is_partial_delivery) ? (float)$order->total : 0.0)));
+            $payout = \App\Http\Controllers\Api\SteadfastWebhookController::calculatePayout((float)$codAmount, (float)$deliveryCharge);
 
-        $order->steadfast_collected_amount = $payout['cod_amount'];
-        $order->steadfast_delivery_charge = $payout['delivery_charge'];
-        $order->steadfast_cod_charge = $payout['cod_charge'];
-        $order->steadfast_receivable_amount = $payout['net_receivable'];
+            $order->steadfast_collected_amount = $payout['cod_amount'];
+            $order->steadfast_delivery_charge = $payout['delivery_charge'];
+            $order->steadfast_cod_charge = $payout['cod_charge'];
+            $order->steadfast_receivable_amount = $payout['net_receivable'];
+        }
 
-        if ($isDelivered && $oldStatus !== 'delivered') {
+        if ($isDelivered && $oldStatus !== 'delivered' && !in_array($oldStatus, ['returned', 'cancelled'])) {
             $order->status = 'delivered';
             $order->payment_status = 'paid';
             $timestamps = is_array($order->status_timestamps) ? $order->status_timestamps : [];
@@ -663,7 +750,8 @@ class OrderController extends Controller
                     $addressParts = array_filter([$shipping['address'] ?? '', $shipping['city'] ?? '', $shipping['zone'] ?? '']);
                     $customerAddress = implode(', ', $addressParts);
 
-                    $msg = "🎉 <b>Steadfast Parcel Delivered!</b>\n\n";
+                    $headerTitle = !empty($order->is_partial_delivery) ? "📦 <b>Steadfast Parcel Partially Delivered!</b>\n\n" : "🎉 <b>Steadfast Parcel Delivered!</b>\n\n";
+                    $msg = $headerTitle;
                     $msg .= "📦 <b>Order ID:</b> #{$order->order_id}\n";
                     $msg .= "👤 <b>Customer:</b> {$customerName} ({$customerPhone})\n";
                     if (!empty($customerAddress)) {
@@ -1409,6 +1497,7 @@ class OrderController extends Controller
                 'deleted_ago' => $deletedAtCarbon ? $deletedAtCarbon->diffForHumans() : '',
                 'deleted_by' => $deletedBy,
                 'status' => $order->status,
+                'is_partial_delivery' => (bool) $order->is_partial_delivery,
                 'payment_status' => $order->payment_status ?? 'pending',
                 'source' => $order->order_source ?? 'website',
                 'items_count' => $order->items ? $order->items->count() : 0,

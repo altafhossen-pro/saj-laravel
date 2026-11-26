@@ -31,6 +31,20 @@
             <p class="font-bold text-gray-900 text-base">Total Amount</p>
             <p class="font-bold text-brand-600 text-lg">৳{{ number_format($order->total, 2) }}</p>
         </div>
+        @if($order->is_partial_delivery)
+        <div class="mt-2 pt-2 border-t border-dashed border-gray-200 space-y-1.5 text-xs">
+            <div class="flex justify-between text-amber-800 font-semibold">
+                <p>Partial Cash Collected</p>
+                <p>৳{{ number_format($order->steadfast_collected_amount, 2) }}</p>
+            </div>
+            @if($order->refunded_amount > 0)
+            <div class="flex justify-between text-rose-600">
+                <p>Returned Items Value</p>
+                <p>- ৳{{ number_format($order->refunded_amount, 2) }}</p>
+            </div>
+            @endif
+        </div>
+        @endif
     </div>
     
     <div class="mt-6 pt-4 border-t border-gray-100">
